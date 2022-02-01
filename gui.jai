@@ -8,11 +8,16 @@ MPD   :: #import "libmpdclient";
 
 // mpd_connection : *MPD.connection;
 
+KEY_J :: 74;
+KEY_K :: 75;
+KEY_P :: 80;
 KEY_Q :: 81;
 
-window_width  : s32 : 2560;
-window_height : s32 : 1440;
+// window_width  : s32 : 2560;
+// window_height : s32 : 1440;
 
+window_width  : s32 : 1920;
+window_height : s32 : 1080;
 
 window : Window_Type;
 
@@ -38,8 +43,8 @@ main :: () {
 
     // get test album
     // album_directory :: "vampire_weekend/2010_01-contra";
-    // album_directory :: "danny_brown/2013_10-old";
-    album_directory :: "lil_ugly_mane/2021_10-volcanic_bird_enemy_and_the_voiced_concern";
+    album_directory :: "danny_brown/2013_10-old";
+    // album_directory :: "lil_ugly_mane/2021_10-volcanic_bird_enemy_and_the_voiced_concern";
     // album_directory :: "the_angelic_process/2007_05-weighing_souls_with_sand";
 
     assert(mpd_connection != null);
@@ -53,9 +58,10 @@ main :: () {
         print("Recovered\n");
     }
 
-    artist : string;
-    album  : string;
-    songs  : [..] string;
+    artist    : string;
+    album     : string;
+    songs     : [..] string;
+    song_URIs : [..] string;
 
     entity := MPD.recv_entity(mpd_connection);
     error = check_connection_errors(mpd_connection);
@@ -73,8 +79,10 @@ main :: () {
         if MPD.entity_get_type(entity) == .SONG {
             song  := MPD.entity_get_song(entity);
             title := to_string(MPD.song_get_tag(song, .TITLE, 0));
+            uri := to_string(MPD.song_get_uri(song));
             if title {
-                array_add(*songs, title);
+                array_add(*songs    , title);
+                array_add(*song_URIs, uri);
                 if songs.count == 1 {
                     artist = to_string(MPD.song_get_tag(song, .ALBUM_ARTIST, 0));
                     album  = to_string(MPD.song_get_tag(song, .ALBUM, 0));
@@ -91,9 +99,6 @@ main :: () {
 
         reset_temporary_storage();
     }
-    print("artist: %\n", artist);
-    print("album: %\n", album);
-    print("songs: %\n", songs);
 
     error = check_connection_errors(mpd_connection);
     if error {
@@ -102,6 +107,7 @@ main :: () {
         print("Recovered\n");
     }
 
+    VOLUME_CHANGE_AMOUNT :: 5;
     quit := false;
     while !quit {
 
@@ -113,12 +119,42 @@ main :: () {
                 break;
 
               case .KEYBOARD;
-                if it.key_pressed && it.key_code == KEY_Q {
-                    quit = true;
-                    break it;
+                if it.key_pressed {
+                    if it.key_code == {
+                      case KEY_Q;
+                        quit = true;
+                        break it;
+                      case KEY_J;
+                        CURSOR_INDEX += 1;
+                        if CURSOR_INDEX >= songs.count CURSOR_INDEX = songs.count - 1;
+                      case KEY_K;
+                        CURSOR_INDEX -= 1;
+                        if CURSOR_INDEX < 0 CURSOR_INDEX = 0;
+                      case .ENTER;
+                        id := MPD.run_add_id(mpd_connection, to_c_string(song_URIs[CURSOR_INDEX]));
+                        if id >= 0 {
+                            MPD.run_play_id(mpd_connection, cast(u32)id);
+                        }
+                      case .ARROW_UP;
+                        MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
+                      case .ARROW_DOWN;
+                        MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
+                    }
                 }
+
+                // if it.key_pressed print("key_code: %\n", it.key_code);
             }
         }
+
+        // TODO: figure out how to support held keys without it updating EVERY frame
+        // if Input.input_button_states[KEY_J] & .DOWN {
+        //     CURSOR_INDEX += 1;
+        //     if CURSOR_INDEX >= songs.count CURSOR_INDEX = songs.count - 1;
+        // }
+        // if Input.input_button_states[KEY_K] & .DOWN {
+        //     CURSOR_INDEX -= 1;
+        //     if CURSOR_INDEX < 0 CURSOR_INDEX = 0;
+        // }
 
         draw_one_frame(album_art_texture, artist, album, songs);
     }
@@ -126,6 +162,8 @@ main :: () {
     print("Exiting\n");
     MPD.connection_free(mpd_connection);
 }
+
+CURSOR_INDEX := 0;
 
 draw_one_frame :: (album_art: *Simp.Texture, artist: string, album: string, songs: [] string) {
 
@@ -175,7 +213,15 @@ draw_one_frame :: (album_art: *Simp.Texture, artist: string, album: string, song
     for song: songs {
         width := Simp.prepare_text(font, tprint("% - %", it_index + 1, song));
         x := window_width / 2;
-        Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+        if it_index == CURSOR_INDEX {
+            Simp.immediate_begin();
+            Simp.set_shader_for_color();
+            Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + 500, cast(float)y + font.character_height, rgba(1,1,1,1));
+            Simp.immediate_flush();
+            Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+        } else {
+            Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+        }
         y -= text_padding_y + font.character_height;
     }
 
