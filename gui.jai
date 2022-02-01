@@ -77,7 +77,7 @@ main :: () {
                 array_add(*songs, title);
                 if songs.count == 1 {
                     artist = to_string(MPD.song_get_tag(song, .ALBUM_ARTIST, 0));
-                    album  = to_string(MPD.song_get_tag(song, .TITLE, 0));
+                    album  = to_string(MPD.song_get_tag(song, .ALBUM, 0));
                 }
             }
         }
