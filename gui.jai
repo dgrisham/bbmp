@@ -8,10 +8,12 @@ MPD   :: #import "libmpdclient";
 
 // mpd_connection : *MPD.connection;
 
+KEY_D :: 68;
 KEY_J :: 74;
 KEY_K :: 75;
 KEY_P :: 80;
 KEY_Q :: 81;
+KEY_U :: 85;
 
 // window_width  : s32 : 2560;
 // window_height : s32 : 1440;
@@ -43,8 +45,8 @@ main :: () {
 
     // get test album
     // album_directory :: "vampire_weekend/2010_01-contra";
-    album_directory :: "danny_brown/2013_10-old";
-    // album_directory :: "lil_ugly_mane/2021_10-volcanic_bird_enemy_and_the_voiced_concern";
+    // album_directory :: "danny_brown/2013_10-old";
+    album_directory :: "lil_ugly_mane/2021_10-volcanic_bird_enemy_and_the_voiced_concern";
     // album_directory :: "the_angelic_process/2007_05-weighing_souls_with_sand";
 
     assert(mpd_connection != null);
@@ -121,28 +123,40 @@ main :: () {
               case .KEYBOARD;
                 if it.key_pressed {
                     if it.key_code == {
-                      case KEY_Q;
-                        quit = true;
-                        break it;
+
                       case KEY_J;
                         CURSOR_INDEX += 1;
                         if CURSOR_INDEX >= songs.count CURSOR_INDEX = songs.count - 1;
                       case KEY_K;
                         CURSOR_INDEX -= 1;
                         if CURSOR_INDEX < 0 CURSOR_INDEX = 0;
+                      case KEY_D;
+                        CURSOR_INDEX += 5;
+                        if CURSOR_INDEX >= songs.count CURSOR_INDEX = songs.count - 1;
+                      case KEY_U;
+                        CURSOR_INDEX -= 5;
+                        if CURSOR_INDEX < 0 CURSOR_INDEX = 0;
+
                       case .ENTER;
                         id := MPD.run_add_id(mpd_connection, to_c_string(song_URIs[CURSOR_INDEX]));
                         if id >= 0 {
                             MPD.run_play_id(mpd_connection, cast(u32)id);
                         }
+
                       case .ARROW_UP;
                         MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
                       case .ARROW_DOWN;
                         MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
+
+                      case KEY_Q;
+                        quit = true;
+                        break it;
+
+                      case;
+                        print("key_code: %\n", it.key_code);
                     }
                 }
 
-                // if it.key_pressed print("key_code: %\n", it.key_code);
             }
         }
 
