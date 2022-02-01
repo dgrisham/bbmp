@@ -69,16 +69,11 @@ main :: () {
     MPD.connection_free(connection);
 }
 
-Error_Type :: enum {
-    SERVER;
-    CLIENT;
-}
-
 Error :: struct {
     code: MPD.server_error;
     message: string;
     recovered: bool;
-    type: Error_Type;
+    type: enum { SERVER; CLIENT; };
 }
 
 Server_Error :: struct {
