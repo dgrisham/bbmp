@@ -571,7 +571,7 @@ draw_one_frame :: (columns: [3] [..] string) {
 
     left_bound := 200;
     x_spacing := 700;
-    original_y := cast(int)window_height * 4 / 5;
+    original_y := cast(int) (window_height / 2 + ITEMS_IN_PAGE * (font.character_height + text_padding_y) / 2);
     text_padding_y :: 5;
 
     {
