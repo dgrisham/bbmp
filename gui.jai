@@ -7,6 +7,7 @@ Input :: #import "Input";
 MPD   :: #import "libmpdclient";
 
 KEY_B :: 66;
+KEY_C :: 67;
 KEY_D :: 68;
 KEY_F :: 70;
 KEY_H :: 72;
@@ -21,11 +22,11 @@ KEY_U :: 85;
 // TODO: get NOW_PLAYING_URI on start from mpd (+ maybe always use mpd to set it)
 NOW_PLAYING_URI: string;
 
-// window_width  : s32 : 2560;
-// window_height : s32 : 1440;
+window_width  : s32 : 2560;
+window_height : s32 : 1440;
 
-window_width  : s32 : 1920;
-window_height : s32 : 1080;
+// window_width  : s32 : 1920;
+// window_height : s32 : 1080;
 
 window : Window_Type;
 
@@ -67,7 +68,7 @@ Cursor :: struct {
 
 cursor: Cursor;
 
-ITEMS_IN_PAGE :: 30;
+ITEMS_IN_PAGE :: 50;
 
 main :: () {
 
@@ -268,6 +269,11 @@ main :: () {
                       case KEY_P;
                         assert(mpd_connection != null);
                         MPD.run_toggle_pause(mpd_connection);
+                        handle_errors(mpd_connection);
+
+                      case KEY_C;
+                        assert(mpd_connection != null);
+                        MPD.run_clear(mpd_connection);
                         handle_errors(mpd_connection);
 
                       // case KEY_O;
@@ -565,7 +571,7 @@ draw_one_frame :: (columns: [3] [..] string) {
 
     left_bound := 200;
     x_spacing := 700;
-    original_y := window_height * 9 / 10 - font.character_height / 4;
+    original_y := cast(int)window_height * 4 / 5;
     text_padding_y :: 5;
 
     {
@@ -653,7 +659,7 @@ draw_one_frame :: (columns: [3] [..] string) {
 // TODO: load/use font for asian/etc. characters (maybe one of the expanded inconsolata sets?)
 font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
-    pixel_height := window_height / 64;
+    pixel_height := window_height / 96;
 
     font = Simp.get_font_at_size(".", "Inconsolata-Regular.ttf", pixel_height);
     assert(font != null);
