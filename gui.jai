@@ -62,6 +62,8 @@ Cursor :: struct {
 
 cursor: Cursor;
 
+mpd_connection: *MPD.connection;
+
 main :: () {
 
     init_fonts();
@@ -69,47 +71,46 @@ main :: () {
     window = create_window(window_width, window_height, "ncmpjai");
     Simp.set_render_target(window);
 
-    mpd_connection := MPD.connection_new(null, 0, 0);
-
+    mpd_connection = MPD.connection_new(null, 0, 0);
     if mpd_connection == null {
         print("Out of memory\n");
         exit(1);
     }
-    handle_errors(mpd_connection);
+    handle_errors();
 
     directory :: "";
 
-    get_artists :: (connection: *MPD.connection) -> [] Artist {
-        assert(connection != null);
-        MPD.search_db_tags(connection, .ALBUM_ARTIST);
-        MPD.search_commit(connection);
-        handle_errors(connection);
+    get_artists :: () -> [] Artist {
+        assert(mpd_connection != null);
+        MPD.search_db_tags(mpd_connection, .ALBUM_ARTIST);
+        MPD.search_commit(mpd_connection);
+        handle_errors();
 
         artists : [..] Artist;
-        pair := MPD.recv_pair_tag(connection, .ALBUM_ARTIST);
+        pair := MPD.recv_pair_tag(mpd_connection, .ALBUM_ARTIST);
         while pair {
             artist: Artist;
             artist.name = copy_string(to_string(pair.value));
             array_add(*artists, artist);
 
-            MPD.return_pair(connection, pair);
-            pair = MPD.recv_pair_tag(connection, .ALBUM_ARTIST);
+            MPD.return_pair(mpd_connection, pair);
+            pair = MPD.recv_pair_tag(mpd_connection, .ALBUM_ARTIST);
         }
-        handle_errors(connection);
+        handle_errors();
         return artists;
     }
-    artists := get_artists(mpd_connection);
+    artists := get_artists();
 
-    get_albums_for_artist :: (connection: *MPD.connection, artist: string) -> [] Album {
+    get_albums_for_artist :: (artist: string) -> [] Album {
         albums: [..] Album;
 
-        MPD.search_db_songs(connection, true);
-        MPD.search_add_tag_constraint(connection, .MPD_OPERATOR_DEFAULT, .ALBUM_ARTIST, temp_c_string(artist));
-        MPD.search_add_sort_tag(connection, .DATE, false);
-        MPD.search_commit(connection);
-        handle_errors(connection);
+        MPD.search_db_songs(mpd_connection, true);
+        MPD.search_add_tag_constraint(mpd_connection, .MPD_OPERATOR_DEFAULT, .ALBUM_ARTIST, temp_c_string(artist));
+        MPD.search_add_sort_tag(mpd_connection, .DATE, false);
+        MPD.search_commit(mpd_connection);
+        handle_errors();
 
-        mpd_song := MPD.recv_song(connection);
+        mpd_song := MPD.recv_song(mpd_connection);
         while mpd_song {
             album_name := to_string(MPD.song_get_tag(mpd_song, .ALBUM, 0));
             found := false;
@@ -124,25 +125,25 @@ main :: () {
             }
 
             MPD.song_free(mpd_song);
-            mpd_song = MPD.recv_song(connection);
+            mpd_song = MPD.recv_song(mpd_connection);
         }
-        handle_errors(connection);
+        handle_errors();
 
         return albums;
     }
-    albums := get_albums_for_artist(mpd_connection, artists[0].name);
+    albums := get_albums_for_artist(artists[0].name);
 
-    get_songs_for_album :: (connection: *MPD.connection, artist: string, album: string) -> [] Song {
+    get_songs_for_album :: (artist: string, album: string) -> [] Song {
         songs: [..] Song;
 
-        MPD.search_db_songs(connection, true);
-        MPD.search_add_tag_constraint(connection, .MPD_OPERATOR_DEFAULT, .ALBUM_ARTIST, temp_c_string(artist));
-        MPD.search_add_tag_constraint(connection, .MPD_OPERATOR_DEFAULT, .ALBUM,        temp_c_string(album));
-        MPD.search_add_sort_tag(connection, .TRACK, false);
-        MPD.search_commit(connection);
-        handle_errors(connection);
+        MPD.search_db_songs(mpd_connection, true);
+        MPD.search_add_tag_constraint(mpd_connection, .MPD_OPERATOR_DEFAULT, .ALBUM_ARTIST, temp_c_string(artist));
+        MPD.search_add_tag_constraint(mpd_connection, .MPD_OPERATOR_DEFAULT, .ALBUM,        temp_c_string(album));
+        MPD.search_add_sort_tag(mpd_connection, .TRACK, false);
+        MPD.search_commit(mpd_connection);
+        handle_errors();
 
-        mpd_song := MPD.recv_song(connection);
+        mpd_song := MPD.recv_song(mpd_connection);
         while mpd_song {
             song: Song;
             song.name  = copy_string(to_string(MPD.song_get_tag(mpd_song, .TITLE, 0)));
@@ -151,12 +152,13 @@ main :: () {
             array_add(*songs, song);
 
             MPD.song_free(mpd_song);
-            mpd_song = MPD.recv_song(connection);
+            mpd_song = MPD.recv_song(mpd_connection);
         }
+        handle_errors();
 
         return songs;
     }
-    songs := get_songs_for_album(mpd_connection, artists[0].name, albums[0].name);
+    songs := get_songs_for_album(artists[0].name, albums[0].name);
 
     columns: [3] [..] string;
 
@@ -195,27 +197,29 @@ main :: () {
     last_key_pressed: Input.Key_Code;
 
     // TODO: might be better to just add the entire directory if we can figure out an easy way to map between those and artists/albums
-    add_album_to_queue :: (connection: *MPD.connection, artist_name: string, album_name: string) -> s32 {
+    add_album_to_queue :: (artist_name: string, album_name: string) -> s32 {
         first_id_added: s32;
-        for song: get_songs_for_album(connection, artist_name, album_name) {
-            id := MPD.run_add_id(connection, temp_c_string(song.uri));
+        for song: get_songs_for_album(artist_name, album_name) {
+            id := MPD.run_add_id(mpd_connection, temp_c_string(song.uri));
             if it_index == 0 {
                 first_id_added = id;
             }
         }
+        handle_errors();
         return first_id_added;
     }
-    add_artist_to_queue :: (connection: *MPD.connection, artist_name: string) -> s32 {
+    add_artist_to_queue :: (artist_name: string) -> s32 {
         first_id_added: s32;
-        for album, album_index: get_albums_for_artist(connection, artist_name) {
+        for album, album_index: get_albums_for_artist(artist_name) {
             id: s32;
-            for song, song_index: get_songs_for_album(connection, artist_name, album.name) {
-                id = MPD.run_add_id(connection, temp_c_string(song.uri));
+            for song, song_index: get_songs_for_album(artist_name, album.name) {
+                id = MPD.run_add_id(mpd_connection, temp_c_string(song.uri));
                 if album_index == 0 && song_index == 0 {
                     first_id_added = id;
                 }
             }
         }
+        handle_errors();
         return first_id_added;
     }
 
@@ -270,12 +274,12 @@ main :: () {
                       case KEY_P;
                         assert(mpd_connection != null);
                         MPD.run_toggle_pause(mpd_connection);
-                        handle_errors(mpd_connection);
+                        handle_errors();
 
                       case KEY_C;
                         assert(mpd_connection != null);
                         MPD.run_clear(mpd_connection);
-                        handle_errors(mpd_connection);
+                        handle_errors();
 
                       // case KEY_O;
                       //   for song: songs if song.uri == NOW_PLAYING_URI new_cursor.positions[new_cursor.selected] = it_index;
@@ -286,9 +290,9 @@ main :: () {
                         assert(mpd_connection != null);
                         if cursor.selected == {
                           case 0;
-                            add_artist_to_queue(mpd_connection, artists[cursor.positions[0]].name);
+                            add_artist_to_queue(artists[cursor.positions[0]].name);
                           case 1;
-                            add_album_to_queue(mpd_connection, artists[cursor.positions[0]].name, albums[cursor.positions[1]].name);
+                            add_album_to_queue(artists[cursor.positions[0]].name, albums[cursor.positions[1]].name);
                           case 2;
                             MPD.run_add_id(mpd_connection, temp_c_string(songs[new_cursor.positions[2]].uri));
                         }
@@ -302,9 +306,9 @@ main :: () {
                         assert(mpd_connection != null);
                         if cursor.selected == {
                           case 0;
-                            song_id_to_play = add_artist_to_queue(mpd_connection, artists[cursor.positions[0]].name);
+                            song_id_to_play = add_artist_to_queue(artists[cursor.positions[0]].name);
                           case 1;
-                            song_id_to_play = add_album_to_queue(mpd_connection, artists[cursor.positions[0]].name, albums[cursor.positions[1]].name);
+                            song_id_to_play = add_album_to_queue(artists[cursor.positions[0]].name, albums[cursor.positions[1]].name);
                           case 2;
                             song_id_to_play = MPD.run_add_id(mpd_connection, temp_c_string(songs[cursor.positions[2]].uri));
                         }
@@ -313,7 +317,7 @@ main :: () {
                         if song_id_to_play >= 0 { // play first song that was added
                             assert(mpd_connection != null);
                             MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
-                            handle_errors(mpd_connection);
+                            handle_errors();
                         }
 
                       case KEY_B;
@@ -321,39 +325,39 @@ main :: () {
                         last_key_pressed = KEY_B;
                         assert(mpd_connection != null);
                         MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
-                        handle_errors(mpd_connection);
+                        handle_errors();
                       case KEY_F;
                         f_pressed_on_frame = frame;
                         last_key_pressed = KEY_F;
                         assert(mpd_connection != null);
                         MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
-                        handle_errors(mpd_connection);
+                        handle_errors();
 
                       case .LEFT_ANGLE_BRACKET;
                         left_angle_bracket_pressed_on_frame = frame;
                         last_key_pressed = .LEFT_ANGLE_BRACKET;
                         assert(mpd_connection != null);
                         MPD.run_previous(mpd_connection);
-                        handle_errors(mpd_connection);
+                        handle_errors();
                       case .RIGHT_ANGLE_BRACKET;
                         right_angle_bracket_pressed_on_frame = frame;
                         last_key_pressed = .RIGHT_ANGLE_BRACKET;
                         assert(mpd_connection != null);
                         MPD.run_next(mpd_connection);
-                        handle_errors(mpd_connection);
+                        handle_errors();
 
                       case .EQUALS_SIGN;
                         equals_pressed_on_frame = frame;
                         last_key_pressed = .EQUALS_SIGN;
                         assert(mpd_connection != null);
                         MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
-                        handle_errors(mpd_connection);
+                        handle_errors();
                       case .DASH;
                         dash_pressed_on_frame = frame;
                         last_key_pressed = .DASH;
                         assert(mpd_connection != null);
                         MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
-                        handle_errors(mpd_connection);
+                        handle_errors();
 
                       case KEY_Q;
                         quit = true;
@@ -426,7 +430,7 @@ main :: () {
         {
             assert(mpd_connection != null);
             MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
-            handle_errors(mpd_connection);
+            handle_errors();
         } else
         if Input.input_button_states[Input.Key_Code.DASH] & .DOWN &&
            frame % 2                                              &&
@@ -435,7 +439,7 @@ main :: () {
         {
             assert(mpd_connection != null);
             MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
-            handle_errors(mpd_connection);
+            handle_errors();
         }
 
         if Input.input_button_states[Input.Key_Code.LEFT_ANGLE_BRACKET] & .DOWN &&
@@ -445,7 +449,7 @@ main :: () {
         {
             assert(mpd_connection != null);
             MPD.run_previous(mpd_connection);
-            handle_errors(mpd_connection);
+            handle_errors();
         } else
         if Input.input_button_states[Input.Key_Code.RIGHT_ANGLE_BRACKET] & .DOWN &&
            frame % 2                                                             &&
@@ -454,7 +458,7 @@ main :: () {
         {
             assert(mpd_connection != null);
             MPD.run_next(mpd_connection);
-            handle_errors(mpd_connection);
+            handle_errors();
         }
 
         if Input.input_button_states[KEY_B] & .DOWN &&
@@ -464,7 +468,7 @@ main :: () {
         {
             assert(mpd_connection != null);
             MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
-            handle_errors(mpd_connection);
+            handle_errors();
         } else
         if Input.input_button_states[KEY_F] & .DOWN &&
            frame % 2                                &&
@@ -473,7 +477,7 @@ main :: () {
         {
             assert(mpd_connection != null);
             MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
-            handle_errors(mpd_connection);
+            handle_errors();
         }
 
         if Input.input_button_states[Input.Key_Code.ENTER] & .DOWN &&
@@ -486,9 +490,9 @@ main :: () {
             assert(mpd_connection != null);
             if cursor.selected == {
               case 0;
-                song_id_to_play = add_artist_to_queue(mpd_connection, artists[cursor.positions[0]].name);
+                song_id_to_play = add_artist_to_queue(artists[cursor.positions[0]].name);
               case 1;
-                song_id_to_play = add_album_to_queue(mpd_connection, artists[cursor.positions[0]].name, albums[cursor.positions[1]].name);
+                song_id_to_play = add_album_to_queue(artists[cursor.positions[0]].name, albums[cursor.positions[1]].name);
               case 2;
                 song_id_to_play = MPD.run_add_id(mpd_connection, temp_c_string(songs[cursor.positions[2]].uri));
             }
@@ -497,7 +501,7 @@ main :: () {
             if song_id_to_play >= 0 { // play first song that was added
                 assert(mpd_connection != null);
                 MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
-                handle_errors(mpd_connection);
+                handle_errors();
             }
         }
 
@@ -509,9 +513,9 @@ main :: () {
             assert(mpd_connection != null);
             if cursor.selected == {
               case 0;
-                add_artist_to_queue(mpd_connection, artists[cursor.positions[0]].name);
+                add_artist_to_queue(artists[cursor.positions[0]].name);
               case 1;
-                add_album_to_queue(mpd_connection, artists[cursor.positions[0]].name, albums[cursor.positions[1]].name);
+                add_album_to_queue(artists[cursor.positions[0]].name, albums[cursor.positions[1]].name);
               case 2;
                 MPD.run_add_id(mpd_connection, temp_c_string(songs[new_cursor.positions[2]].uri));
             }
@@ -540,7 +544,7 @@ main :: () {
 
                 if it_index < 1 { // update albums
                     for albums free(it);
-                    albums = get_albums_for_artist(mpd_connection, artists[new_cursor.positions[0]].name);
+                    albums = get_albums_for_artist(artists[new_cursor.positions[0]].name);
 
                     for columns[1] free(it);
                     array_resize(*columns[1], albums.count);
@@ -551,7 +555,7 @@ main :: () {
 
                 if it_index < 2 { // update songs
                     for songs free(it);
-                    songs = get_songs_for_album(mpd_connection, artists[new_cursor.positions[0]].name, albums[new_cursor.positions[1]].name);
+                    songs = get_songs_for_album(artists[new_cursor.positions[0]].name, albums[new_cursor.positions[1]].name);
 
                     for columns[2] free(it);
                     array_resize(*columns[2], songs.count);
@@ -706,29 +710,50 @@ Client_Error :: struct {
     type = .CLIENT;
 }
 
-handle_errors :: inline (connection: *MPD.connection) {
-    error := check_connection_errors(connection);
+// TODO: add string arg to this to prefix error output with
+// handle_errors :: (msg: string) {
+handle_errors :: () {
+    error := check_connection_errors();
     if error {
         print("% error: code=%, message='%', recovered=%\n", error.type, error.code, error.message, error.recovered);
-        if !error.recovered exit(1);
+        if !error.recovered {
+            print("Failed to recover from error, attempting to reconnect to MPD\n");
+
+            MPD.run_clear(mpd_connection);
+            mpd_connection = MPD.connection_new(null, 0, 0);
+            if mpd_connection == null {
+                print("MPD reconnect failed, might be out of memory. Exiting\n");
+                exit(1);
+            }
+
+            new_connection_error := check_connection_errors();
+            while new_connection_error {
+                MPD.run_clear(mpd_connection);
+                mpd_connection = MPD.connection_new(null, 0, 0);
+                new_connection_error = check_connection_errors();
+                print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", error.type, error.code, error.message, error.recovered);
+            }
+
+            print("Successfully reconnected to MPD\n");
+        }
         print("Recovered from error\n");
     }
 }
 
-check_connection_errors :: (connection: *MPD.connection) -> *Error {
-	error_code := MPD.connection_get_error(connection);
+check_connection_errors :: () -> *Error {
+	error_code := MPD.connection_get_error(mpd_connection);
 	if (error_code != .SUCCESS) {
-		msg := copy_string(to_string(MPD.connection_get_error_message(connection)));
+		msg := copy_string(to_string(MPD.connection_get_error_message(mpd_connection)));
 
 		if error_code == .SERVER {
     		error := New(Server_Error);
-			error.code      = MPD.connection_get_server_error(connection);
-			error.recovered = MPD.connection_clear_error(connection);
+			error.code      = MPD.connection_get_server_error(mpd_connection);
+			error.recovered = MPD.connection_clear_error(mpd_connection);
 			return error;
 		} else {
     		error := New(Client_Error);
     		error.message   = msg;
-			error.recovered = MPD.connection_clear_error(connection);
+			error.recovered = MPD.connection_clear_error(mpd_connection);
 			return error;
 		}
 	}
