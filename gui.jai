@@ -84,7 +84,6 @@ main :: () {
     }
     handle_errors(mpd_connection);
 
-    // album_directory :: "ariana_grande/2018_08-sweetener";
     directory :: "";
 
     get_artists :: (connection: *MPD.connection) -> [] Artist {
@@ -199,7 +198,7 @@ main :: () {
     left_angle_bracket_pressed_on_frame  := 0;
     right_angle_bracket_pressed_on_frame := 0;
 
-    // TODO: these are slow. figure out how to map between directories and artists/albums
+    // TODO: might be better to just add the entire directory if we can figure out an easy way to map between those and artists/albums
     add_album_to_queue :: (connection: *MPD.connection, artist_name: string, album_name: string) -> s32 {
         first_id_added: s32;
         for song: get_songs_for_album(connection, artist_name, album_name) {
@@ -487,7 +486,7 @@ main :: () {
         }
 
         if Input.input_button_states[Input.Key_Code.SPACEBAR] & .DOWN &&
-           frame % 2                                    &&
+           frame % 2                                                  &&
            frame > space_pressed_on_frame + 20
         {
             assert(mpd_connection != null);
@@ -500,18 +499,7 @@ main :: () {
                 MPD.run_add_id(mpd_connection, temp_c_string(songs[new_cursor.positions[2]].uri));
             }
             new_cursor.positions[new_cursor.selected] += 1;
-            space_pressed_on_frame = frame;
         }
-
-        // if Input.input_button_states[Input.Key_Code.SPACEBAR] & .DOWN &&
-        //    frame % 2                                                  &&
-        //    frame > space_pressed_on_frame + KEY_HOLD_DELAY
-        // {
-        //     assert(mpd_connection != null);
-        //     id := MPD.run_add_id(mpd_connection, temp_c_string(songs[new_cursor.positions[new_cursor.selected]].uri));
-        //     handle_errors(mpd_connection);
-        //     new_cursor.positions[new_cursor.selected] += 1;
-        // }
 
         if new_cursor.selected != cursor.selected {
             if new_cursor.selected < 0
@@ -522,7 +510,7 @@ main :: () {
 
         for * new_cursor.positions {
 
-            if (<<it) != cursor.positions[it_index] {
+            if (<<it) != cursor.positions[it_index] { // cursor changed
                 if <<it < 0 {
                     <<it = 0;
                 } else
