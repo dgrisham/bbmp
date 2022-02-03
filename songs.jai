@@ -25,10 +25,10 @@ window_height : s32 : 1080;
 
 window : Window_Type;
 
-Artist  :: struct {
-    name   : string;
-    // albums : [..] Album;
-};
+// Artist  :: struct {
+//     name   : string;
+//     albums : [..] Album;
+// };
 
 // Album :: struct {
 //     name        : string;
@@ -45,7 +45,7 @@ Song :: struct {
     uri    : string;
 }
 
-ARTISTS_IN_PAGE :: 30;
+SONGS_IN_PAGE :: 30;
 
 main :: () {
 
@@ -66,22 +66,37 @@ main :: () {
     directory :: "";
 
     assert(mpd_connection != null);
-    MPD.search_db_tags(mpd_connection, .ALBUM_ARTIST);
-    MPD.search_commit(mpd_connection);
+    MPD.send_list_all_meta(mpd_connection, "");
     handle_errors(mpd_connection);
 
-    pair := MPD.recv_pair_tag(mpd_connection, .ALBUM_ARTIST);
+    entity := MPD.recv_entity(mpd_connection);
+    handle_errors(mpd_connection);
 
-    // TODO: we can get mpd stats on artists and init the array size accordingly
-    artists : [..] Artist;
-    // songs   : [..] Song;
-    while pair {
-        artist: Artist;
-        artist.name = copy_string(to_string(pair.value));
-        array_add(*artists, artist);
+    // TODO: we can probably get mpd stats and init the sizes of these tables accordingly
+    // artists : Table(string, Artist);
+    // albums  : Table(string, Album);
 
-        MPD.return_pair(mpd_connection, pair);
-        pair = MPD.recv_pair_tag(mpd_connection, .ALBUM_ARTIST);
+    songs: [..] Song;
+    while entity {
+        if MPD.entity_get_type(entity) == .SONG {
+            mpd_song := MPD.entity_get_song(entity);
+            song: Song;
+            song.title  = to_string(MPD.song_get_tag(mpd_song, .TITLE, 0));
+            if song.title {
+                song.artist = to_string(MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0));
+                song.album  = to_string(MPD.song_get_tag(mpd_song, .ALBUM       , 0));
+                song.track  = to_string(MPD.song_get_tag(mpd_song, .TRACK       , 0));
+                song.uri    = to_string(MPD.song_get_uri(mpd_song));
+                array_add(*songs, song);
+            }
+        } else {
+            MPD.entity_free(entity);
+        }
+
+        entity = MPD.recv_entity(mpd_connection);
+        handle_errors(mpd_connection);
+
+        reset_temporary_storage();
     }
 
     VOLUME_CHANGE_AMOUNT :: 1;
@@ -119,21 +134,21 @@ main :: () {
                         CURSOR_INDEX -= 1;
                         k_pressed_on_frame = frame;
                       case KEY_D;
-                        CURSOR_INDEX += ARTISTS_IN_PAGE;
+                        CURSOR_INDEX += SONGS_IN_PAGE;
                         d_pressed_on_frame = frame;
                       case KEY_U;
-                        CURSOR_INDEX -= ARTISTS_IN_PAGE;
+                        CURSOR_INDEX -= SONGS_IN_PAGE;
                         u_pressed_on_frame = frame;
 
-                      // case KEY_O;
-                      //   for song: songs if song.uri == NOW_PLAYING_URI CURSOR_INDEX = it_index;
+                      case KEY_O;
+                        for song: songs if song.uri == NOW_PLAYING_URI CURSOR_INDEX = it_index;
 
-                      // case .SPACEBAR;
-                      //   assert(mpd_connection != null);
-                      //   id := MPD.run_add_id(mpd_connection, to_c_string(songs[CURSOR_INDEX].uri));
-                      //   handle_errors(mpd_connection);
-                      //   CURSOR_INDEX += 1;
-                      //   space_pressed_on_frame = frame;
+                      case .SPACEBAR;
+                        assert(mpd_connection != null);
+                        id := MPD.run_add_id(mpd_connection, to_c_string(songs[CURSOR_INDEX].uri));
+                        handle_errors(mpd_connection);
+                        CURSOR_INDEX += 1;
+                        space_pressed_on_frame = frame;
 
                       case .LEFT_ANGLE_BRACKET;
                         assert(mpd_connection != null);
@@ -144,17 +159,17 @@ main :: () {
                         id := MPD.run_next(mpd_connection);
                         handle_errors(mpd_connection);
 
-                      // case .ENTER;
-                      //   uri := songs[CURSOR_INDEX].uri;
-                      //   assert(mpd_connection != null);
-                      //   id := MPD.run_add_id(mpd_connection, to_c_string(uri));
-                      //   handle_errors(mpd_connection);
-                      //   if id >= 0 {
-                      //       assert(mpd_connection != null);
-                      //       MPD.run_play_id(mpd_connection, cast(u32)id);
-                      //       handle_errors(mpd_connection);
-                      //       NOW_PLAYING_URI = uri;
-                      //   }
+                      case .ENTER;
+                        uri := songs[CURSOR_INDEX].uri;
+                        assert(mpd_connection != null);
+                        id := MPD.run_add_id(mpd_connection, to_c_string(uri));
+                        handle_errors(mpd_connection);
+                        if id >= 0 {
+                            assert(mpd_connection != null);
+                            MPD.run_play_id(mpd_connection, cast(u32)id);
+                            handle_errors(mpd_connection);
+                            NOW_PLAYING_URI = uri;
+                        }
 
                       case .EQUALS_SIGN;
                         assert(mpd_connection != null);
@@ -206,14 +221,14 @@ main :: () {
            d_pressed_on_frame > u_pressed_on_frame     &&
            frame > d_pressed_on_frame + KEY_HOLD_DELAY
         {
-                CURSOR_INDEX += ARTISTS_IN_PAGE;
+                CURSOR_INDEX += SONGS_IN_PAGE;
         } else
         if Input.input_button_states[KEY_U] & .DOWN    &&
            frame % 2                                   &&
            u_pressed_on_frame > d_pressed_on_frame     &&
            frame > u_pressed_on_frame + KEY_HOLD_DELAY
         {
-                CURSOR_INDEX -= ARTISTS_IN_PAGE;
+                CURSOR_INDEX -= SONGS_IN_PAGE;
         }
 
         if Input.input_button_states[Input.Key_Code.EQUALS_SIGN] & .DOWN &&
@@ -235,20 +250,20 @@ main :: () {
             handle_errors(mpd_connection);
         }
 
-        // if Input.input_button_states[Input.Key_Code.SPACEBAR] & .DOWN &&
-        //    frame % 2                                                  &&
-        //    frame > space_pressed_on_frame + KEY_HOLD_DELAY
-        // {
-        //     assert(mpd_connection != null);
-        //     id := MPD.run_add_id(mpd_connection, to_c_string(songs[CURSOR_INDEX].uri));
-        //     handle_errors(mpd_connection);
-        //     CURSOR_INDEX += 1;
-        // }
+        if Input.input_button_states[Input.Key_Code.SPACEBAR] & .DOWN &&
+           frame % 2                                                  &&
+           frame > space_pressed_on_frame + KEY_HOLD_DELAY
+        {
+            assert(mpd_connection != null);
+            id := MPD.run_add_id(mpd_connection, to_c_string(songs[CURSOR_INDEX].uri));
+            handle_errors(mpd_connection);
+            CURSOR_INDEX += 1;
+        }
 
         if CURSOR_INDEX < 0 CURSOR_INDEX = 0;
-        if CURSOR_INDEX >= artists.count CURSOR_INDEX = artists.count - 1;
+        if CURSOR_INDEX >= songs.count CURSOR_INDEX = songs.count - 1;
 
-        draw_one_frame(artists);
+        draw_one_frame(songs);
         frame += 1;
         // TODO: would be good to frame %= LARGE_NUMBER or something so this doesn't overflow,
         // but the *_pressed_on_frame values would need to be updated as well
@@ -260,29 +275,33 @@ main :: () {
 
 CURSOR_INDEX := 0;
 
-draw_one_frame :: (artists: [] Artist) {
+draw_one_frame :: (songs: [] Song) {
 
     Simp.clear_render_target(0,0,0,1);
 
-    x :: 100;
+    text_center_x  := (window_width - 100) / 2;
     text_padding_y :: 5;
 
     y := window_height * 4 / 5 - font.character_height / 4;
 
-    index_start := max(0, CURSOR_INDEX - ARTISTS_IN_PAGE/ 2);
-    i := index_start;
-    while i <= index_start + ARTISTS_IN_PAGE && i < artists.count  {
-        artist := artists[i];
+    song_index_start := max(0, CURSOR_INDEX - SONGS_IN_PAGE/ 2);
+    i := song_index_start;
+    while i <= song_index_start + SONGS_IN_PAGE && i < songs.count  {
+        song := songs[i];
+        f := ifx song.uri == NOW_PLAYING_URI then font_bold else font;
 
-        width := Simp.prepare_text(font, artist.name);
+        // TODO: align e.g. " 1" and "13" (string builder? custom formatInt? see modules/Basic/Print.jai)
+        // also see context.print_style usage in how_to/018_print_functions.jai
+        width := Simp.prepare_text(f, tprint("% - %", song.track, song.title));
+        x := window_width / 2;
         if i == CURSOR_INDEX {
             Simp.immediate_begin();
             Simp.set_shader_for_color();
-            Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + 600, cast(float)y + font.character_height, rgba(1,1,1,1));
+            Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + 600, cast(float)y + f.character_height, rgba(1,1,1,1));
             Simp.immediate_flush();
-            Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+            Simp.draw_prepared_text(f, x, y, rgba(0,0,0,1));
         } else {
-            Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+            Simp.draw_prepared_text(f, x, y, rgba(1,1,1,1));
         }
 
         y -= text_padding_y + font.character_height;
