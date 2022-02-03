@@ -134,6 +134,7 @@ main :: () {
             MPD.song_free(mpd_song);
             mpd_song = MPD.recv_song(connection);
         }
+        handle_errors(connection);
 
         return albums;
     }
@@ -540,6 +541,10 @@ main :: () {
 
                 if it_index < 2 { // update songs
                     for songs free(it);
+                    artist_name := artists[new_cursor.positions[0]].name;
+                    print("artist_name: %\n", artist_name); // @DEBUG
+                    album_name := albums[new_cursor.positions[1]].name;
+                    print("album_name: %\n", album_name); // @DEBUG
                     songs = get_songs_for_album(mpd_connection, artists[new_cursor.positions[0]].name, albums[new_cursor.positions[1]].name);
 
                     for columns[2] free(it);
