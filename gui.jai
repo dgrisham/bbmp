@@ -22,12 +22,6 @@ KEY_U :: 85;
 // TODO: get NOW_PLAYING_URI on start from mpd (+ maybe always use mpd to set it)
 NOW_PLAYING_URI: string;
 
-window_width  : s32 : 2560;
-window_height : s32 : 1440;
-
-// window_width  : s32 : 1920;
-// window_height : s32 : 1080;
-
 window : Window_Type;
 
 Artist  :: struct {
@@ -67,8 +61,6 @@ Cursor :: struct {
 }
 
 cursor: Cursor;
-
-ITEMS_IN_PAGE :: 50;
 
 main :: () {
 
@@ -446,18 +438,18 @@ main :: () {
             handle_errors(mpd_connection);
         }
 
-        if Input.input_button_states[Input.Key_Code.LEFT_ANGLE_BRACKET] & .DOWN       &&
-           frame % 2                                                                  &&
-           Input.Key_Code.LEFT_ANGLE_BRACKET == last_key_pressed                      &&
+        if Input.input_button_states[Input.Key_Code.LEFT_ANGLE_BRACKET] & .DOWN &&
+           frame % 2                                                            &&
+           Input.Key_Code.LEFT_ANGLE_BRACKET == last_key_pressed                &&
            frame > left_angle_bracket_pressed_on_frame + 20
         {
             assert(mpd_connection != null);
             MPD.run_previous(mpd_connection);
             handle_errors(mpd_connection);
         } else
-        if Input.input_button_states[Input.Key_Code.RIGHT_ANGLE_BRACKET] & .DOWN      &&
-           frame % 2                                                                  &&
-           Input.Key_Code.RIGHT_ANGLE_BRACKET == last_key_pressed                     &&
+        if Input.input_button_states[Input.Key_Code.RIGHT_ANGLE_BRACKET] & .DOWN &&
+           frame % 2                                                             &&
+           Input.Key_Code.RIGHT_ANGLE_BRACKET == last_key_pressed                &&
            frame > right_angle_bracket_pressed_on_frame + 20
         {
             assert(mpd_connection != null);
@@ -559,10 +551,6 @@ main :: () {
 
                 if it_index < 2 { // update songs
                     for songs free(it);
-                    artist_name := artists[new_cursor.positions[0]].name;
-                    print("artist_name: %\n", artist_name); // @DEBUG
-                    album_name := albums[new_cursor.positions[1]].name;
-                    print("album_name: %\n", album_name); // @DEBUG
                     songs = get_songs_for_album(mpd_connection, artists[new_cursor.positions[0]].name, albums[new_cursor.positions[1]].name);
 
                     for columns[2] free(it);
@@ -588,12 +576,23 @@ main :: () {
     MPD.connection_free(mpd_connection);
 }
 
+// window_width  : s32 : 2560;
+// window_height : s32 : 1440;
+// pixel_height := window_height / 96;
+// column_width :: 700;
+// ITEMS_IN_PAGE :: 50;
+
+window_width  : s32 : 1920;
+window_height : s32 : 1080;
+pixel_height := window_height / 64;
+column_width := 600;
+ITEMS_IN_PAGE := 30;
+
 draw_one_frame :: (columns: [3] [..] string) {
 
     Simp.clear_render_target(0,0,0,1);
 
-    x_spacing := 700;
-    left_bound := cast(int) (window_width - x_spacing * 3) / 2;
+    left_bound := cast(int) (window_width - column_width * 3) / 2;
     original_y := cast(int) (window_height / 2 + ITEMS_IN_PAGE * (font.character_height + text_padding_y) / 2);
     text_padding_y :: 5;
 
@@ -611,7 +610,7 @@ draw_one_frame :: (columns: [3] [..] string) {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := ifx cursor.selected == 0 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + 600, cast(float)y + font.character_height, color);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 100, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
                 Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
             } else {
@@ -624,7 +623,7 @@ draw_one_frame :: (columns: [3] [..] string) {
     }
 
     {
-        x := left_bound + x_spacing;
+        x := left_bound + column_width;
         y := original_y;
 
         index_start := max(0, cursor.positions[1] - ITEMS_IN_PAGE/ 2);
@@ -637,7 +636,7 @@ draw_one_frame :: (columns: [3] [..] string) {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := ifx cursor.selected == 1 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + 600, cast(float)y + font.character_height, color);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 100, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
                 Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
             } else {
@@ -650,7 +649,7 @@ draw_one_frame :: (columns: [3] [..] string) {
     }
 
     {
-        x := left_bound + 2 * x_spacing;
+        x := left_bound + 2 * column_width;
         y := original_y;
 
         index_start := max(0, cursor.positions[2] - ITEMS_IN_PAGE/ 2);
@@ -663,7 +662,7 @@ draw_one_frame :: (columns: [3] [..] string) {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := ifx cursor.selected == 2 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + 600, cast(float)y + font.character_height, color);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 100, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
                 Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
             } else {
@@ -682,7 +681,6 @@ draw_one_frame :: (columns: [3] [..] string) {
 // TODO: load/use font for asian/etc. characters (maybe one of the expanded inconsolata sets?)
 font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
-    pixel_height := window_height / 96;
 
     font = Simp.get_font_at_size(".", "Inconsolata-Regular.ttf", pixel_height);
     assert(font != null);
