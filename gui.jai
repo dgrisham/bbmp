@@ -200,6 +200,8 @@ main :: () {
     left_angle_bracket_pressed_on_frame  := 0;
     right_angle_bracket_pressed_on_frame := 0;
 
+    last_key_pressed: Input.Key_Code;
+
     // TODO: might be better to just add the entire directory if we can figure out an easy way to map between those and artists/albums
     add_album_to_queue :: (connection: *MPD.connection, artist_name: string, album_name: string) -> s32 {
         first_id_added: s32;
@@ -248,23 +250,29 @@ main :: () {
 
                       case KEY_J;
                         j_pressed_on_frame = frame;
+                        last_key_pressed = KEY_J;
                         new_cursor.positions[new_cursor.selected] += 1;
                       case KEY_K;
                         k_pressed_on_frame = frame;
+                        last_key_pressed = KEY_K;
                         new_cursor.positions[new_cursor.selected] -= 1;
 
                       case KEY_L;
                         l_pressed_on_frame = frame;
+                        last_key_pressed = KEY_L;
                         new_cursor.selected += 1;
                       case KEY_H;
                         h_pressed_on_frame = frame;
+                        last_key_pressed = KEY_H;
                         new_cursor.selected -= 1;
 
                       case KEY_D;
                         d_pressed_on_frame = frame;
+                        last_key_pressed = KEY_D;
                         new_cursor.positions[new_cursor.selected] += ITEMS_IN_PAGE;
                       case KEY_U;
                         u_pressed_on_frame = frame;
+                        last_key_pressed = KEY_U;
                         new_cursor.positions[new_cursor.selected] -= ITEMS_IN_PAGE;
 
                       case KEY_P;
@@ -282,6 +290,7 @@ main :: () {
 
                       case .SPACEBAR;
                         space_pressed_on_frame = frame;
+                        last_key_pressed = .SPACEBAR;
                         assert(mpd_connection != null);
                         if cursor.selected == {
                           case 0;
@@ -295,6 +304,7 @@ main :: () {
 
                       case .ENTER;
                         enter_pressed_on_frame = frame;
+                        last_key_pressed = .ENTER;
                         song_id_to_play: s32;
 
                         assert(mpd_connection != null);
@@ -316,33 +326,39 @@ main :: () {
 
                       case KEY_B;
                         b_pressed_on_frame = frame;
+                        last_key_pressed = KEY_B;
                         assert(mpd_connection != null);
                         MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
                         handle_errors(mpd_connection);
                       case KEY_F;
                         f_pressed_on_frame = frame;
+                        last_key_pressed = KEY_F;
                         assert(mpd_connection != null);
                         MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
                         handle_errors(mpd_connection);
 
                       case .LEFT_ANGLE_BRACKET;
                         left_angle_bracket_pressed_on_frame = frame;
+                        last_key_pressed = .LEFT_ANGLE_BRACKET;
                         assert(mpd_connection != null);
                         MPD.run_previous(mpd_connection);
                         handle_errors(mpd_connection);
                       case .RIGHT_ANGLE_BRACKET;
                         right_angle_bracket_pressed_on_frame = frame;
+                        last_key_pressed = .RIGHT_ANGLE_BRACKET;
                         assert(mpd_connection != null);
                         MPD.run_next(mpd_connection);
                         handle_errors(mpd_connection);
 
                       case .EQUALS_SIGN;
                         equals_pressed_on_frame = frame;
+                        last_key_pressed = .EQUALS_SIGN;
                         assert(mpd_connection != null);
                         MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
                         handle_errors(mpd_connection);
                       case .DASH;
                         dash_pressed_on_frame = frame;
+                        last_key_pressed = .DASH;
                         assert(mpd_connection != null);
                         MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
                         handle_errors(mpd_connection);
@@ -368,14 +384,14 @@ main :: () {
 
         if Input.input_button_states[KEY_J] & .DOWN    &&
            frame % 2                                   &&
-           j_pressed_on_frame > k_pressed_on_frame     &&
+           KEY_J == last_key_pressed                   &&
            frame > j_pressed_on_frame + KEY_HOLD_DELAY
         {
             new_cursor.positions[new_cursor.selected] += 1;
         } else
         if Input.input_button_states[KEY_K] & .DOWN    &&
            frame % 2                                   &&
-           k_pressed_on_frame > j_pressed_on_frame     &&
+           KEY_K == last_key_pressed                   &&
            frame > k_pressed_on_frame + KEY_HOLD_DELAY
         {
             new_cursor.positions[new_cursor.selected] -= 1;
@@ -383,14 +399,14 @@ main :: () {
 
         if Input.input_button_states[KEY_L] & .DOWN    &&
            frame % 2                                   &&
-           l_pressed_on_frame > h_pressed_on_frame     &&
+           KEY_L == last_key_pressed                   &&
            frame > l_pressed_on_frame + KEY_HOLD_DELAY
         {
             new_cursor.selected += 1;
         } else
         if Input.input_button_states[KEY_H] & .DOWN    &&
            frame % 2                                   &&
-           h_pressed_on_frame > l_pressed_on_frame     &&
+           KEY_H == last_key_pressed                   &&
            frame > h_pressed_on_frame + KEY_HOLD_DELAY
         {
             new_cursor.selected -= 1;
@@ -398,14 +414,14 @@ main :: () {
 
         if Input.input_button_states[KEY_D] & .DOWN    &&
            frame % 2                                   &&
-           d_pressed_on_frame > u_pressed_on_frame     &&
+           KEY_D == last_key_pressed                   &&
            frame > d_pressed_on_frame + KEY_HOLD_DELAY
         {
             new_cursor.positions[new_cursor.selected] += ITEMS_IN_PAGE;
         } else
         if Input.input_button_states[KEY_U] & .DOWN    &&
            frame % 2                                   &&
-           u_pressed_on_frame > d_pressed_on_frame     &&
+           KEY_U == last_key_pressed                   &&
            frame > u_pressed_on_frame + KEY_HOLD_DELAY
         {
             new_cursor.positions[new_cursor.selected] -= ITEMS_IN_PAGE;
@@ -413,7 +429,7 @@ main :: () {
 
         if Input.input_button_states[Input.Key_Code.EQUALS_SIGN] & .DOWN &&
            frame % 2                                                     &&
-           equals_pressed_on_frame > dash_pressed_on_frame               &&
+           Input.Key_Code.EQUALS_SIGN == last_key_pressed                &&
            frame > equals_pressed_on_frame + 20
         {
             assert(mpd_connection != null);
@@ -422,7 +438,7 @@ main :: () {
         } else
         if Input.input_button_states[Input.Key_Code.DASH] & .DOWN &&
            frame % 2                                              &&
-           dash_pressed_on_frame > equals_pressed_on_frame        &&
+           Input.Key_Code.DASH == last_key_pressed                &&
            frame > dash_pressed_on_frame + 20
         {
             assert(mpd_connection != null);
@@ -432,7 +448,7 @@ main :: () {
 
         if Input.input_button_states[Input.Key_Code.LEFT_ANGLE_BRACKET] & .DOWN       &&
            frame % 2                                                                  &&
-           left_angle_bracket_pressed_on_frame > right_angle_bracket_pressed_on_frame &&
+           Input.Key_Code.LEFT_ANGLE_BRACKET == last_key_pressed                      &&
            frame > left_angle_bracket_pressed_on_frame + 20
         {
             assert(mpd_connection != null);
@@ -441,7 +457,7 @@ main :: () {
         } else
         if Input.input_button_states[Input.Key_Code.RIGHT_ANGLE_BRACKET] & .DOWN      &&
            frame % 2                                                                  &&
-           right_angle_bracket_pressed_on_frame > left_angle_bracket_pressed_on_frame &&
+           Input.Key_Code.RIGHT_ANGLE_BRACKET == last_key_pressed                     &&
            frame > right_angle_bracket_pressed_on_frame + 20
         {
             assert(mpd_connection != null);
@@ -451,7 +467,7 @@ main :: () {
 
         if Input.input_button_states[KEY_B] & .DOWN &&
            frame % 2                                &&
-           b_pressed_on_frame > f_pressed_on_frame  &&
+           KEY_B == last_key_pressed                &&
            frame > b_pressed_on_frame + 20
         {
             assert(mpd_connection != null);
@@ -460,7 +476,7 @@ main :: () {
         } else
         if Input.input_button_states[KEY_F] & .DOWN &&
            frame % 2                                &&
-           f_pressed_on_frame > b_pressed_on_frame  &&
+           KEY_F == last_key_pressed                &&
            frame > f_pressed_on_frame + 20
         {
             assert(mpd_connection != null);
@@ -470,6 +486,7 @@ main :: () {
 
         if Input.input_button_states[Input.Key_Code.ENTER] & .DOWN &&
            frame % 2                                               &&
+           Input.Key_Code.ENTER == last_key_pressed                &&
            frame > enter_pressed_on_frame + 20
         {
             song_id_to_play: s32;
@@ -494,6 +511,7 @@ main :: () {
 
         if Input.input_button_states[Input.Key_Code.SPACEBAR] & .DOWN &&
            frame % 2                                                  &&
+           Input.Key_Code.SPACEBAR == last_key_pressed                &&
            frame > space_pressed_on_frame + 20
         {
             assert(mpd_connection != null);
@@ -574,8 +592,8 @@ draw_one_frame :: (columns: [3] [..] string) {
 
     Simp.clear_render_target(0,0,0,1);
 
-    left_bound := 200;
     x_spacing := 700;
+    left_bound := cast(int) (window_width - x_spacing * 3) / 2;
     original_y := cast(int) (window_height / 2 + ITEMS_IN_PAGE * (font.character_height + text_padding_y) / 2);
     text_padding_y :: 5;
 
