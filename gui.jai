@@ -161,7 +161,14 @@ main :: () {
                     artist: Artist;
                     artist.name = song.artist;
                     artist_ptr = table_add(*library.artists, song.artist, artist);
-                    array_add(*library.artist_names_sorted, song.artist);
+                    {
+                        index := 0;
+                        for library.artist_names_sorted {
+                            if compare_nocase(artist.name, it) < 0 break;
+                            index += 1;
+                        }
+                        array_insert_at(*library.artist_names_sorted, artist.name, index);
+                    }
                 }
 
                 album_ptr := table_find_pointer(artist_ptr.albums, song.album);
@@ -321,10 +328,14 @@ main :: () {
                         d_pressed_on_frame = frame;
                         last_key_pressed = KEY_D;
                         new_cursor.positions[new_cursor.selected] += ITEMS_IN_PAGE;
+                        if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
+                        if cursor.selected == 1 new_cursor.positions[2] = 0;
                       case KEY_U;
                         u_pressed_on_frame = frame;
                         last_key_pressed = KEY_U;
                         new_cursor.positions[new_cursor.selected] -= ITEMS_IN_PAGE;
+                        if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
+                        if cursor.selected == 1 new_cursor.positions[2] = 0;
 
                       case KEY_P;
                         assert(mpd_connection != null);
@@ -502,6 +513,8 @@ main :: () {
            frame > d_pressed_on_frame + KEY_HOLD_DELAY
         {
             new_cursor.positions[new_cursor.selected] += ITEMS_IN_PAGE;
+            if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
+            if cursor.selected == 1 new_cursor.positions[2] = 0;
         } else
         if Input.input_button_states[KEY_U] & .DOWN    &&
            frame % 2                                   &&
@@ -509,6 +522,8 @@ main :: () {
            frame > u_pressed_on_frame + KEY_HOLD_DELAY
         {
             new_cursor.positions[new_cursor.selected] -= ITEMS_IN_PAGE;
+            if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
+            if cursor.selected == 1 new_cursor.positions[2] = 0;
         }
 
         if Input.input_button_states[Input.Key_Code.EQUALS_SIGN] & .DOWN &&
