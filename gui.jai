@@ -88,6 +88,13 @@ left_pad :: (str: string, pad_char: u8, total_length: int) -> string {
     return result;
 }
 
+right_pad :: (str: string, pad_char: u8, total_length: int) -> string {
+    result := alloc_string(total_length, __temporary_allocator);
+    memcpy(result.data, str.data, str.count);
+    for str.count..(result.count - 1) result[it] = pad_char;
+    return result;
+}
+
 to_string :: (date: Date) -> string {
     if !date.year  return "";
     if !date.month return tprint("%", date.year);
@@ -203,7 +210,7 @@ main :: () {
         if it_index == 0 {
             array_resize(*columns[2], album.songs.count);
             for album.songs {
-                columns[2][it_index] = sprint(" % - %", left_pad(it.track, #char " ", 3), it.name);;
+                columns[2][it_index] = sprint("% %", left_pad(tprint("%.", it.track), #char " ", 3), it.name);;
             }
         }
     }
@@ -624,7 +631,7 @@ main :: () {
                     for columns[2] free(it);
                     array_resize(*columns[2], album.songs.count);
                     for album.songs {
-                        columns[2][it_index] = sprint(" % - %", left_pad(it.track, #char " ", 3), it.name);;
+                       columns[2][it_index] = sprint("% %", left_pad(tprint("%.", it.track), #char " ", 4), it.name);;
                     }
                 }
             }
@@ -669,7 +676,7 @@ draw_one_frame :: (columns: [3] [..] string) {
         x := left_bound;
         y := original_y;
 
-        index_start := max(0, cursor.positions[0] - ITEMS_IN_PAGE/ 2);
+        index_start := min(max(0, columns[0].count - ITEMS_IN_PAGE), max(0, cursor.positions[0] - ITEMS_IN_PAGE/ 2));
         i := index_start;
         while i <= index_start + ITEMS_IN_PAGE && i < columns[0].count  {
             artist := columns[0][i];
@@ -695,7 +702,7 @@ draw_one_frame :: (columns: [3] [..] string) {
         x := left_bound + column_width;
         y := original_y;
 
-        index_start := max(0, cursor.positions[1] - ITEMS_IN_PAGE/ 2);
+        index_start := min(max(0, columns[1].count - ITEMS_IN_PAGE), max(0, cursor.positions[1] - ITEMS_IN_PAGE/ 2));
         i := index_start;
         while i <= index_start + ITEMS_IN_PAGE && i < columns[1].count  {
             album := columns[1][i];
@@ -721,7 +728,7 @@ draw_one_frame :: (columns: [3] [..] string) {
         x := left_bound + 2 * column_width;
         y := original_y;
 
-        index_start := max(0, cursor.positions[2] - ITEMS_IN_PAGE/ 2);
+        index_start := min(max(0, columns[2].count - ITEMS_IN_PAGE), max(0, cursor.positions[2] - ITEMS_IN_PAGE/ 2));
         i := index_start;
         while i <= index_start + ITEMS_IN_PAGE && i < columns[2].count  {
             song := columns[2][i];
