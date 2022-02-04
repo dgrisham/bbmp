@@ -1,11 +1,11 @@
 - [ ] add track length to song list
-- [ ] 'o' to to go to currently playing track
 - [ ] '/' search
 - [ ] artist (and general, probably) sorting puts lowercase after uppercase
 - [ ] 'y' for setting single-mode
 - [ ] consider what to do with strings that cut off (trailing '...'?)
 - [ ] show a simple 'now playing' with song metadata + current / total time
 
+- [x] 'o' to to go to currently playing track
 - [x] sort albums by date
 - [x] preload all of the songs/albums
 - [x] limit text length

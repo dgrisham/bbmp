@@ -299,10 +299,14 @@ main :: () {
                         j_pressed_on_frame = frame;
                         last_key_pressed = KEY_J;
                         new_cursor.positions[new_cursor.selected] += 1;
+                        if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
+                        if cursor.selected == 1 new_cursor.positions[2] = 0;
                       case KEY_K;
                         k_pressed_on_frame = frame;
                         last_key_pressed = KEY_K;
                         new_cursor.positions[new_cursor.selected] -= 1;
+                        if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
+                        if cursor.selected == 1 new_cursor.positions[2] = 0;
 
                       case KEY_L;
                         l_pressed_on_frame = frame;
@@ -332,8 +336,30 @@ main :: () {
                         MPD.run_clear(mpd_connection);
                         handle_errors();
 
-                      // case KEY_O;
-                      //   for song: songs if song.uri == NOW_PLAYING_URI new_cursor.positions[new_cursor.selected] = it_index;
+                      case KEY_O;
+                        assert(mpd_connection != null);
+                        mpd_current_song := MPD.run_current_song(mpd_connection);
+                        handle_errors();
+                        if !mpd_current_song break;
+                        uri := to_string(MPD.song_get_uri(mpd_current_song));
+
+                        for artist, artist_name: library.artists {
+                            for album, album_name: artist.albums {
+                                for song, song_index: album.songs {
+                                    if song.uri == uri {
+                                        artist_found, artist_index := array_find(library.artist_names_sorted, artist_name);
+                                        if !artist_found break artist;
+                                        artist_ptr := table_find_pointer(library.artists, artist_name);
+                                        album_found, album_index := array_find(artist_ptr.album_names_sorted_by_date, album_name);
+                                        if !album_found break artist;
+                                        new_cursor.positions[0] = artist_index;
+                                        new_cursor.positions[1] = album_index;
+                                        new_cursor.positions[2] = song_index;
+                                        new_cursor.selected     = 2;
+                                    }
+                                }
+                            }
+                        }
 
                       case .SPACEBAR;
                         space_pressed_on_frame = frame;
@@ -441,6 +467,8 @@ main :: () {
            frame > j_pressed_on_frame + KEY_HOLD_DELAY
         {
             new_cursor.positions[new_cursor.selected] += 1;
+            if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
+            if cursor.selected == 1 new_cursor.positions[2] = 0;
         } else
         if Input.input_button_states[KEY_K] & .DOWN    &&
            frame % 2                                   &&
@@ -448,6 +476,9 @@ main :: () {
            frame > k_pressed_on_frame + KEY_HOLD_DELAY
         {
             new_cursor.positions[new_cursor.selected] -= 1;
+            if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
+            if cursor.selected == 1 new_cursor.positions[2] = 0;
+
         }
 
         if Input.input_button_states[KEY_L] & .DOWN    &&
@@ -601,9 +632,6 @@ main :: () {
                 if <<it >= columns[it_index].count {
                     <<it = columns[it_index].count - 1;
                 }
-
-                if it_index == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-                if it_index == 1 new_cursor.positions[2] = 0;
 
                 if it_index < 1 { // update albums
                     artist_name := library.artist_names_sorted[new_cursor.positions[0]];
