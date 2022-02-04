@@ -26,9 +26,9 @@ NOW_PLAYING_URI: string;
 
 window : Window_Type;
 
-library : struct {
+library: struct {
     artists             : Table(string, Artist);
-    sorted_artist_names : [..] string;
+    artist_names_sorted : [..] string;
 }
 
 Artist  :: struct {
@@ -39,9 +39,63 @@ Artist  :: struct {
 
 Album :: struct {
     name  : string;
-    date  : string;
+    date  : Date;
     songs : [..] Song;
 };
+
+Date :: struct {
+    year  : int;
+    month : int;
+    day   : int;
+}
+
+operator < :: (a: Date, b: Date) -> bool {
+    if a.year  < b.year  return true;
+    if a.year  > b.year  return false;
+    if a.month < b.month return true;
+    if a.month > b.month return false;
+    if a.day   < b.day   return true;
+    if a.day   > b.day   return false;
+    return false;
+}
+
+parse_date :: (date_str: string) -> Date {
+    date: Date;
+    success: bool;
+    remainder := date_str;
+
+    date.year, success, remainder = to_integer(remainder);
+    if !success return date;
+
+    if remainder.count == 0 || remainder[0] != #char "-" return date;
+    advance(*remainder, 1);
+    date.month, success, remainder = to_integer(remainder);
+    if !success return date;
+
+    if remainder.count == 0 || remainder[0] != #char "-" return date;
+    advance(*remainder, 1);
+    date.day, success, remainder = to_integer(remainder);
+    if !success return date;
+
+    return date;
+}
+
+left_pad :: (str: string, pad_char: u8, total_length: int) -> string {
+    result := alloc_string(total_length, __temporary_allocator);
+    pad_count := result.count - str.count;
+    for 0..(pad_count - 1) result[it] = pad_char;
+    memcpy(result.data + pad_count, str.data, str.count);
+    return result;
+}
+
+to_string :: (date: Date) -> string {
+    if !date.year  return "";
+    if !date.month return tprint("%", date.year);
+    month_str := left_pad(tprint("%", date.month), #char "0", 2);
+    if !date.day   return tprint("%-%", date.year, month_str);
+    day_str := left_pad(tprint("%", date.day), #char "0", 2);
+    return tprint("%-%-%", date.year, month_str, day_str);
+}
 
 Song :: struct {
     artist : string;
@@ -100,16 +154,26 @@ main :: () {
                     artist: Artist;
                     artist.name = song.artist;
                     artist_ptr = table_add(*library.artists, song.artist, artist);
-                    array_add(*library.sorted_artist_names, song.artist);
+                    array_add(*library.artist_names_sorted, song.artist);
                 }
 
                 album_ptr := table_find_pointer(artist_ptr.albums, song.album);
                 if !album_ptr {
                     album: Album;
                     album.name = song.album;
-                    album.date = copy_string(to_string(mpd_date));
+                    album.date = parse_date(to_string(mpd_date));
                     album_ptr = table_add(*artist_ptr.albums, song.album, album);
-                    array_add(*artist_ptr.album_names_sorted_by_date, song.album); // TODO: sort these!
+
+                    { // TODO: album_ptr name is confusing from above
+                        index := 0;
+                        for artist_ptr.album_names_sorted_by_date {
+                            album_ptr := table_find_pointer(artist_ptr.albums, it);
+                            assert(album_ptr != null);
+                            if album.date < album_ptr.date break;
+                            index += 1;
+                        }
+                        array_insert_at(*artist_ptr.album_names_sorted_by_date, album.name, index);
+                    }
                 }
 
                 song.track  = to_string(MPD.song_get_tag(mpd_song, .TRACK, 0));
@@ -127,20 +191,19 @@ main :: () {
 
     columns: [3] [..] string;
 
-    array_resize(*columns[0], library.sorted_artist_names.count);
-    for library.sorted_artist_names columns[0][it_index] = it;
+    array_resize(*columns[0], library.artist_names_sorted.count);
+    for library.artist_names_sorted columns[0][it_index] = it;
 
-    first_artist := table_find_pointer(library.artists, library.sorted_artist_names[0]);
+    first_artist := table_find_pointer(library.artists, library.artist_names_sorted[0]);
     array_resize(*columns[1], first_artist.album_names_sorted_by_date.count);
     i := 0;
     for album_name: first_artist.album_names_sorted_by_date {
         album := table_find_pointer(first_artist.albums, album_name);
-        columns[1][it_index] = sprint("(%) %", album.date, album.name);
+        columns[1][it_index] = sprint("(%) %", to_string(album.date), album.name);
         if it_index == 0 {
             array_resize(*columns[2], album.songs.count);
             for album.songs {
-                if it.track.count == 1 columns[2][it_index] = sprint(" % - %", it.track, it.name);;
-                else                   columns[2][it_index] = sprint("% - %", it.track, it.name);;
+                columns[2][it_index] = sprint(" % - %", left_pad(it.track, #char " ", 3), it.name);;
             }
         }
     }
@@ -271,12 +334,12 @@ main :: () {
                         assert(mpd_connection != null);
                         if cursor.selected == {
                           case 0;
-                            add_artist_to_queue(library.sorted_artist_names[cursor.positions[0]]);
+                            add_artist_to_queue(library.artist_names_sorted[cursor.positions[0]]);
                           case 1;
-                            artist := table_find_pointer(library.artists, library.sorted_artist_names[cursor.positions[0]]);
+                            artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
                             add_album_to_queue(artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
                           case 2;
-                            artist := table_find_pointer(library.artists, library.sorted_artist_names[cursor.positions[0]]);
+                            artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
                             album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
                             MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
                         }
@@ -290,12 +353,12 @@ main :: () {
                         assert(mpd_connection != null);
                         if cursor.selected == {
                           case 0;
-                            song_id_to_play = add_artist_to_queue(library.sorted_artist_names[cursor.positions[0]]);
+                            song_id_to_play = add_artist_to_queue(library.artist_names_sorted[cursor.positions[0]]);
                           case 1;
-                            artist := table_find_pointer(library.artists, library.sorted_artist_names[cursor.positions[0]]);
+                            artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
                             song_id_to_play = add_album_to_queue(artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
                           case 2;
-                            artist := table_find_pointer(library.artists, library.sorted_artist_names[cursor.positions[0]]);
+                            artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
                             album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
                             song_id_to_play = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
                         }
@@ -477,12 +540,12 @@ main :: () {
             assert(mpd_connection != null);
             if cursor.selected == {
               case 0;
-                song_id_to_play = add_artist_to_queue(library.sorted_artist_names[cursor.positions[0]]);
+                song_id_to_play = add_artist_to_queue(library.artist_names_sorted[cursor.positions[0]]);
               case 1;
-                artist := table_find_pointer(library.artists, library.sorted_artist_names[cursor.positions[0]]);
+                artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
                 song_id_to_play = add_album_to_queue(artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
               case 2;
-                artist := table_find_pointer(library.artists, library.sorted_artist_names[cursor.positions[0]]);
+                artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
                 album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
                 song_id_to_play = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
             }
@@ -503,12 +566,12 @@ main :: () {
             assert(mpd_connection != null);
             if cursor.selected == {
               case 0;
-                add_artist_to_queue(library.sorted_artist_names[cursor.positions[0]]);
+                add_artist_to_queue(library.artist_names_sorted[cursor.positions[0]]);
               case 1;
-                artist := table_find_pointer(library.artists, library.sorted_artist_names[cursor.positions[0]]);
+                artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
                 add_album_to_queue(artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
               case 2;
-                artist := table_find_pointer(library.artists, library.sorted_artist_names[cursor.positions[0]]);
+                artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
                 album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
                 MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
             }
@@ -536,7 +599,7 @@ main :: () {
                 if it_index == 1 new_cursor.positions[2] = 0;
 
                 if it_index < 1 { // update albums
-                    artist_name := library.sorted_artist_names[new_cursor.positions[0]];
+                    artist_name := library.artist_names_sorted[new_cursor.positions[0]];
                     artist := table_find_pointer(library.artists, artist_name);
                     if !artist { print("Artist '%' not found\n", artist_name); exit(1); }
 
@@ -545,14 +608,15 @@ main :: () {
                     for album_name: artist.album_names_sorted_by_date {
                         album := table_find_pointer(artist.albums, album_name);
                         // if !album { print("Album '%' not found for artist '%'\n", album_name, artist_name); exit(1); }
-                        columns[1][it_index] = sprint("(%) %", album.date, album.name);
+                        columns[1][it_index] = sprint("(%) %", to_string(album.date), album.name);
                     }
                 }
 
                 if it_index < 2 { // update songs
-                    artist_name := library.sorted_artist_names[new_cursor.positions[0]];
+                    artist_name := library.artist_names_sorted[new_cursor.positions[0]];
                     artist := table_find_pointer(library.artists, artist_name);
                     if !artist { print("Artist '%' not found\n", artist_name); exit(1); }
+
                     album_name := artist.album_names_sorted_by_date[new_cursor.positions[1]];
                     album := table_find_pointer(artist.albums, album_name);
                     if !album { print("Album '%' not found for artist '%'\n", album_name, artist_name); exit(1); }
@@ -560,8 +624,7 @@ main :: () {
                     for columns[2] free(it);
                     array_resize(*columns[2], album.songs.count);
                     for album.songs {
-                        if it.track.count == 1 columns[2][it_index] = sprint(" % - %", it.track, it.name);;
-                        else                   columns[2][it_index] = sprint("% - %", it.track, it.name);;
+                        columns[2][it_index] = sprint(" % - %", left_pad(it.track, #char " ", 3), it.name);;
                     }
                 }
             }
