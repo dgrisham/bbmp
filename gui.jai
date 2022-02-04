@@ -658,9 +658,9 @@ main :: () {
 
 window_width  : s32 : 1920;
 window_height : s32 : 1080;
-pixel_height := window_height / 64;
+pixel_height := window_height / 72;
 column_width := 600;
-ITEMS_IN_PAGE := 30;
+ITEMS_IN_PAGE := 40;
 
 draw_one_frame :: (columns: [3] [..] string) {
 
@@ -676,9 +676,9 @@ draw_one_frame :: (columns: [3] [..] string) {
         x := left_bound;
         y := original_y;
 
-        index_start := min(max(0, columns[0].count - ITEMS_IN_PAGE), max(0, cursor.positions[0] - ITEMS_IN_PAGE/ 2));
-        i := index_start;
-        while i <= index_start + ITEMS_IN_PAGE && i < columns[0].count  {
+        index_start := max(0, min(columns[0].count - ITEMS_IN_PAGE + 1, cursor.positions[0] - ITEMS_IN_PAGE/ 2 + 1));
+        index_end := min(index_start + ITEMS_IN_PAGE, columns[0].count - 1);
+        for i: index_start..index_end {
             artist := columns[0][i];
 
             width := Simp.prepare_text(font, slice(artist, 0, max_characters_in_column));
@@ -694,7 +694,6 @@ draw_one_frame :: (columns: [3] [..] string) {
             }
 
             y -= text_padding_y + font.character_height;
-            i += 1;
         }
     }
 
@@ -702,9 +701,9 @@ draw_one_frame :: (columns: [3] [..] string) {
         x := left_bound + column_width;
         y := original_y;
 
-        index_start := min(max(0, columns[1].count - ITEMS_IN_PAGE), max(0, cursor.positions[1] - ITEMS_IN_PAGE/ 2));
-        i := index_start;
-        while i <= index_start + ITEMS_IN_PAGE && i < columns[1].count  {
+        index_start := max(0, min(columns[1].count - ITEMS_IN_PAGE + 1, cursor.positions[1] - ITEMS_IN_PAGE/ 2 + 1));
+        index_end := min(index_start + ITEMS_IN_PAGE, columns[1].count - 1);
+        for i: index_start..index_end {
             album := columns[1][i];
 
             width := Simp.prepare_text(font, slice(album, 0, max_characters_in_column));
@@ -720,7 +719,6 @@ draw_one_frame :: (columns: [3] [..] string) {
             }
 
             y -= text_padding_y + font.character_height;
-            i += 1;
         }
     }
 
@@ -728,9 +726,9 @@ draw_one_frame :: (columns: [3] [..] string) {
         x := left_bound + 2 * column_width;
         y := original_y;
 
-        index_start := min(max(0, columns[2].count - ITEMS_IN_PAGE), max(0, cursor.positions[2] - ITEMS_IN_PAGE/ 2));
-        i := index_start;
-        while i <= index_start + ITEMS_IN_PAGE && i < columns[2].count  {
+        index_start := max(0, min(columns[2].count - ITEMS_IN_PAGE + 1, cursor.positions[2] - ITEMS_IN_PAGE/ 2 + 1));
+        index_end := min(index_start + ITEMS_IN_PAGE, columns[2].count - 1);
+        for i: index_start..index_end {
             song := columns[2][i];
 
             width := Simp.prepare_text(font, slice(song, 0, max_characters_in_column));
@@ -746,7 +744,6 @@ draw_one_frame :: (columns: [3] [..] string) {
             }
 
             y -= text_padding_y + font.character_height;
-            i += 1;
         }
     }
 
