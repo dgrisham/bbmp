@@ -1,0 +1,9 @@
+- [ ] sort albums by date
+- [ ] add track length to song list
+- [ ] 'o' to to go to currently playing track
+- [ ] '/' search
+- [ ] artist (and general, probably) sorting puts lowercase after uppercase
+- [ ] preload all of the songs/albums
+- [ ] limit text length
+- [ ] 'y' for setting single-mode
+- [ ] consider what to do with strings that cut off (trailing '...'?)
