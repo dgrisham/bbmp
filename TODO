@@ -1,11 +1,12 @@
-- [ ] sort albums by date
 - [ ] add track length to song list
 - [ ] 'o' to to go to currently playing track
 - [ ] '/' search
 - [ ] artist (and general, probably) sorting puts lowercase after uppercase
-- [ ] preload all of the songs/albums
-- [ ] limit text length
 - [ ] 'y' for setting single-mode
 - [ ] consider what to do with strings that cut off (trailing '...'?)
 - [ ] show a simple 'now playing' with song metadata + current / total time
-- [ ] consistency with cursor scroll offset between top and bottom of long list (or just scrolloffset logic in general)
+
+- [x] sort albums by date
+- [x] preload all of the songs/albums
+- [x] limit text length
+- [x] consistency with cursor scroll offset between top and bottom of long list (or just scrolloffset logic in general)
