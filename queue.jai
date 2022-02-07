@@ -10,6 +10,8 @@ queue: [..] Song;
 
 load_queue :: () {
 
+    handle_mpd_idle_events();
+
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
     mpd_queue_length := MPD.status_get_queue_length(status);
@@ -133,9 +135,11 @@ queue_event_loop :: (frame: u64) {
                   case KEY_X;
                     table_set(*queue_key_pressed_on_frame, KEY_X, frame);
                     queue_last_key_pressed = KEY_X;
-                    MPD.run_delete(mpd_connection, cast(u32)queue_cursor.position);
-                    handle_errors("");
-                    load_queue();
+                    if queue_cursor.position >= 0 && queue_cursor.position <= queue.count
+                        handle_mpd_idle_events();
+                        MPD.run_delete(mpd_connection, cast(u32)queue_cursor.position);
+                        handle_errors("");
+                        load_queue();
 
                   case KEY_C;
                     handle_mpd_idle_events();
@@ -311,9 +315,11 @@ queue_event_loop :: (frame: u64) {
        frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_X) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
-        MPD.run_delete(mpd_connection, cast(u32)queue_cursor.position);
-        handle_errors("");
-        load_queue();
+        if queue_cursor.position >= 0 && queue_cursor.position <= queue.count
+            handle_mpd_idle_events();
+            MPD.run_delete(mpd_connection, cast(u32)queue_cursor.position);
+            handle_errors("");
+            load_queue();
     }
 
     if Input.input_button_states[Input.Key_Code.ENTER] & .DOWN &&
@@ -333,26 +339,7 @@ queue_event_loop :: (frame: u64) {
     draw_queue_frame();
 }
 
-// desktop
-// window_width  : s32 : 2560;
-// window_height : s32 : 1440;
-// pixel_height := window_height / 96;
-// column_width :: 700;
-// ITEMS_IN_PAGE :: 50;
-
-// laptop
-// window_width  : s32 : 1920;
-// window_height : s32 : 1080;
-// pixel_height := window_height / 72;
-// column_width := 600;
-// ITEMS_IN_PAGE := 40;
-
-// desktop - streaming
-// window_width  : s32 : 1900;
-// window_height : s32 : 1440;
-// pixel_height := window_height / 48;
 queue_column_widths :: int.[700, 400, 400, 200];
-// ITEMS_IN_PAGE :: 30;
 
 draw_queue_frame :: () {
 

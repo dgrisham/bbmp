@@ -259,16 +259,19 @@ library_event_loop :: (frame: u64) {
 
                   case KEY_P;
                     table_set(*library_key_pressed_on_frame, KEY_P, frame);
+                    handle_mpd_idle_events();
                     MPD.run_toggle_pause(mpd_connection);
                     handle_errors("");
 
                   case KEY_C;
                     table_set(*library_key_pressed_on_frame, KEY_C, frame);
+                    handle_mpd_idle_events();
                     MPD.run_clear(mpd_connection);
                     handle_errors("");
 
                   case KEY_O;
                     table_set(*library_key_pressed_on_frame, KEY_O, frame);
+                    handle_mpd_idle_events();
                     mpd_current_song := MPD.run_current_song(mpd_connection);
                     handle_errors("");
                     if !mpd_current_song break;
