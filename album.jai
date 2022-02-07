@@ -21,8 +21,8 @@ NOW_PLAYING_URI: string;
 // window_width  : s32 : 2560;
 // window_height : s32 : 1440;
 
-window_width  : s32 : 1920;
-window_height : s32 : 1080;
+// window_width  : s32 : 1920;
+// window_height : s32 : 1080;
 
 window : Window_Type;
 
@@ -72,8 +72,8 @@ main :: () {
     // album_directory :: "killswitch_engage/2006_01-as_daylight_dies";
     // album_directory :: "ac_dc/1977_03-let_there_be_rock";
     // album_directory :: "dinosaur_jr_/1987_07-youre_living_all_over_me";
-    // album_directory :: "tipper/2014_05-forward_escape";
-    album_directory :: "ariana_grande/2018_08-sweetener";
+    album_directory :: "tipper/2014_05-forward_escape";
+    // album_directory :: "ariana_grande/2018_08-sweetener";
 
     assert(mpd_connection != null);
     success := MPD.send_list_all_meta(mpd_connection, album_directory);
@@ -350,6 +350,14 @@ draw_one_frame :: (album: Album) {
 }
 
 font, font_bold : *Simp.Dynamic_Font;
+
+// desktop - streaming
+window_width  : s32 : 1900;
+window_height : s32 : 1440;
+pixel_height := window_height / 48;
+// column_width :: 600;
+// ITEMS_IN_PAGE :: 30;
+
 init_font :: () {
     pixel_height := window_height / 64;
 

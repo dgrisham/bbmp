@@ -120,6 +120,8 @@ Cursor :: struct {
 cursor: Cursor;
 
 mpd_connection: *MPD.connection;
+mpd_fd: s32;
+idle := false;
 
 copy_from_c_string :: inline (s: *u8) -> string {
     return copy_string(to_string(s));
@@ -132,12 +134,15 @@ main :: () {
     window = create_window(window_width, window_height, "ncmpjai");
     Simp.set_render_target(window);
 
-    mpd_connection = MPD.connection_new(null, 0, 0);
+    mpd_connection = MPD.connection_new(null, 0, 15000);
     if mpd_connection == null {
         print("Out of memory\n");
         exit(1);
     }
     handle_errors("Initializing MPD connection");
+
+    mpd_fd = MPD.connection_get_fd(mpd_connection);
+    handle_errors("Getting file descriptor for MPD connection");
 
     assert(mpd_connection != null);
     MPD.send_list_all_meta(mpd_connection, "");
@@ -288,9 +293,23 @@ main :: () {
 
     reset_temporary_storage();
 
+    handle_mpd_idle_events :: () {
+        assert(mpd_connection != null);
+        if idle && MPD.send_noidle(mpd_connection) {
+            idle = false;
+    		flags := MPD.recv_idle(mpd_connection, true);
+    		MPD.response_finish(mpd_connection);
+    		handle_errors("Getting idle events");
+        }
+    }
+
     frame := 0;
     quit := false;
     while !quit {
+
+        if !idle MPD.send_idle(mpd_connection);
+        handle_errors("Putting MPD into idle mode");
+        idle = true;
 
         new_cursor: Cursor;
         for cursor.positions new_cursor.positions[it_index] = it;
@@ -333,8 +352,13 @@ main :: () {
                         d_pressed_on_frame = frame;
                         last_key_pressed = KEY_D;
                         new_cursor.positions[new_cursor.selected] += ITEMS_IN_PAGE;
-                        if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-                        if cursor.selected == 1 new_cursor.positions[2] = 0;
+                        if screen ==
+                          case queue;
+                            queue_cursor
+                          case library;
+                            if library_cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
+                            if library_cursor.selected == 1 new_cursor.positions[2] = 0;
+                        }
                       case KEY_U;
                         u_pressed_on_frame = frame;
                         last_key_pressed = KEY_U;
@@ -343,17 +367,17 @@ main :: () {
                         if cursor.selected == 1 new_cursor.positions[2] = 0;
 
                       case KEY_P;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_toggle_pause(mpd_connection);
                         handle_errors("");
 
                       case KEY_C;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_clear(mpd_connection);
                         handle_errors("");
 
                       case KEY_O;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         mpd_current_song := MPD.run_current_song(mpd_connection);
                         handle_errors("");
                         if !mpd_current_song break;
@@ -380,7 +404,7 @@ main :: () {
                       case .SPACEBAR;
                         space_pressed_on_frame = frame;
                         last_key_pressed = .SPACEBAR;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         if cursor.selected == {
                           case 0;
                             add_artist_to_queue(library.artist_names_sorted[cursor.positions[0]]);
@@ -399,7 +423,7 @@ main :: () {
                         last_key_pressed = .ENTER;
                         song_id_to_play: s32;
 
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         if cursor.selected == {
                           case 0;
                             song_id_to_play = add_artist_to_queue(library.artist_names_sorted[cursor.positions[0]]);
@@ -422,39 +446,39 @@ main :: () {
                       case KEY_B;
                         b_pressed_on_frame = frame;
                         last_key_pressed = KEY_B;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
                         handle_errors("");
                       case KEY_F;
                         f_pressed_on_frame = frame;
                         last_key_pressed = KEY_F;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
                         handle_errors("");
 
                       case .LEFT_ANGLE_BRACKET;
                         left_angle_bracket_pressed_on_frame = frame;
                         last_key_pressed = .LEFT_ANGLE_BRACKET;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_previous(mpd_connection);
                         handle_errors("");
                       case .RIGHT_ANGLE_BRACKET;
                         right_angle_bracket_pressed_on_frame = frame;
                         last_key_pressed = .RIGHT_ANGLE_BRACKET;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_next(mpd_connection);
                         handle_errors("");
 
                       case .EQUALS_SIGN;
                         equals_pressed_on_frame = frame;
                         last_key_pressed = .EQUALS_SIGN;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
                         handle_errors("");
                       case .DASH;
                         dash_pressed_on_frame = frame;
                         last_key_pressed = .DASH;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
                         handle_errors("");
 
@@ -535,7 +559,7 @@ main :: () {
            Input.Key_Code.EQUALS_SIGN == last_key_pressed                &&
            frame > equals_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
             handle_errors("");
         } else
@@ -544,7 +568,7 @@ main :: () {
            Input.Key_Code.DASH == last_key_pressed                &&
            frame > dash_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
             handle_errors("");
         }
@@ -554,7 +578,7 @@ main :: () {
            Input.Key_Code.LEFT_ANGLE_BRACKET == last_key_pressed                &&
            frame > left_angle_bracket_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             MPD.run_previous(mpd_connection);
             handle_errors("");
         } else
@@ -563,7 +587,7 @@ main :: () {
            Input.Key_Code.RIGHT_ANGLE_BRACKET == last_key_pressed                &&
            frame > right_angle_bracket_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             MPD.run_next(mpd_connection);
             handle_errors("");
         }
@@ -573,7 +597,7 @@ main :: () {
            KEY_B == last_key_pressed                &&
            frame > b_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
             handle_errors("");
         } else
@@ -582,7 +606,7 @@ main :: () {
            KEY_F == last_key_pressed                &&
            frame > f_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
             handle_errors("");
         }
@@ -594,7 +618,7 @@ main :: () {
         {
             song_id_to_play: s32;
 
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             if cursor.selected == {
               case 0;
                 song_id_to_play = add_artist_to_queue(library.artist_names_sorted[cursor.positions[0]]);
@@ -620,7 +644,7 @@ main :: () {
            Input.Key_Code.SPACEBAR == last_key_pressed                &&
            frame > space_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             if cursor.selected == {
               case 0;
                 add_artist_to_queue(library.artist_names_sorted[cursor.positions[0]]);
@@ -861,6 +885,8 @@ handle_errors :: (message: string) -> bool {
                 new_connection_error = check_connection_errors();
                 print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", error.type, error.code, error.message, error.recovered);
             }
+            mpd_fd = MPD.connection_get_fd(mpd_connection);
+            handle_errors("Getting file descriptor for MPD connection");
 
             print("Successfully reconnected to MPD\n");
             return true;

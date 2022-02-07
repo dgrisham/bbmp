@@ -24,60 +24,16 @@ KEY_U :: 85;
 // TODO: get NOW_PLAYING_URI on start from mpd (+ maybe always use mpd to set it)
 NOW_PLAYING_URI: string;
 
-window : Window_Type;
+window: Window_Type;
 
-library: struct {
-    artists             : Table(string, Artist);
-    artist_names_sorted : [..] string;
-}
+mpd_fd: s32;
 
-Artist  :: struct {
-    name                       : string;
-    albums                     : Table(string, Album);
-    album_names_sorted_by_date : [..] string;
-}
-
-Album :: struct {
-    name  : string;
-    date  : Date;
-    songs : [..] Song;
-};
-
-Date :: struct {
-    year  : int;
-    month : int;
-    day   : int;
-}
-
-operator < :: (a: Date, b: Date) -> bool {
-    if a.year  < b.year  return true;
-    if a.year  > b.year  return false;
-    if a.month < b.month return true;
-    if a.month > b.month return false;
-    if a.day   < b.day   return true;
-    if a.day   > b.day   return false;
-    return false;
-}
-
-parse_date :: (date_str: string) -> Date {
-    date: Date;
-    success: bool;
-    remainder := date_str;
-
-    date.year, success, remainder = to_integer(remainder);
-    if !success return date;
-
-    if remainder.count == 0 || remainder[0] != #char "-" return date;
-    advance(*remainder, 1);
-    date.month, success, remainder = to_integer(remainder);
-    if !success return date;
-
-    if remainder.count == 0 || remainder[0] != #char "-" return date;
-    advance(*remainder, 1);
-    date.day, success, remainder = to_integer(remainder);
-    if !success return date;
-
-    return date;
+Song :: struct {
+    artist : string;
+    album  : string;
+    name   : string;
+    track  : string;
+    uri    : string;
 }
 
 left_pad :: (str: string, pad_char: u8, total_length: int) -> string {
@@ -95,37 +51,24 @@ right_pad :: (str: string, pad_char: u8, total_length: int) -> string {
     return result;
 }
 
-to_string :: (date: Date) -> string {
-    if !date.year  return "";
-    if !date.month return tprint("%", date.year);
-    month_str := left_pad(tprint("%", date.month), #char "0", 2);
-    if !date.day   return tprint("%-%", date.year, month_str);
-    day_str := left_pad(tprint("%", date.day), #char "0", 2);
-    return tprint("%-%-%", date.year, month_str, day_str);
-}
-
-Song :: struct {
-    artist : string;
-    album  : string;
-    name   : string;
-    track  : string;
-    uri    : string;
-}
-
 Cursor :: struct {
-    positions := int.[0, 0, 0];
-    selected  := 0;
+    position := 0;
 }
 
 cursor: Cursor;
 
 mpd_connection: *MPD.connection;
+idle := false;
+
+copy_from_c_string :: inline (s: *u8) -> string {
+    return copy_string(to_string(s));
+}
 
 main :: () {
 
     init_fonts();
 
-    window = create_window(window_width, window_height, "ncmpjai");
+    window = create_window(window_width, window_height, "queue");
     Simp.set_render_target(window);
 
     mpd_connection = MPD.connection_new(null, 0, 0);
@@ -133,15 +76,20 @@ main :: () {
         print("Out of memory\n");
         exit(1);
     }
-    handle_errors();
+    handle_errors("Initializing MPD connection");
+
+    mpd_fd = MPD.connection_get_fd(mpd_connection);
+    handle_errors("Getting file descriptor for MPD connection");
 
     assert(mpd_connection != null);
-    MPD.send_list_all_meta(mpd_connection, "");
-    handle_errors();
+    MPD.send_list_queue_meta(mpd_connection);
+    handle_errors("Retrieving MPD metadata");
 
     entity := MPD.recv_entity(mpd_connection);
-    handle_errors();
+    handle_errors("Receiving first entity");
+    if !entity { print("Failed retrieving MPD metadata\n"); exit(1); }
 
+    queue: [..] Song;
     while entity {
         if MPD.entity_get_type(entity) == .SONG {
             mpd_song  := MPD.entity_get_song(entity);
@@ -152,74 +100,32 @@ main :: () {
             mpd_date   := MPD.song_get_tag(mpd_song, .DATE        , 0);
             if mpd_artist && mpd_album && mpd_title {
                 song: Song;
-                song.artist = copy_string(to_string(mpd_artist));
-                song.album  = copy_string(to_string(mpd_album));
-                song.name   = copy_string(to_string(mpd_title));
 
-                artist_ptr := table_find_pointer(library.artists, song.artist);
-                if !artist_ptr {
-                    artist: Artist;
-                    artist.name = song.artist;
-                    artist_ptr = table_add(*library.artists, song.artist, artist);
-                    {
-                        index := 0;
-                        for library.artist_names_sorted {
-                            if compare_nocase(artist.name, it) < 0 break;
-                            index += 1;
-                        }
-                        array_insert_at(*library.artist_names_sorted, artist.name, index);
-                    }
-                }
+                song.track  = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK, 0));
+                if !song.track { print("Have empty track\n"); continue; }
 
-                album_ptr := table_find_pointer(artist_ptr.albums, song.album);
-                if !album_ptr {
-                    album: Album;
-                    album.name = song.album;
-                    album.date = parse_date(to_string(mpd_date));
-                    album_ptr = table_add(*artist_ptr.albums, song.album, album);
-
-                    { // TODO: album_ptr name is confusing from above
-                        index := 0;
-                        for artist_ptr.album_names_sorted_by_date {
-                            album_ptr := table_find_pointer(artist_ptr.albums, it);
-                            assert(album_ptr != null);
-                            if album.date < album_ptr.date break;
-                            index += 1;
-                        }
-                        array_insert_at(*artist_ptr.album_names_sorted_by_date, album.name, index);
-                    }
-                }
-
-                song.track  = to_string(MPD.song_get_tag(mpd_song, .TRACK, 0));
-                song.uri    = to_string(MPD.song_get_uri(mpd_song));
-                array_add(*album_ptr.songs, song);
+                song.artist = copy_from_c_string(mpd_artist);
+                song.album  = copy_from_c_string(mpd_album);
+                song.name   = copy_from_c_string(mpd_title);
+                song.uri    = copy_from_c_string(MPD.song_get_uri(mpd_song));
+                array_add(*queue, song);
             }
-        } else {
-            MPD.entity_free(entity);
         }
+
+        MPD.entity_free(entity);
         entity = MPD.recv_entity(mpd_connection);
-        handle_errors();
+        handle_errors("Receiving entity");
 
         reset_temporary_storage();
     }
 
-    columns: [3] [..] string;
+    columns: [4] [..] string;
 
-    array_resize(*columns[0], library.artist_names_sorted.count);
-    for library.artist_names_sorted columns[0][it_index] = it;
-
-    first_artist := table_find_pointer(library.artists, library.artist_names_sorted[0]);
-    array_resize(*columns[1], first_artist.album_names_sorted_by_date.count);
-    i := 0;
-    for album_name: first_artist.album_names_sorted_by_date {
-        album := table_find_pointer(first_artist.albums, album_name);
-        columns[1][it_index] = sprint("(%) %", to_string(album.date), album.name);
-        if it_index == 0 {
-            array_resize(*columns[2], album.songs.count);
-            for album.songs {
-                columns[2][it_index] = sprint("% %", left_pad(tprint("%.", it.track), #char " ", 3), it.name);;
-            }
-        }
+    for song: queue {
+        array_add(*columns[0], song.name);
+        array_add(*columns[1], song.album);
+        array_add(*columns[2], song.artist);
+        array_add(*columns[3], "0:00");
     }
 
     SEEK_SECONDS         :: 0.5;
@@ -230,13 +136,10 @@ main :: () {
     // abstracted + looped)
     j_pressed_on_frame                   := 0;
     k_pressed_on_frame                   := 0;
-    h_pressed_on_frame                   := 0;
-    l_pressed_on_frame                   := 0;
     u_pressed_on_frame                   := 0;
     d_pressed_on_frame                   := 0;
     equals_pressed_on_frame              := 0;
     dash_pressed_on_frame                := 0;
-    space_pressed_on_frame               := 0;
     enter_pressed_on_frame               := 0;
     b_pressed_on_frame                   := 0;
     f_pressed_on_frame                   := 0;
@@ -245,51 +148,30 @@ main :: () {
 
     last_key_pressed: Input.Key_Code;
 
-    // TODO: might be better to just add the entire directory if we can figure out an easy way to map between those and artists/albums
-    add_album_to_queue :: (artist_name: string, album_name: string) -> s32 {
-        first_id_added: s32;
-        artist := table_find_pointer(library.artists, artist_name);
-        if !artist return -1;
-        album := table_find_pointer(artist.albums, album_name);
-        if !artist return -1;
-
-        for song, song_index: album.songs {
-            id := MPD.run_add_id(mpd_connection, temp_c_string(song.uri));
-            if song_index == 0 {
-                first_id_added = id;
-            }
-        }
-        handle_errors();
-        return first_id_added;
-    }
-
-    add_artist_to_queue :: (artist_name: string) -> s32 {
-        first_id_added: s32;
-        artist := table_find_pointer(library.artists, artist_name);
-        if !artist return -1;
-        for album_name, album_index: artist.album_names_sorted_by_date {
-            album := table_find_pointer(artist.albums, album_name);
-
-            for song, song_index: album.songs {
-                id := MPD.run_add_id(mpd_connection, temp_c_string(song.uri));
-                if album_index == 0 && song_index == 0 {
-                    first_id_added = id;
-                }
-            }
-        }
-        handle_errors();
-        return first_id_added;
-    }
-
     reset_temporary_storage();
+
+    handle_mpd_idle_events :: () {
+        assert(mpd_connection != null);
+        if idle && MPD.send_noidle(mpd_connection) {
+            idle = false;
+    		flags := MPD.recv_idle(mpd_connection, true);
+    		MPD.response_finish(mpd_connection);
+    		handle_errors("Getting idle events");
+
+            print("flags: %\n", flags);
+        }
+    }
 
     frame := 0;
     quit := false;
     while !quit {
 
+        if !idle MPD.send_idle(mpd_connection);
+        handle_errors("Putting MPD into idle mode");
+        idle = true;
+
         new_cursor: Cursor;
-        for cursor.positions new_cursor.positions[it_index] = it;
-        new_cursor.selected = cursor.selected;
+        new_cursor.position = cursor.position;
 
         Input.update_window_events();
         for Input.events_this_frame {
@@ -305,153 +187,87 @@ main :: () {
                       case KEY_J;
                         j_pressed_on_frame = frame;
                         last_key_pressed = KEY_J;
-                        new_cursor.positions[new_cursor.selected] += 1;
-                        if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-                        if cursor.selected == 1 new_cursor.positions[2] = 0;
+                        new_cursor.position += 1;
                       case KEY_K;
                         k_pressed_on_frame = frame;
                         last_key_pressed = KEY_K;
-                        new_cursor.positions[new_cursor.selected] -= 1;
-                        if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-                        if cursor.selected == 1 new_cursor.positions[2] = 0;
-
-                      case KEY_L;
-                        l_pressed_on_frame = frame;
-                        last_key_pressed = KEY_L;
-                        new_cursor.selected += 1;
-                      case KEY_H;
-                        h_pressed_on_frame = frame;
-                        last_key_pressed = KEY_H;
-                        new_cursor.selected -= 1;
+                        new_cursor.position -= 1;
 
                       case KEY_D;
                         d_pressed_on_frame = frame;
                         last_key_pressed = KEY_D;
-                        new_cursor.positions[new_cursor.selected] += ITEMS_IN_PAGE;
-                        if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-                        if cursor.selected == 1 new_cursor.positions[2] = 0;
+                        new_cursor.position += ITEMS_IN_PAGE;
                       case KEY_U;
                         u_pressed_on_frame = frame;
                         last_key_pressed = KEY_U;
-                        new_cursor.positions[new_cursor.selected] -= ITEMS_IN_PAGE;
-                        if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-                        if cursor.selected == 1 new_cursor.positions[2] = 0;
+                        new_cursor.position -= ITEMS_IN_PAGE;
 
                       case KEY_P;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_toggle_pause(mpd_connection);
-                        handle_errors();
+                        handle_errors("");
 
                       case KEY_C;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_clear(mpd_connection);
-                        handle_errors();
+                        handle_errors("");
 
                       case KEY_O;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         mpd_current_song := MPD.run_current_song(mpd_connection);
-                        handle_errors();
+                        handle_errors("");
                         if !mpd_current_song break;
                         uri := to_string(MPD.song_get_uri(mpd_current_song));
 
-                        for artist, artist_name: library.artists {
-                            for album, album_name: artist.albums {
-                                for song, song_index: album.songs {
-                                    if song.uri == uri {
-                                        artist_found, artist_index := array_find(library.artist_names_sorted, artist_name);
-                                        if !artist_found break artist;
-                                        artist_ptr := table_find_pointer(library.artists, artist_name);
-                                        album_found, album_index := array_find(artist_ptr.album_names_sorted_by_date, album_name);
-                                        if !album_found break artist;
-                                        new_cursor.positions[0] = artist_index;
-                                        new_cursor.positions[1] = album_index;
-                                        new_cursor.positions[2] = song_index;
-                                        new_cursor.selected     = 2;
-                                    }
-                                }
+                        for song: queue {
+                            if song.uri == uri {
+                                new_cursor.position = it_index;
                             }
                         }
 
-                      case .SPACEBAR;
-                        space_pressed_on_frame = frame;
-                        last_key_pressed = .SPACEBAR;
-                        assert(mpd_connection != null);
-                        if cursor.selected == {
-                          case 0;
-                            add_artist_to_queue(library.artist_names_sorted[cursor.positions[0]]);
-                          case 1;
-                            artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
-                            add_album_to_queue(artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
-                          case 2;
-                            artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
-                            album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
-                            MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
-                        }
-                        new_cursor.positions[new_cursor.selected] += 1;
-
                       case .ENTER;
-                        enter_pressed_on_frame = frame;
-                        last_key_pressed = .ENTER;
-                        song_id_to_play: s32;
-
-                        assert(mpd_connection != null);
-                        if cursor.selected == {
-                          case 0;
-                            song_id_to_play = add_artist_to_queue(library.artist_names_sorted[cursor.positions[0]]);
-                          case 1;
-                            artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
-                            song_id_to_play = add_album_to_queue(artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
-                          case 2;
-                            artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
-                            album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
-                            song_id_to_play = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
-                        }
-                        new_cursor.positions[new_cursor.selected] += 1;
-
-                        if song_id_to_play >= 0 { // play first song that was added
-                            assert(mpd_connection != null);
-                            MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
-                            handle_errors();
-                        }
+                        handle_mpd_idle_events();
+                        MPD.run_play_pos(mpd_connection, cast(u32)cursor.position);
+                        handle_errors("");
 
                       case KEY_B;
                         b_pressed_on_frame = frame;
                         last_key_pressed = KEY_B;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
-                        handle_errors();
+                        handle_errors("");
                       case KEY_F;
                         f_pressed_on_frame = frame;
                         last_key_pressed = KEY_F;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
-                        handle_errors();
+                        handle_errors("");
 
                       case .LEFT_ANGLE_BRACKET;
                         left_angle_bracket_pressed_on_frame = frame;
                         last_key_pressed = .LEFT_ANGLE_BRACKET;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_previous(mpd_connection);
-                        handle_errors();
+                        handle_errors("");
                       case .RIGHT_ANGLE_BRACKET;
                         right_angle_bracket_pressed_on_frame = frame;
                         last_key_pressed = .RIGHT_ANGLE_BRACKET;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_next(mpd_connection);
-                        handle_errors();
+                        handle_errors("");
 
                       case .EQUALS_SIGN;
                         equals_pressed_on_frame = frame;
                         last_key_pressed = .EQUALS_SIGN;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
-                        handle_errors();
+                        handle_errors("");
                       case .DASH;
                         dash_pressed_on_frame = frame;
                         last_key_pressed = .DASH;
-                        assert(mpd_connection != null);
+                        handle_mpd_idle_events();
                         MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
-                        handle_errors();
+                        handle_errors("");
 
                       case KEY_Q;
                         quit = true;
@@ -477,34 +293,14 @@ main :: () {
            KEY_J == last_key_pressed                   &&
            frame > j_pressed_on_frame + KEY_HOLD_DELAY
         {
-            new_cursor.positions[new_cursor.selected] += 1;
-            if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-            if cursor.selected == 1 new_cursor.positions[2] = 0;
+            new_cursor.position += 1;
         } else
         if Input.input_button_states[KEY_K] & .DOWN    &&
            frame % 2                                   &&
            KEY_K == last_key_pressed                   &&
            frame > k_pressed_on_frame + KEY_HOLD_DELAY
         {
-            new_cursor.positions[new_cursor.selected] -= 1;
-            if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-            if cursor.selected == 1 new_cursor.positions[2] = 0;
-
-        }
-
-        if Input.input_button_states[KEY_L] & .DOWN    &&
-           frame % 2                                   &&
-           KEY_L == last_key_pressed                   &&
-           frame > l_pressed_on_frame + KEY_HOLD_DELAY
-        {
-            new_cursor.selected += 1;
-        } else
-        if Input.input_button_states[KEY_H] & .DOWN    &&
-           frame % 2                                   &&
-           KEY_H == last_key_pressed                   &&
-           frame > h_pressed_on_frame + KEY_HOLD_DELAY
-        {
-            new_cursor.selected -= 1;
+            new_cursor.position -= 1;
         }
 
         if Input.input_button_states[KEY_D] & .DOWN    &&
@@ -512,18 +308,14 @@ main :: () {
            KEY_D == last_key_pressed                   &&
            frame > d_pressed_on_frame + KEY_HOLD_DELAY
         {
-            new_cursor.positions[new_cursor.selected] += ITEMS_IN_PAGE;
-            if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-            if cursor.selected == 1 new_cursor.positions[2] = 0;
+            new_cursor.position += ITEMS_IN_PAGE;
         } else
         if Input.input_button_states[KEY_U] & .DOWN    &&
            frame % 2                                   &&
            KEY_U == last_key_pressed                   &&
            frame > u_pressed_on_frame + KEY_HOLD_DELAY
         {
-            new_cursor.positions[new_cursor.selected] -= ITEMS_IN_PAGE;
-            if cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-            if cursor.selected == 1 new_cursor.positions[2] = 0;
+            new_cursor.position -= ITEMS_IN_PAGE;
         }
 
         if Input.input_button_states[Input.Key_Code.EQUALS_SIGN] & .DOWN &&
@@ -531,18 +323,18 @@ main :: () {
            Input.Key_Code.EQUALS_SIGN == last_key_pressed                &&
            frame > equals_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
-            handle_errors();
+            handle_errors("");
         } else
         if Input.input_button_states[Input.Key_Code.DASH] & .DOWN &&
            frame % 2                                              &&
            Input.Key_Code.DASH == last_key_pressed                &&
            frame > dash_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
-            handle_errors();
+            handle_errors("");
         }
 
         if Input.input_button_states[Input.Key_Code.LEFT_ANGLE_BRACKET] & .DOWN &&
@@ -550,18 +342,18 @@ main :: () {
            Input.Key_Code.LEFT_ANGLE_BRACKET == last_key_pressed                &&
            frame > left_angle_bracket_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             MPD.run_previous(mpd_connection);
-            handle_errors();
+            handle_errors("");
         } else
         if Input.input_button_states[Input.Key_Code.RIGHT_ANGLE_BRACKET] & .DOWN &&
            frame % 2                                                             &&
            Input.Key_Code.RIGHT_ANGLE_BRACKET == last_key_pressed                &&
            frame > right_angle_bracket_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             MPD.run_next(mpd_connection);
-            handle_errors();
+            handle_errors("");
         }
 
         if Input.input_button_states[KEY_B] & .DOWN &&
@@ -569,18 +361,18 @@ main :: () {
            KEY_B == last_key_pressed                &&
            frame > b_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
-            handle_errors();
+            handle_errors("");
         } else
         if Input.input_button_states[KEY_F] & .DOWN &&
            frame % 2                                &&
            KEY_F == last_key_pressed                &&
            frame > f_pressed_on_frame + 20
         {
-            assert(mpd_connection != null);
+            handle_mpd_idle_events();
             MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
-            handle_errors();
+            handle_errors("");
         }
 
         if Input.input_button_states[Input.Key_Code.ENTER] & .DOWN &&
@@ -588,97 +380,13 @@ main :: () {
            Input.Key_Code.ENTER == last_key_pressed                &&
            frame > enter_pressed_on_frame + 20
         {
-            song_id_to_play: s32;
-
-            assert(mpd_connection != null);
-            if cursor.selected == {
-              case 0;
-                song_id_to_play = add_artist_to_queue(library.artist_names_sorted[cursor.positions[0]]);
-              case 1;
-                artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
-                song_id_to_play = add_album_to_queue(artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
-              case 2;
-                artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
-                album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
-                song_id_to_play = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
-            }
-            new_cursor.positions[new_cursor.selected] += 1;
-
-            if song_id_to_play >= 0 { // play first song that was added
-                assert(mpd_connection != null);
-                MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
-                handle_errors();
-            }
+            handle_mpd_idle_events();
+            MPD.run_play_pos(mpd_connection, cast(u32)cursor.position);
+            handle_errors("");
         }
 
-        if Input.input_button_states[Input.Key_Code.SPACEBAR] & .DOWN &&
-           frame % 2                                                  &&
-           Input.Key_Code.SPACEBAR == last_key_pressed                &&
-           frame > space_pressed_on_frame + 20
-        {
-            assert(mpd_connection != null);
-            if cursor.selected == {
-              case 0;
-                add_artist_to_queue(library.artist_names_sorted[cursor.positions[0]]);
-              case 1;
-                artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
-                add_album_to_queue(artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
-              case 2;
-                artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
-                album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
-                MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
-            }
-            new_cursor.positions[new_cursor.selected] += 1;
-        }
-
-        if new_cursor.selected != cursor.selected {
-            if new_cursor.selected < 0
-                new_cursor.selected = 0;
-            if new_cursor.selected >= new_cursor.positions.count
-                new_cursor.selected = new_cursor.positions.count - 1;
-        }
-
-        for * new_cursor.positions {
-
-            if (<<it) != cursor.positions[it_index] { // cursor changed
-                if <<it < 0 {
-                    <<it = 0;
-                } else
-                if <<it >= columns[it_index].count {
-                    <<it = columns[it_index].count - 1;
-                }
-
-                if it_index < 1 { // update albums
-                    artist_name := library.artist_names_sorted[new_cursor.positions[0]];
-                    artist := table_find_pointer(library.artists, artist_name);
-                    if !artist { print("Artist '%' not found\n", artist_name); exit(1); }
-
-                    for columns[1] free(it);
-                    array_resize(*columns[1], artist.album_names_sorted_by_date.count);
-                    for album_name: artist.album_names_sorted_by_date {
-                        album := table_find_pointer(artist.albums, album_name);
-                        // if !album { print("Album '%' not found for artist '%'\n", album_name, artist_name); exit(1); }
-                        columns[1][it_index] = sprint("(%) %", to_string(album.date), album.name);
-                    }
-                }
-
-                if it_index < 2 { // update songs
-                    artist_name := library.artist_names_sorted[new_cursor.positions[0]];
-                    artist := table_find_pointer(library.artists, artist_name);
-                    if !artist { print("Artist '%' not found\n", artist_name); exit(1); }
-
-                    album_name := artist.album_names_sorted_by_date[new_cursor.positions[1]];
-                    album := table_find_pointer(artist.albums, album_name);
-                    if !album { print("Album '%' not found for artist '%'\n", album_name, artist_name); exit(1); }
-
-                    for columns[2] free(it);
-                    array_resize(*columns[2], album.songs.count);
-                    for album.songs {
-                       columns[2][it_index] = sprint("% %", left_pad(tprint("%.", it.track), #char " ", 4), it.name);;
-                    }
-                }
-            }
-        }
+        if new_cursor.position < 0                 new_cursor.position = 0;
+        if new_cursor.position >= columns[0].count new_cursor.position = columns[0].count - 1;
 
         cursor = new_cursor;
 
@@ -693,43 +401,57 @@ main :: () {
     MPD.connection_free(mpd_connection);
 }
 
+// desktop
 // window_width  : s32 : 2560;
 // window_height : s32 : 1440;
 // pixel_height := window_height / 96;
 // column_width :: 700;
 // ITEMS_IN_PAGE :: 50;
 
-window_width  : s32 : 1920;
-window_height : s32 : 1080;
-pixel_height := window_height / 72;
-column_width := 600;
-ITEMS_IN_PAGE := 40;
+// laptop
+// window_width  : s32 : 1920;
+// window_height : s32 : 1080;
+// pixel_height := window_height / 72;
+// column_width := 600;
+// ITEMS_IN_PAGE := 40;
 
-draw_one_frame :: (columns: [3] [..] string) {
+// desktop - streaming
+window_width  : s32 : 1900;
+window_height : s32 : 1440;
+pixel_height := window_height / 48;
+column_widths :: int.[700, 400, 400, 200];
+ITEMS_IN_PAGE :: 30;
+
+draw_queue_screen :: (columns: [4] [..] string) {
+}
+draw_library_screen :: (columns: [3] [..] string) {
+}
+draw_one_frame :: (columns: [4] [..] string) {
 
     Simp.clear_render_target(0,0,0,1);
 
-    left_bound := cast(int) (window_width - column_width * 3) / 2;
+    total_column_width := 0; for column_widths total_column_width += it;
+    left_bound := cast(int) (window_width - total_column_width) / 2;
     original_y := cast(int) (window_height / 2 + ITEMS_IN_PAGE * (font.character_height + text_padding_y) / 2);
     text_padding_y :: 5;
 
-    max_characters_in_column := (column_width - 100) / font.em_width;
+    index_start := max(0, min(columns[0].count - ITEMS_IN_PAGE + 1, cursor.position - ITEMS_IN_PAGE/ 2 + 1));
+    index_end := min(index_start + ITEMS_IN_PAGE, columns[0].count - 1);
 
+    x := left_bound;
     {
-        x := left_bound;
         y := original_y;
+        max_characters_in_column := (column_widths[0] - 100) / font.em_width;
 
-        index_start := max(0, min(columns[0].count - ITEMS_IN_PAGE + 1, cursor.positions[0] - ITEMS_IN_PAGE/ 2 + 1));
-        index_end := min(index_start + ITEMS_IN_PAGE, columns[0].count - 1);
         for i: index_start..index_end {
-            artist := columns[0][i];
+            song_name := columns[0][i];
 
-            width := Simp.prepare_text(font, slice(artist, 0, max_characters_in_column));
-            if i == cursor.positions[0] {
+            width := Simp.prepare_text(font, slice(song_name, 0, max_characters_in_column));
+            if i == cursor.position {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
-                color := ifx cursor.selected == 0 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 100, cast(float)y + font.character_height, color);
+                color := rgba(1,1,1,1);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_widths[0], cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
                 Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
             } else {
@@ -740,21 +462,20 @@ draw_one_frame :: (columns: [3] [..] string) {
         }
     }
 
+    x += column_widths[0];
     {
-        x := left_bound + column_width;
         y := original_y;
+        max_characters_in_column := (column_widths[1] - 100) / font.em_width;
 
-        index_start := max(0, min(columns[1].count - ITEMS_IN_PAGE + 1, cursor.positions[1] - ITEMS_IN_PAGE/ 2 + 1));
-        index_end := min(index_start + ITEMS_IN_PAGE, columns[1].count - 1);
         for i: index_start..index_end {
             album := columns[1][i];
 
             width := Simp.prepare_text(font, slice(album, 0, max_characters_in_column));
-            if i == cursor.positions[1] {
+            if i == cursor.position {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
-                color := ifx cursor.selected == 1 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 100, cast(float)y + font.character_height, color);
+                color := rgba(0.5,0.5,0.5,1);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_widths[1], cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
                 Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
             } else {
@@ -765,21 +486,44 @@ draw_one_frame :: (columns: [3] [..] string) {
         }
     }
 
+    x += column_widths[1];
     {
-        x := left_bound + 2 * column_width;
         y := original_y;
+        max_characters_in_column := (column_widths[2] - 100) / font.em_width;
 
-        index_start := max(0, min(columns[2].count - ITEMS_IN_PAGE + 1, cursor.positions[2] - ITEMS_IN_PAGE/ 2 + 1));
-        index_end := min(index_start + ITEMS_IN_PAGE, columns[2].count - 1);
         for i: index_start..index_end {
-            song := columns[2][i];
+            artist := columns[2][i];
 
-            width := Simp.prepare_text(font, slice(song, 0, max_characters_in_column));
-            if i == cursor.positions[2] {
+            width := Simp.prepare_text(font, slice(artist, 0, max_characters_in_column));
+            if i == cursor.position {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
-                color := ifx cursor.selected == 2 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 100, cast(float)y + font.character_height, color);
+                color := rgba(0.5,0.5,0.5,1);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_widths[2], cast(float)y + font.character_height, color);
+                Simp.immediate_flush();
+                Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+            } else {
+                Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+            }
+
+            y -= text_padding_y + font.character_height;
+        }
+    }
+
+    x += column_widths[2];
+    {
+        y := original_y;
+        max_characters_in_column := (column_widths[3] - 100) / font.em_width;
+
+        for i: index_start..index_end {
+            song_length := columns[3][i];
+            display_song_length := left_pad(slice(song_length, 0, max_characters_in_column), #char " ", max_characters_in_column);
+            width := Simp.prepare_text(font, slice(display_song_length, 0, max_characters_in_column));
+            if i == cursor.position {
+                Simp.immediate_begin();
+                Simp.set_shader_for_color();
+                color := rgba(0.5,0.5,0.5,1);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_widths[3], cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
                 Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
             } else {
@@ -826,10 +570,10 @@ Client_Error :: struct {
 // handle_errors :: (msg: string) {
 //
 // returns true if a reconnect happened, false otherwise
-handle_errors :: () -> bool {
+handle_errors :: (message: string) -> bool {
     error := check_connection_errors();
     if error {
-        print("% error: code=%, message='%', recovered=%\n", error.type, error.code, error.message, error.recovered);
+        print("%: % error, code=%, message='%', recovered=%\n", message, error.type, error.code, error.message, error.recovered);
         if !error.recovered {
             print("Failed to recover from error, attempting to reconnect to MPD\n");
 
@@ -849,6 +593,9 @@ handle_errors :: () -> bool {
                 print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", error.type, error.code, error.message, error.recovered);
             }
 
+            mpd_fd = MPD.connection_get_fd(mpd_connection);
+            handle_errors("Getting file descriptor for MPD connection");
+
             print("Successfully reconnected to MPD\n");
             return true;
         }
@@ -860,7 +607,7 @@ handle_errors :: () -> bool {
 check_connection_errors :: () -> *Error {
 	error_code := MPD.connection_get_error(mpd_connection);
 	if (error_code != .SUCCESS) {
-		msg := copy_string(to_string(MPD.connection_get_error_message(mpd_connection)));
+		msg := copy_from_c_string(MPD.connection_get_error_message(mpd_connection));
 
 		if error_code == .SERVER {
     		error := New(Server_Error);
