@@ -3,6 +3,7 @@
 - [ ] 'y' for setting single-mode
 - [ ] consider what to do with strings that cut off (trailing '...'?)
 - [ ] show a simple 'now playing' with song metadata + current / total time
+- [ ] All That Remains - Overcome missing?
 
 - [x] artist (and general, probably) sorting puts lowercase after uppercase
 - [x] 'o' to to go to currently playing track
