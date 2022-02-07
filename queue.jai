@@ -14,12 +14,14 @@ load_queue :: () {
 
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
+    // TODO: this check is okay to make but is also mainly a workaround for the mpd connection dying bug
+    if !status { print("Status is null, not refreshing queue\n"); return; }
     mpd_queue_length := MPD.status_get_queue_length(status);
-
-    // array_resize(*queue, mpd_queue_length);
 
     for queue free(it);
     array_reset(*queue);
+    // reserve the space but don't resize the array, in case we're missing metadata
+    // for any songs while we're iterating below
     array_reserve(*queue, mpd_queue_length);
 
     assert(mpd_connection != null);
@@ -29,7 +31,6 @@ load_queue :: () {
     entity := MPD.recv_entity(mpd_connection);
     handle_errors("Receiving first entity");
 
-    // queue_index := 0;
     while entity {
         if MPD.entity_get_type(entity) == .SONG {
             mpd_song  := MPD.entity_get_song(entity);
@@ -42,7 +43,7 @@ load_queue :: () {
                 song: Song;
 
                 song.track  = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK, 0));
-                if !song.track { print("Have empty track\n"); continue; }
+                // if !song.track { print("Have empty track\n"); continue; }
 
                 song.artist = copy_from_c_string(mpd_artist);
                 song.album  = copy_from_c_string(mpd_album);
@@ -95,10 +96,6 @@ queue_init_keys :: () {
 }
 
 queue_event_loop :: (frame: u64) {
-
-    // if !idle MPD.send_idle(mpd_connection);
-    // handle_errors("Putting MPD into idle mode");
-    // idle = true;
 
     new_cursor: Queue_Cursor;
     new_cursor.position = queue_cursor.position;

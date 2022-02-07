@@ -2,10 +2,12 @@
 #import "Math";
 #import "String";
 #import "Window_Creation";
+#import "POSIX";
 
-Simp  :: #import "Simp";
-Input :: #import "Input";
-MPD   :: #import "libmpdclient";
+Process :: #import "Process";
+Simp    :: #import "Simp";
+Input   :: #import "Input";
+MPD     :: #import "libmpdclient";
 
 SEEK_SECONDS         :: 0.5;
 VOLUME_CHANGE_AMOUNT :: 2;
@@ -83,6 +85,9 @@ Screen :: enum {
 
 current_screen := Screen.LIBRARY;
 
+LONG        : s32 : 0x200000;
+TCP_NODELAY : s32 : LONG + xx 121;
+
 main :: () {
 
     init_fonts();
@@ -99,6 +104,15 @@ main :: () {
 
     mpd_fd = MPD.connection_get_fd(mpd_connection);
     handle_errors("Getting file descriptor for MPD connection");
+    flag: int = 1;
+    setsockopt(mpd_fd, IPPROTO_TCP, TCP_NODELAY, *flag, size_of(type_of(flag)));
+
+
+    // pid := fork_poll_process(mpd_fd);
+    // child_pid: pid_t;
+    // if pid > 0 {
+    //     child_pid = pid;
+    // }
 
     load_library();
     reset_temporary_storage();
@@ -116,6 +130,11 @@ main :: () {
     frame: u64 = 0;
 
     while !quit {
+
+        if !idle MPD.send_idle(mpd_connection);
+        handle_errors("Putting MPD into idle mode");
+        idle = true;
+
         Input.update_window_events();
 
         for Input.events_this_frame {
@@ -150,33 +169,69 @@ main :: () {
         reset_temporary_storage();
     }
 
-    print("Exiting\n");
+    // print("Killing child process\n");
+    // if kill(child_pid, SIGKILL) == -1
+    //     print("Failed to kill the child %: %\n", child_pid, errno());
+
     MPD.connection_free(mpd_connection);
 }
 
+fork_poll_process :: (mpd_fd: s32) -> pid_t {
+    pid := fork();
+
+    if pid < 0 {
+        log_error("Error forking MPD connection fd poll process: %\n", errno());
+        return -1;
+    }
+    if pid == 0 {
+
+        // success := true;
+        while true {
+            poll_fds: [1] pollfd;
+            poll_fds[0].fd = mpd_fd;
+            poll_fds[0].events = POLLIN;
+
+            print("Polling socket...\n");
+            poll(poll_fds.data, cast(u32) poll_fds.count, -1);
+            if poll_fds[0].revents & POLLIN {
+                print("read event!: %\n", poll_fds[0].revents);
+
+                // output_builder: String_Builder;
+                // Process.read_entire_pipe(mpd_fd, *output_builder, true);
+                handle_mpd_idle_events();
+            }
+            sleep_milliseconds(1000);
+        }
+    }
+
+    return pid;
+}
+
 handle_mpd_idle_events :: () {
-  //   assert(mpd_connection != null);
-  //   if idle && MPD.send_noidle(mpd_connection) {
-  //       idle = false;
-		// flags := MPD.recv_idle(mpd_connection, true);
-		// MPD.response_finish(mpd_connection);
-		// handle_errors("Getting idle events");
-  //   }
+    assert(mpd_connection != null);
+    // print("Checking MPD idle events\n");
+    if idle && MPD.send_noidle(mpd_connection) {
+        idle = false;
+		flags := MPD.recv_idle(mpd_connection, true);
+		print("flags: %\n", flags);
+		MPD.response_finish(mpd_connection);
+		handle_errors("Getting idle events");
+    }
 }
 
 // desktop
-window_width  : s32 : 2560;
-window_height : s32 : 1440;
-pixel_height := window_height / 96;
-column_width :: 700;
-ITEMS_IN_PAGE :: 50;
+// window_width  : s32 : 2560;
+// window_height : s32 : 1440;
+// pixel_height := window_height / 96;
+// column_width :: 700;
+// ITEMS_IN_PAGE :: 50;
 
 // laptop
-// window_width  : s32 : 1920;
-// window_height : s32 : 1080;
-// pixel_height := window_height / 72;
-// column_width := 600;
-// ITEMS_IN_PAGE := 40;
+window_width  : s32 : 1920;
+window_height : s32 : 1080;
+pixel_height := window_height / 72;
+column_width := 600;
+ITEMS_IN_PAGE := 40;
 
 // desktop - streaming
 // window_width  : s32 : 1900;
@@ -189,7 +244,7 @@ ITEMS_IN_PAGE :: 50;
 font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
 
-    font = Simp.get_font_at_size(".", "Inconsolata-Regular.ttf", pixel_height);
+    font = Simp.get_font_at_size(".", "Inconsolata Regular Nerd Font Complete.otf", pixel_height);
     assert(font != null);
 
     font_bold = Simp.get_font_at_size(".", "Inconsolata-SemiBold.ttf", pixel_height);
@@ -218,6 +273,7 @@ Client_Error :: struct {
 //
 // returns true if a reconnect happened, false otherwise
 handle_errors :: (message: string) -> bool {
+
     error := check_connection_errors();
     if error {
         print("%: % error, code=%, message='%', recovered=%\n", message, error.type, error.code, error.message, error.recovered);
@@ -241,6 +297,9 @@ handle_errors :: (message: string) -> bool {
             }
             mpd_fd = MPD.connection_get_fd(mpd_connection);
             handle_errors("Getting file descriptor for MPD connection");
+
+            flag: int = 1;
+            setsockopt(mpd_fd, IPPROTO_TCP, TCP_NODELAY, *flag, size_of(type_of(flag)));
 
             print("Successfully reconnected to MPD\n");
             return true;

@@ -4,6 +4,14 @@
 - [ ] consider what to do with strings that cut off (trailing '...'?)
 - [ ] show a simple 'now playing' with song metadata + current / total time
 - [ ] All That Remains - Overcome missing?
+- [ ] consider this in ncmpcpp's status.cpp:
+    ```
+	// Set TCP_NODELAY on the tcp socket as we are using write-write-read pattern
+	// a lot (noidle - write, command - write, then read the result of command),
+	// which kills the performance.
+	int flag = 1;
+	setsockopt(Mpd.GetFD(), IPPROTO_TCP, TCP_NODELAY, &flag, sizeof(flag));
+    ```
 
 - [x] artist (and general, probably) sorting puts lowercase after uppercase
 - [x] 'o' to to go to currently playing track

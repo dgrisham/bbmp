@@ -124,6 +124,8 @@ load_library :: () {
                 song.track = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK, 0));
                 song.uri   = copy_from_c_string(MPD.song_get_uri(mpd_song));
                 array_add(*album_ptr.songs, song);
+            } else {
+                // print("skipping: '%', '%', '%'\n", mpd_artist, to_string(mpd_album), to_string(mpd_title));
             }
         }
 
@@ -207,10 +209,6 @@ library_init_keys :: () {
 }
 
 library_event_loop :: (frame: u64) {
-
-    // if !idle MPD.send_idle(mpd_connection);
-    // handle_errors("Putting MPD into idle mode");
-    // idle = true;
 
     new_cursor: Library_Cursor;
     for library_cursor.positions new_cursor.positions[it_index] = it;
