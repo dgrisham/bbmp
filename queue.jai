@@ -219,39 +219,34 @@ queue_event_loop :: (frame: u64) {
     KEY_HOLD_DELAY :: 20;
 
 
-    if Input.input_button_states[KEY_J] & .DOWN    &&
-       frame % 2                                   &&
-       KEY_J == queue_last_key_pressed                   &&
+    if Input.input_button_states[KEY_J] & .DOWN &&
+       KEY_J == queue_last_key_pressed          &&
        frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_J) + KEY_HOLD_DELAY
     {
         new_cursor.position += 1;
     } else
-    if Input.input_button_states[KEY_K] & .DOWN    &&
-       frame % 2                                   &&
-       KEY_K == queue_last_key_pressed                   &&
+    if Input.input_button_states[KEY_K] & .DOWN &&
+       KEY_K == queue_last_key_pressed          &&
        frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_K) + KEY_HOLD_DELAY
     {
         new_cursor.position -= 1;
     }
 
-    if Input.input_button_states[KEY_D] & .DOWN    &&
-       frame % 2                                   &&
-       KEY_D == queue_last_key_pressed                   &&
+    if Input.input_button_states[KEY_D] & .DOWN &&
+       KEY_D == queue_last_key_pressed          &&
        frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_D) + KEY_HOLD_DELAY
     {
         new_cursor.position += ITEMS_IN_PAGE;
     } else
-    if Input.input_button_states[KEY_U] & .DOWN    &&
-       frame % 2                                   &&
-       KEY_U == queue_last_key_pressed                   &&
+    if Input.input_button_states[KEY_U] & .DOWN &&
+       KEY_U == queue_last_key_pressed          &&
        frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_U) + KEY_HOLD_DELAY
     {
         new_cursor.position -= ITEMS_IN_PAGE;
     }
 
     if Input.input_button_states[Input.Key_Code.EQUALS_SIGN] & .DOWN &&
-       frame % 2                                                     &&
-       Input.Key_Code.EQUALS_SIGN == queue_last_key_pressed                &&
+       Input.Key_Code.EQUALS_SIGN == queue_last_key_pressed          &&
        frame > <<table_find_pointer(queue_key_pressed_on_frame, Input.Key_Code.EQUALS_SIGN) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
@@ -259,8 +254,7 @@ queue_event_loop :: (frame: u64) {
         handle_errors("");
     } else
     if Input.input_button_states[Input.Key_Code.DASH] & .DOWN &&
-       frame % 2                                              &&
-       Input.Key_Code.DASH == queue_last_key_pressed                &&
+       Input.Key_Code.DASH == queue_last_key_pressed          &&
        frame > <<table_find_pointer(queue_key_pressed_on_frame, Input.Key_Code.DASH) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
@@ -269,8 +263,7 @@ queue_event_loop :: (frame: u64) {
     }
 
     if Input.input_button_states[Input.Key_Code.LEFT_ANGLE_BRACKET] & .DOWN &&
-       frame % 2                                                            &&
-       Input.Key_Code.LEFT_ANGLE_BRACKET == queue_last_key_pressed                &&
+       Input.Key_Code.LEFT_ANGLE_BRACKET == queue_last_key_pressed          &&
        frame > <<table_find_pointer(queue_key_pressed_on_frame, Input.Key_Code.LEFT_ANGLE_BRACKET) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
@@ -278,8 +271,7 @@ queue_event_loop :: (frame: u64) {
         handle_errors("");
     } else
     if Input.input_button_states[Input.Key_Code.RIGHT_ANGLE_BRACKET] & .DOWN &&
-       frame % 2                                                             &&
-       Input.Key_Code.RIGHT_ANGLE_BRACKET == queue_last_key_pressed                &&
+       Input.Key_Code.RIGHT_ANGLE_BRACKET == queue_last_key_pressed          &&
        frame > <<table_find_pointer(queue_key_pressed_on_frame, Input.Key_Code.RIGHT_ANGLE_BRACKET) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
@@ -288,8 +280,7 @@ queue_event_loop :: (frame: u64) {
     }
 
     if Input.input_button_states[KEY_B] & .DOWN &&
-       frame % 2                                &&
-       KEY_B == queue_last_key_pressed                &&
+       KEY_B == queue_last_key_pressed          &&
        frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_B) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
@@ -297,8 +288,7 @@ queue_event_loop :: (frame: u64) {
         handle_errors("");
     } else
     if Input.input_button_states[KEY_F] & .DOWN &&
-       frame % 2                                &&
-       KEY_F == queue_last_key_pressed                &&
+       KEY_F == queue_last_key_pressed          &&
        frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_F) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
@@ -307,7 +297,6 @@ queue_event_loop :: (frame: u64) {
     }
 
     if Input.input_button_states[KEY_X] & .DOWN &&
-       frame % 2                                &&
        KEY_X == queue_last_key_pressed          &&
        frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_X) + KEY_HOLD_DELAY
     {
@@ -320,8 +309,7 @@ queue_event_loop :: (frame: u64) {
     }
 
     if Input.input_button_states[Input.Key_Code.ENTER] & .DOWN &&
-       frame % 2                                               &&
-       Input.Key_Code.ENTER == queue_last_key_pressed                &&
+       Input.Key_Code.ENTER == queue_last_key_pressed          &&
        frame > <<table_find_pointer(queue_key_pressed_on_frame, Input.Key_Code.ENTER) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();

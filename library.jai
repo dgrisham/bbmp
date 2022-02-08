@@ -150,6 +150,8 @@ load_library :: () {
             }
         }
     }
+
+    reset_temporary_storage();
 }
 
 // TODO: might be better to just add the entire directory if we can figure out an easy way to map between those and artists/albums
@@ -390,8 +392,7 @@ library_event_loop :: (frame: u64) {
     KEY_HOLD_DELAY :: 20;
 
     if Input.input_button_states[KEY_J] & .DOWN &&
-       frame % 2                                &&
-       KEY_J == library_last_key_pressed                &&
+       KEY_J == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_J) + KEY_HOLD_DELAY
     {
         new_cursor.positions[new_cursor.selected] += 1;
@@ -399,8 +400,7 @@ library_event_loop :: (frame: u64) {
         if library_cursor.selected == 1 new_cursor.positions[2] = 0;
     } else
     if Input.input_button_states[KEY_K] & .DOWN    &&
-       frame % 2                                   &&
-       KEY_K == library_last_key_pressed                   &&
+       KEY_K == library_last_key_pressed           &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_K) + KEY_HOLD_DELAY
     {
         new_cursor.positions[new_cursor.selected] -= 1;
@@ -408,33 +408,29 @@ library_event_loop :: (frame: u64) {
         if library_cursor.selected == 1 new_cursor.positions[2] = 0;
     }
 
-    if Input.input_button_states[KEY_L] & .DOWN    &&
-       frame % 2                                   &&
-       KEY_L == library_last_key_pressed                   &&
+    if Input.input_button_states[KEY_L] & .DOWN &&
+       KEY_L == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_L) + KEY_HOLD_DELAY
     {
         new_cursor.selected += 1;
     } else
-    if Input.input_button_states[KEY_H] & .DOWN    &&
-       frame % 2                                   &&
-       KEY_H == library_last_key_pressed                   &&
+    if Input.input_button_states[KEY_H] & .DOWN &&
+       KEY_H == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_H) + KEY_HOLD_DELAY
     {
         new_cursor.selected -= 1;
     }
 
-    if Input.input_button_states[KEY_D] & .DOWN    &&
-       frame % 2                                   &&
-       KEY_D == library_last_key_pressed                   &&
+    if Input.input_button_states[KEY_D] & .DOWN &&
+       KEY_D == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_D) + KEY_HOLD_DELAY
     {
         new_cursor.positions[new_cursor.selected] += ITEMS_IN_PAGE;
         if library_cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
         if library_cursor.selected == 1 new_cursor.positions[2] = 0;
     } else
-    if Input.input_button_states[KEY_U] & .DOWN    &&
-       frame % 2                                   &&
-       KEY_U == library_last_key_pressed                   &&
+    if Input.input_button_states[KEY_U] & .DOWN &&
+       KEY_U == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_U) + KEY_HOLD_DELAY
     {
         new_cursor.positions[new_cursor.selected] -= ITEMS_IN_PAGE;
@@ -443,8 +439,7 @@ library_event_loop :: (frame: u64) {
     }
 
     if Input.input_button_states[Input.Key_Code.EQUALS_SIGN] & .DOWN &&
-       frame % 2                                                     &&
-       Input.Key_Code.EQUALS_SIGN == library_last_key_pressed                &&
+       Input.Key_Code.EQUALS_SIGN == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, Input.Key_Code.EQUALS_SIGN) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
@@ -452,8 +447,7 @@ library_event_loop :: (frame: u64) {
         handle_errors("");
     } else
     if Input.input_button_states[Input.Key_Code.DASH] & .DOWN &&
-       frame % 2                                              &&
-       Input.Key_Code.DASH == library_last_key_pressed                &&
+       Input.Key_Code.DASH == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, Input.Key_Code.DASH) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
@@ -462,8 +456,7 @@ library_event_loop :: (frame: u64) {
     }
 
     if Input.input_button_states[Input.Key_Code.LEFT_ANGLE_BRACKET] & .DOWN &&
-       frame % 2                                                            &&
-       Input.Key_Code.LEFT_ANGLE_BRACKET == library_last_key_pressed                &&
+       Input.Key_Code.LEFT_ANGLE_BRACKET == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, Input.Key_Code.LEFT_ANGLE_BRACKET) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
@@ -471,8 +464,7 @@ library_event_loop :: (frame: u64) {
         handle_errors("");
     } else
     if Input.input_button_states[Input.Key_Code.RIGHT_ANGLE_BRACKET] & .DOWN &&
-       frame % 2                                                             &&
-       Input.Key_Code.RIGHT_ANGLE_BRACKET == library_last_key_pressed                &&
+       Input.Key_Code.RIGHT_ANGLE_BRACKET == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, Input.Key_Code.RIGHT_ANGLE_BRACKET) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
@@ -481,8 +473,7 @@ library_event_loop :: (frame: u64) {
     }
 
     if Input.input_button_states[KEY_B] & .DOWN &&
-       frame % 2                                &&
-       KEY_B == library_last_key_pressed                &&
+       KEY_B == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_B) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
@@ -490,8 +481,7 @@ library_event_loop :: (frame: u64) {
         handle_errors("");
     } else
     if Input.input_button_states[KEY_F] & .DOWN &&
-       frame % 2                                &&
-       KEY_F == library_last_key_pressed                &&
+       KEY_F == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_F) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
@@ -500,8 +490,7 @@ library_event_loop :: (frame: u64) {
     }
 
     if Input.input_button_states[Input.Key_Code.ENTER] & .DOWN &&
-       frame % 2                                               &&
-       Input.Key_Code.ENTER == library_last_key_pressed                &&
+       Input.Key_Code.ENTER == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, Input.Key_Code.ENTER) + KEY_HOLD_DELAY
     {
         song_id_to_play: s32;
@@ -528,7 +517,6 @@ library_event_loop :: (frame: u64) {
     }
 
     if Input.input_button_states[Input.Key_Code.SPACEBAR] & .DOWN &&
-       frame % 2                                                  &&
        Input.Key_Code.SPACEBAR == library_last_key_pressed        &&
        frame > <<table_find_pointer(library_key_pressed_on_frame, Input.Key_Code.SPACEBAR) + KEY_HOLD_DELAY
     {
