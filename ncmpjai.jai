@@ -93,7 +93,7 @@ mpd_poll_process_pid: pid_t;
 
 frame: u64 = 0;
 frame_rate: float64;
-target_fps :: 30.0;
+target_fps :: 30;
 max_ms_per_frame :: 1000.0 / target_fps;
 
 main :: () {
@@ -184,7 +184,7 @@ main :: () {
             sleep_milliseconds(cast(s32) (max_ms_per_frame - frame_time_ms));
         }
         frame_rate = calculate_frame_rate(frame_start, get_current_file_time());
-        print("frame rate: %\n", frame_rate);
+        if !(frame % target_fps) print("frame rate: %\n", frame_rate);
     }
 
     print("Killing child process\n");
