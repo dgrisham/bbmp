@@ -6,7 +6,10 @@ queue_cursor: Queue_Cursor;
 
 queue_columns: [4] [..] string;
 
-queue: [..] Song;
+queue: struct {
+    songs: [..] Song;
+    version: u32;
+}
 
 load_queue :: () {
 
@@ -17,12 +20,14 @@ load_queue :: () {
     // TODO: this check is okay to make but is also mainly a workaround for the mpd connection dying bug
     if !status { print("Status is null, not refreshing queue\n"); return; }
     mpd_queue_length := MPD.status_get_queue_length(status);
+    queue.version = MPD.status_get_queue_version(status);
+    MPD.status_free(status);
 
-    for queue free(it);
-    array_reset(*queue);
+    for queue.songs free(it);
+    array_reset(*queue.songs);
     // reserve the space but don't resize the array, in case we're missing metadata
     // for any songs while we're iterating below
-    array_reserve(*queue, mpd_queue_length);
+    array_reserve(*queue.songs, mpd_queue_length);
 
     assert(mpd_connection != null);
     MPD.send_list_queue_meta(mpd_connection);
@@ -35,23 +40,14 @@ load_queue :: () {
         if MPD.entity_get_type(entity) == .SONG {
             mpd_song  := MPD.entity_get_song(entity);
 
-            mpd_artist := MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0);
-            mpd_album  := MPD.song_get_tag(mpd_song, .ALBUM       , 0);
-            mpd_title  := MPD.song_get_tag(mpd_song, .TITLE       , 0);
-            mpd_date   := MPD.song_get_tag(mpd_song, .DATE        , 0);
-            if mpd_artist && mpd_album && mpd_title {
-                song: Song;
+            song: Song;
+            song.track  = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK       , 0));
+            song.artist = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0));
+            song.album  = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM       , 0));
+            song.name   = copy_from_c_string(MPD.song_get_tag(mpd_song, .TITLE       , 0));
+            song.uri    = copy_from_c_string(MPD.song_get_uri(mpd_song));
 
-                song.track  = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK, 0));
-                // if !song.track { print("Have empty track\n"); continue; }
-
-                song.artist = copy_from_c_string(mpd_artist);
-                song.album  = copy_from_c_string(mpd_album);
-                song.name   = copy_from_c_string(mpd_title);
-                song.uri    = copy_from_c_string(MPD.song_get_uri(mpd_song));
-
-                array_add(*queue, song);
-            }
+            array_add(*queue.songs, song);
         }
 
         MPD.entity_free(entity);
@@ -64,12 +60,80 @@ load_queue :: () {
     array_reset(*queue_columns[2]);
     array_reset(*queue_columns[3]);
 
-    array_resize(*queue_columns[0], queue.count);
-    array_resize(*queue_columns[1], queue.count);
-    array_resize(*queue_columns[2], queue.count);
-    array_resize(*queue_columns[3], queue.count);
+    array_resize(*queue_columns[0], queue.songs.count);
+    array_resize(*queue_columns[1], queue.songs.count);
+    array_resize(*queue_columns[2], queue.songs.count);
+    array_resize(*queue_columns[3], queue.songs.count);
 
-    for song: queue {
+    for song: queue.songs {
+        queue_columns[0][it_index] = song.name;
+        queue_columns[1][it_index] = song.album;
+        queue_columns[2][it_index] = song.artist;
+        queue_columns[3][it_index] = "0:00";
+    }
+}
+
+load_queue_changes :: () {
+
+    handle_mpd_idle_events();
+
+    status := MPD.run_status(mpd_connection);
+    handle_errors("Getting MPD status");
+    // TODO: this check is okay to make but is also mainly a workaround for the mpd connection dying bug
+    if !status { print("Status is null, not refreshing queue\n"); return; }
+    mpd_queue_length := MPD.status_get_queue_length(status);
+
+    old_version := queue.version;
+    queue.version = MPD.status_get_queue_version(status);
+
+    MPD.status_free(status);
+
+    assert(mpd_connection != null);
+    MPD.send_queue_changes_meta(mpd_connection, old_version);
+    handle_errors("Retrieving MPD metadata");
+
+    mpd_song := MPD.recv_song(mpd_connection);
+    handle_errors("Receiving first updated queue song");
+
+    while mpd_song {
+        queue_song_position := MPD.song_get_pos(mpd_song);
+        mpd_artist := MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0);
+        mpd_album  := MPD.song_get_tag(mpd_song, .ALBUM       , 0);
+        mpd_title  := MPD.song_get_tag(mpd_song, .TITLE       , 0);
+        mpd_date   := MPD.song_get_tag(mpd_song, .DATE        , 0);
+
+        song: Song;
+        song.track  = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK       , 0));
+        song.artist = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0));
+        song.album  = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM       , 0));
+        song.name   = copy_from_c_string(MPD.song_get_tag(mpd_song, .TITLE       , 0));
+        song.uri    = copy_from_c_string(MPD.song_get_uri(mpd_song));
+
+        if queue_song_position < queue.songs.count {
+            free(queue.songs[queue_song_position]);
+            queue.songs[queue_song_position] = song;
+        } else {
+            array_add(*queue.songs, song);
+        }
+
+        MPD.song_free(mpd_song);
+        mpd_song = MPD.recv_song(mpd_connection);
+        handle_errors("Receiving updated queue song");
+    }
+
+    array_resize(*queue.songs, mpd_queue_length);
+
+    array_reset(*queue_columns[0]);
+    array_reset(*queue_columns[1]);
+    array_reset(*queue_columns[2]);
+    array_reset(*queue_columns[3]);
+
+    array_resize(*queue_columns[0], queue.songs.count);
+    array_resize(*queue_columns[1], queue.songs.count);
+    array_resize(*queue_columns[2], queue.songs.count);
+    array_resize(*queue_columns[3], queue.songs.count);
+
+    for song: queue.songs {
         queue_columns[0][it_index] = song.name;
         queue_columns[1][it_index] = song.album;
         queue_columns[2][it_index] = song.artist;
@@ -81,6 +145,10 @@ queue_last_key_pressed: Input.Key_Code;
 queue_key_pressed_on_frame: Table(Input.Key_Code, u64);
 
 queue_init_keys :: () {
+    table_add(*queue_key_pressed_on_frame, KEY_J,                0);
+    table_add(*queue_key_pressed_on_frame, KEY_K,                0);
+    table_add(*queue_key_pressed_on_frame, KEY_SHIFT_J,          0);
+    table_add(*queue_key_pressed_on_frame, KEY_SHIFT_K,          0);
     table_add(*queue_key_pressed_on_frame, KEY_J,                0);
     table_add(*queue_key_pressed_on_frame, KEY_K,                0);
     table_add(*queue_key_pressed_on_frame, KEY_D,                0);
@@ -107,13 +175,35 @@ queue_event_loop :: (frame: u64) {
                 if it.key_code == {
 
                   case KEY_J;
-                    table_set(*queue_key_pressed_on_frame, KEY_J, frame);
-                    queue_last_key_pressed = KEY_J;
-                    new_cursor.position += 1;
+                    if it.shift_pressed {
+                        table_set(*queue_key_pressed_on_frame, KEY_SHIFT_J, frame);
+                        queue_last_key_pressed = KEY_SHIFT_J;
+                        if queue_cursor.position < queue.songs.count - 1 {
+                            MPD.run_swap(mpd_connection, cast(u32)queue_cursor.position, cast(u32)queue_cursor.position + 1);
+                            handle_errors("Moving song down in queue");
+                            load_queue_changes();
+                            new_cursor.position += 1;
+                        }
+                    } else {
+                        table_set(*queue_key_pressed_on_frame, KEY_J, frame);
+                        queue_last_key_pressed = KEY_J;
+                        new_cursor.position += 1;
+                    }
                   case KEY_K;
-                    table_set(*queue_key_pressed_on_frame, KEY_K, frame);
-                    queue_last_key_pressed = KEY_K;
-                    new_cursor.position -= 1;
+                    if it.shift_pressed {
+                        table_set(*queue_key_pressed_on_frame, KEY_SHIFT_K, frame);
+                        queue_last_key_pressed = KEY_SHIFT_K;
+                        if queue_cursor.position > 0 {
+                            MPD.run_swap(mpd_connection, cast(u32)queue_cursor.position, cast(u32)queue_cursor.position - 1);
+                            handle_errors("Moving song up in queue");
+                            load_queue_changes();
+                            new_cursor.position -= 1;
+                        }
+                    } else {
+                        table_set(*queue_key_pressed_on_frame, KEY_K, frame);
+                        queue_last_key_pressed = KEY_K;
+                        new_cursor.position -= 1;
+                    }
 
                   case KEY_D;
                     table_set(*queue_key_pressed_on_frame, KEY_D, frame);
@@ -124,6 +214,13 @@ queue_event_loop :: (frame: u64) {
                     queue_last_key_pressed = KEY_U;
                     new_cursor.position -= ITEMS_IN_PAGE;
 
+                  case KEY_G;
+                    if it.shift_pressed {
+                        new_cursor.position = queue.songs.count - 1;
+                    } else {
+                        new_cursor.position = 0;
+                    }
+
                   case KEY_P;
                     handle_mpd_idle_events();
                     MPD.run_toggle_pause(mpd_connection);
@@ -132,17 +229,17 @@ queue_event_loop :: (frame: u64) {
                   case KEY_X;
                     table_set(*queue_key_pressed_on_frame, KEY_X, frame);
                     queue_last_key_pressed = KEY_X;
-                    if queue_cursor.position >= 0 && queue_cursor.position <= queue.count
+                    if queue_cursor.position >= 0 && queue_cursor.position <= queue.songs.count
                         handle_mpd_idle_events();
                         MPD.run_delete(mpd_connection, cast(u32)queue_cursor.position);
                         handle_errors("");
-                        load_queue();
+                        load_queue_changes();
 
                   case KEY_C;
                     handle_mpd_idle_events();
                     MPD.run_clear(mpd_connection);
                     handle_errors("");
-                    load_queue();
+                    load_queue_changes();
 
                   case KEY_O;
                     handle_mpd_idle_events();
@@ -151,7 +248,7 @@ queue_event_loop :: (frame: u64) {
                     if !mpd_current_song break;
                     uri := to_string(MPD.song_get_uri(mpd_current_song));
 
-                    for song: queue {
+                    for song: queue.songs {
                         if song.uri == uri {
                             new_cursor.position = it_index;
                         }
@@ -204,7 +301,7 @@ queue_event_loop :: (frame: u64) {
                     handle_errors("");
 
                   // case;
-                  //   print("key_code: %\n", it.key_code);
+                    // print("key_code: %\n", it.key_code);
                 }
             }
 
@@ -218,6 +315,30 @@ queue_event_loop :: (frame: u64) {
 
     KEY_HOLD_DELAY :: 20;
 
+    if Input.input_button_states[KEY_J]                & .DOWN &&
+       Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN &&
+       KEY_SHIFT_J == queue_last_key_pressed                   &&
+       frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_SHIFT_J)  + KEY_HOLD_DELAY
+    {
+        if queue_cursor.position < queue.songs.count - 1 {
+            MPD.run_swap(mpd_connection, cast(u32)queue_cursor.position, cast(u32)queue_cursor.position + 1);
+            handle_errors("Moving queue song down");
+            load_queue_changes();
+            new_cursor.position += 1;
+        }
+    } else
+    if Input.input_button_states[KEY_K]                & .DOWN &&
+       Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN &&
+       KEY_SHIFT_K == queue_last_key_pressed                   &&
+       frame > <<table_find_pointer(queue_key_pressed_on_frame,  KEY_SHIFT_K) + KEY_HOLD_DELAY
+    {
+        if queue_cursor.position > 0 {
+            MPD.run_swap(mpd_connection, cast(u32)queue_cursor.position, cast(u32)queue_cursor.position - 1);
+            handle_errors("Moving queue song up");
+            load_queue_changes();
+            new_cursor.position -= 1;
+        }
+    }
 
     if Input.input_button_states[KEY_J] & .DOWN &&
        KEY_J == queue_last_key_pressed          &&
@@ -301,11 +422,11 @@ queue_event_loop :: (frame: u64) {
        frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_X) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
-        if queue_cursor.position >= 0 && queue_cursor.position <= queue.count
+        if queue_cursor.position >= 0 && queue_cursor.position <= queue.songs.count
             handle_mpd_idle_events();
             MPD.run_delete(mpd_connection, cast(u32)queue_cursor.position);
             handle_errors("");
-            load_queue();
+            load_queue_changes();
     }
 
     if Input.input_button_states[Input.Key_Code.ENTER] & .DOWN &&
@@ -327,8 +448,6 @@ queue_event_loop :: (frame: u64) {
 queue_column_widths :: int.[700, 400, 400, 200];
 
 draw_queue_frame :: () {
-
-    Simp.clear_render_target(0,0,0,1);
 
     total_column_width := 0; for queue_column_widths total_column_width += it;
     left_bound := cast(int) (window_width - total_column_width) / 2;
@@ -433,6 +552,4 @@ draw_queue_frame :: () {
             y -= text_padding_y + font.character_height;
         }
     }
-
-    Simp.swap_buffers(window);
 }

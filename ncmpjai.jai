@@ -35,9 +35,17 @@ KEY_B :: 66;
 KEY_C :: 67;
 KEY_D :: 68;
 KEY_F :: 70;
+KEY_G :: 71;
 KEY_H :: 72;
 KEY_J :: 74;
 KEY_K :: 75;
+// TODO: shift keys are kind of forced (we're just taking advantage of unused
+// key values, where a-z starts at 65 and A-Z at 97, but here lowercase + capitals
+// are flipped because the shift key is treated as a separate thing. not sure if
+// this is something that'll cause problems later. shift key logic generally worth
+// reconsidering, kind of ad-hoc)
+KEY_SHIFT_J :: KEY_J + 32;
+KEY_SHIFT_K :: KEY_K + 32;
 KEY_L :: 76;
 KEY_O :: 79;
 KEY_P :: 80;
@@ -46,30 +54,6 @@ KEY_U :: 85;
 KEY_X :: 88;
 
 window: Window_Type;
-
-left_pad :: (str: string, pad_char: u8, total_length: int) -> string {
-    result := alloc_string(total_length, __temporary_allocator);
-    pad_count := result.count - str.count;
-    for 0..(pad_count - 1) result[it] = pad_char;
-    memcpy(result.data + pad_count, str.data, str.count);
-    return result;
-}
-
-right_pad :: (str: string, pad_char: u8, total_length: int) -> string {
-    result := alloc_string(total_length, __temporary_allocator);
-    memcpy(result.data, str.data, str.count);
-    for str.count..(result.count - 1) result[it] = pad_char;
-    return result;
-}
-
-to_string :: (date: Date) -> string {
-    if !date.year  return "";
-    if !date.month return tprint("%", date.year);
-    month_str := left_pad(tprint("%", date.month), #char "0", 2);
-    if !date.day   return tprint("%-%", date.year, month_str);
-    day_str := left_pad(tprint("%", date.day), #char "0", 2);
-    return tprint("%-%-%", date.year, month_str, day_str);
-}
 
 mpd_connection: *MPD.connection;
 mpd_fd: s32;
@@ -86,8 +70,8 @@ Screen :: enum {
 
 current_screen := Screen.LIBRARY;
 
-LONG        : s32 : 0x200000;
-TCP_NODELAY : s32 : LONG + xx 121;
+LONG         : s32 : 0x200000;
+TCP_NODELAY  : s32 : LONG + xx 121;
 
 mpd_poll_process_pid: pid_t;
 
@@ -115,10 +99,10 @@ main :: () {
     flag: int = 1;
     setsockopt(mpd_fd, IPPROTO_TCP, TCP_NODELAY, *flag, size_of(type_of(flag)));
 
-    pid := fork_poll_process(mpd_fd);
-    if pid > 0 {
-        mpd_poll_process_pid = pid;
-    }
+    // pid := fork_poll_process(mpd_fd);
+    // if pid > 0 {
+    //     mpd_poll_process_pid = pid;
+    // }
 
     load_library();
     load_queue();
@@ -132,8 +116,50 @@ main :: () {
 
     quit := false;
     frame: u64 = 0;
+    status_update_timer: u64 = 0;
 
+    status: struct {
+        artist:       string;
+        album:        string;
+        song:         string;
+        elapsed_time: u32;
+        total_time:   u32;
+    }
+    seconds_to_time_display :: (seconds: u32) -> string {
+        return tprint("%:%", seconds / 60, left_pad(seconds % 60, #char "0", 2));
+    }
     while !quit {
+        if get_current_file_time() > status_update_timer + 10000000 {
+            status_update_timer = get_current_file_time();
+
+            mpd_status := MPD.run_status(mpd_connection);
+            handle_errors("Retrieving MPD status");
+    		MPD.response_finish(mpd_connection);
+
+            load_queue_changes(); // TODO: load queue diff
+            queue_song_position := MPD.status_get_song_pos(mpd_status);
+            if queue_song_position >= 0 {
+                song := queue.songs[queue_song_position];
+                status.artist = song.artist;
+                status.album  = song.album;
+                status.song   = song.name;
+            } else {
+                status.artist = "";
+                status.album  = "";
+                status.song   = "";
+            }
+            status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
+            status.total_time   = MPD.status_get_total_time(mpd_status);
+            MPD.status_free(mpd_status);
+
+            print("% - % - % - %/%\n",
+                status.song,
+                status.album,
+                status.artist,
+                seconds_to_time_display(status.elapsed_time),
+                seconds_to_time_display(status.total_time),
+            );
+        }
         frame_start := get_current_file_time();
 
         // if !idle MPD.send_idle(mpd_connection);
@@ -155,19 +181,24 @@ main :: () {
                         break it;
                       case .NUMBER_1;
                         current_screen = .QUEUE;
-                        load_queue();
+                        load_queue_changes();
+                        break it;
                       case .NUMBER_2;
                         current_screen = .LIBRARY;
+                        break it;
                     }
                 }
             }
         }
+
+        Simp.clear_render_target(0,0,0,1);
         if current_screen == {
           case .LIBRARY;
             library_event_loop(frame);
           case .QUEUE;
             queue_event_loop(frame);
         }
+        Simp.swap_buffers(window);
         reset_temporary_storage();
 
         // TODO: would be good to frame %= LARGE_NUMBER or something so this doesn't overflow,
@@ -194,33 +225,33 @@ main :: () {
     MPD.connection_free(mpd_connection);
 }
 
-fork_poll_process :: (mpd_fd: s32) -> pid_t {
-    pid := fork();
+// fork_poll_process :: (mpd_fd: s32) -> pid_t {
+//     pid := fork();
 
-    if pid < 0 {
-        log_error("Error forking MPD connection fd poll process: %\n", errno());
-        return -1;
-    }
-    if pid == 0 {
+//     if pid < 0 {
+//         log_error("Error forking MPD connection fd poll process: %\n", errno());
+//         return -1;
+//     }
+//     if pid == 0 {
+//         mpd_async := MPD.async_new(mpd_fd);
+//         if !mpd_async { print("Error creating async MPD connection\n"); exit(1); }
 
-        // success := true;
-        while true {
-            poll_fds: [1] pollfd;
-            poll_fds[0].fd = mpd_fd;
-            poll_fds[0].events = POLLIN;
+//         while true {
+//             poll_fds: [1] pollfd;
+//             poll_fds[0].fd = mpd_fd;
+//             poll_fds[0].events = POLLIN;
 
-            // print("Polling socket...\n");
-            poll(poll_fds.data, cast(u32) poll_fds.count, -1);
-            if poll_fds[0].revents & POLLIN {
-                // output_builder: String_Builder;
-                handle_mpd_idle_events();
-            }
-            sleep_milliseconds(1000);
-        }
-    }
+//             poll(poll_fds.data, cast(u32) poll_fds.count, -1);
+//             if poll_fds[0].revents & POLLIN {
+//                 print("FD ready for reading\n");
+//                 handle_mpd_idle_events();
+//             }
+//             sleep_milliseconds(5000);
+//         }
+//     }
 
-    return pid;
-}
+//     return pid;
+// }
 
 handle_mpd_idle_events :: () {
     assert(mpd_connection != null);
@@ -231,22 +262,24 @@ handle_mpd_idle_events :: () {
 		print("flags: %\n", flags);
 		MPD.response_finish(mpd_connection);
 		handle_errors("Getting idle events");
+
+		// if flags & .QUEUE load_queue();
     }
 }
 
-// desktop
-window_width  : s32 : 2560;
-window_height : s32 : 1440;
-pixel_height := window_height / 96;
-column_width :: 700;
-ITEMS_IN_PAGE :: 50;
+// // desktop
+// window_width  : s32 : 2560;
+// window_height : s32 : 1440;
+// pixel_height := window_height / 96;
+// column_width :: 700;
+// ITEMS_IN_PAGE :: 50;
 
-// // laptop
-// window_width  : s32 : 1920;
-// window_height : s32 : 1080;
-// pixel_height := window_height / 72;
-// column_width := 600;
-// ITEMS_IN_PAGE := 40;
+// laptop
+window_width  : s32 : 1920;
+window_height : s32 : 1080;
+pixel_height := window_height / 72;
+column_width := 600;
+ITEMS_IN_PAGE := 40;
 
 // // desktop - streaming
 // window_width  : s32 : 1900;
@@ -259,7 +292,7 @@ ITEMS_IN_PAGE :: 50;
 font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
 
-    font = Simp.get_font_at_size(".", "Inconsolata Regular Nerd Font Complete.otf", pixel_height);
+    font = Simp.get_font_at_size(".", "Inconsolata-Regular.ttf", pixel_height);
     assert(font != null);
 
     font_bold = Simp.get_font_at_size(".", "Inconsolata-SemiBold.ttf", pixel_height);
@@ -283,9 +316,6 @@ Client_Error :: struct {
     type = .CLIENT;
 }
 
-// TODO: add string arg to this to prefix error output with
-// handle_errors :: (msg: string) {
-//
 // returns true if a reconnect happened, false otherwise
 handle_errors :: (message: string) -> bool {
 
@@ -296,7 +326,7 @@ handle_errors :: (message: string) -> bool {
             print("Failed to recover from error, attempting to reconnect to MPD\n");
 
             MPD.run_clear(mpd_connection);
-            mpd_connection = MPD.connection_new(null, 0, 0);
+            mpd_connection = MPD.connection_new(null, 0, 15000);
             if mpd_connection == null {
                 print("MPD reconnect failed, might be out of memory. Exiting\n");
                 exit(1);
@@ -318,10 +348,10 @@ handle_errors :: (message: string) -> bool {
             flag: int = 1;
             setsockopt(mpd_fd, IPPROTO_TCP, TCP_NODELAY, *flag, size_of(type_of(flag)));
 
-            pid := fork_poll_process(mpd_fd);
-            if pid > 0 {
-                mpd_poll_process_pid = pid;
-            }
+            // pid := fork_poll_process(mpd_fd);
+            // if pid > 0 {
+            //     mpd_poll_process_pid = pid;
+            // }
 
             print("Successfully reconnected to MPD\n");
             return true;
@@ -350,4 +380,25 @@ check_connection_errors :: () -> *Error {
 	}
 
 	return null;
+}
+
+left_pad :: (t: $T, pad_char: u8, total_length: int) -> string {
+    #if T == string str := t;
+    else            str := tprint("%", t);
+
+    result := alloc_string(total_length, __temporary_allocator);
+    pad_count := result.count - str.count;
+    for 0..(pad_count - 1) result[it] = pad_char;
+    memcpy(result.data + pad_count, str.data, str.count);
+    return result;
+}
+
+right_pad :: (t: $T, pad_char: u8, total_length: int) -> string {
+    #if T == string str := t;
+    else            str := tprint("%", t);
+
+    result := alloc_string(total_length, __temporary_allocator);
+    memcpy(result.data, str.data, str.count);
+    for str.count..(result.count - 1) result[it] = pad_char;
+    return result;
 }

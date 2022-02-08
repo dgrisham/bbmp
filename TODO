@@ -4,6 +4,8 @@
 - [ ] consider what to do with strings that cut off (trailing '...'?)
 - [ ] show a simple 'now playing' with song metadata + current / total time
 - [ ] All That Remains - Overcome missing?
+- [ ] library + queue key input loop: figure out good way to break out of loop once valid key is pressed/found
+- [ ] consider putting into idle mode if key hasn't been pressed for X frames
 - [ ] consider this in ncmpcpp's status.cpp:
     ```
 	// Set TCP_NODELAY on the tcp socket as we are using write-write-read pattern

@@ -54,6 +54,15 @@ parse_date :: (date_str: string) -> Date {
     return date;
 }
 
+to_string :: (date: Date) -> string {
+    if !date.year  return "";
+    if !date.month return tprint("%", date.year);
+    month_str := left_pad(date.month, #char "0", 2);
+    if !date.day   return tprint("%-%", date.year, month_str);
+    day_str := left_pad(date.day, #char "0", 2);
+    return tprint("%-%-%", date.year, month_str, day_str);
+}
+
 Library_Cursor :: struct {
     positions := int.[0, 0, 0];
     selected  := 0;
@@ -146,7 +155,7 @@ load_library :: () {
         if it_index == 0 {
             array_resize(*library_columns[2], album.songs.count);
             for album.songs {
-                library_columns[2][it_index] = sprint("% %", left_pad(tprint("%.", it.track), #char " ", 3), it.name);;
+                library_columns[2][it_index] = sprint("% %", left_pad(it.track, #char " ", 3), it.name);;
             }
         }
     }
@@ -256,6 +265,13 @@ library_event_loop :: (frame: u64) {
                     new_cursor.positions[new_cursor.selected] -= ITEMS_IN_PAGE;
                     if library_cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
                     if library_cursor.selected == 1 new_cursor.positions[2] = 0;
+
+                  case KEY_G;
+                    if it.shift_pressed {
+                        new_cursor.positions[library_cursor.selected] = queue.songs.count - 1;
+                    } else {
+                        new_cursor.positions[library_cursor.selected] = 0;
+                    }
 
                   case KEY_P;
                     table_set(*library_key_pressed_on_frame, KEY_P, frame);
@@ -577,7 +593,7 @@ library_event_loop :: (frame: u64) {
                 for library_columns[2] free(it);
                 array_resize(*library_columns[2], album.songs.count);
                 for album.songs {
-                   library_columns[2][it_index] = sprint("% %", left_pad(tprint("%.", it.track), #char " ", 4), it.name);;
+                   library_columns[2][it_index] = sprint("% %", left_pad(it.track, #char " ", 4), it.name);;
                 }
             }
         }
@@ -588,8 +604,6 @@ library_event_loop :: (frame: u64) {
 }
 
 draw_library_frame :: () {
-
-    Simp.clear_render_target(0,0,0,1);
 
     left_bound := cast(int) (window_width - column_width * 3) / 2;
     original_y := cast(int) (window_height / 2 + ITEMS_IN_PAGE * (font.character_height + text_padding_y) / 2);
@@ -671,6 +685,4 @@ draw_library_frame :: () {
             y -= text_padding_y + font.character_height;
         }
     }
-
-    Simp.swap_buffers(window);
 }
