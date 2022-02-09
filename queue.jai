@@ -232,17 +232,20 @@ queue_event_loop :: (frame: u64) {
                   case KEY_X;
                     table_set(*queue_key_pressed_on_frame, KEY_X, frame);
                     queue_last_key_pressed = KEY_X;
-                    if queue_cursor.position >= 0 && queue_cursor.position <= queue.songs.count
+                    if queue_cursor.position >= 0 && queue_cursor.position <= queue.songs.count {
                         handle_mpd_idle_events();
                         MPD.run_delete(mpd_connection, cast(u32)queue_cursor.position);
                         handle_errors("");
                         load_queue_changes();
+                        update_status(false);
+                    }
 
                   case KEY_C;
                     handle_mpd_idle_events();
                     MPD.run_clear(mpd_connection);
                     handle_errors("");
                     load_queue_changes();
+                    update_status();
 
                   case KEY_O;
                     handle_mpd_idle_events();
@@ -263,6 +266,7 @@ queue_event_loop :: (frame: u64) {
                     handle_mpd_idle_events();
                     MPD.run_play_pos(mpd_connection, cast(u32)queue_cursor.position);
                     handle_errors("");
+                    update_status(false);
 
                   case KEY_B;
                     table_set(*queue_key_pressed_on_frame, KEY_B, frame);
@@ -270,12 +274,14 @@ queue_event_loop :: (frame: u64) {
                     handle_mpd_idle_events();
                     MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
                     handle_errors("");
+                    update_status_time();
                   case KEY_F;
                     table_set(*queue_key_pressed_on_frame, KEY_F, frame);
                     queue_last_key_pressed = KEY_F;
                     handle_mpd_idle_events();
                     MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
                     handle_errors("");
+                    update_status_time();
 
                   case .LEFT_ANGLE_BRACKET;
                     table_set(*queue_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
@@ -283,12 +289,14 @@ queue_event_loop :: (frame: u64) {
                     handle_mpd_idle_events();
                     MPD.run_previous(mpd_connection);
                     handle_errors("");
+                    update_status(false);
                   case .RIGHT_ANGLE_BRACKET;
                     table_set(*queue_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
                     queue_last_key_pressed = .RIGHT_ANGLE_BRACKET;
                     handle_mpd_idle_events();
                     MPD.run_next(mpd_connection);
                     handle_errors("");
+                    update_status(false);
 
                   case .EQUALS_SIGN;
                     table_set(*queue_key_pressed_on_frame, .EQUALS_SIGN, frame);
@@ -296,12 +304,14 @@ queue_event_loop :: (frame: u64) {
                     handle_mpd_idle_events();
                     MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
                     handle_errors("");
+                    update_status_volume();
                   case .DASH;
                     table_set(*queue_key_pressed_on_frame, .DASH, frame);
                     queue_last_key_pressed = .DASH;
                     handle_mpd_idle_events();
                     MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
                     handle_errors("");
+                    update_status_volume();
 
                   // case;
                     // print("key_code: %\n", it.key_code);
@@ -376,6 +386,7 @@ queue_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
         handle_errors("");
+        update_status_volume();
     } else
     if Input.input_button_states[Input.Key_Code.DASH] & .DOWN &&
        Input.Key_Code.DASH == queue_last_key_pressed          &&
@@ -384,6 +395,7 @@ queue_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
         handle_errors("");
+        update_status_volume();
     }
 
     if Input.input_button_states[Input.Key_Code.LEFT_ANGLE_BRACKET] & .DOWN &&
@@ -393,6 +405,7 @@ queue_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_previous(mpd_connection);
         handle_errors("");
+        update_status(false);
     } else
     if Input.input_button_states[Input.Key_Code.RIGHT_ANGLE_BRACKET] & .DOWN &&
        Input.Key_Code.RIGHT_ANGLE_BRACKET == queue_last_key_pressed          &&
@@ -401,6 +414,7 @@ queue_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_next(mpd_connection);
         handle_errors("");
+        update_status(false);
     }
 
     if Input.input_button_states[KEY_B] & .DOWN &&
@@ -410,6 +424,7 @@ queue_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
         handle_errors("");
+        update_status_time();
     } else
     if Input.input_button_states[KEY_F] & .DOWN &&
        KEY_F == queue_last_key_pressed          &&
@@ -418,6 +433,7 @@ queue_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
         handle_errors("");
+        update_status_time();
     }
 
     if Input.input_button_states[KEY_X] & .DOWN &&
@@ -425,11 +441,13 @@ queue_event_loop :: (frame: u64) {
        frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_X) + KEY_HOLD_DELAY
     {
         handle_mpd_idle_events();
-        if queue_cursor.position >= 0 && queue_cursor.position <= queue.songs.count
+        if queue_cursor.position >= 0 && queue_cursor.position <= queue.songs.count {
             handle_mpd_idle_events();
             MPD.run_delete(mpd_connection, cast(u32)queue_cursor.position);
             handle_errors("");
             load_queue_changes();
+            update_status(false);
+        }
     }
 
     if Input.input_button_states[Input.Key_Code.ENTER] & .DOWN &&
@@ -439,6 +457,7 @@ queue_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_play_pos(mpd_connection, cast(u32)queue_cursor.position);
         handle_errors("");
+        update_status(false);
     }
 
     if new_cursor.position < 0                       new_cursor.position = 0;

@@ -284,6 +284,7 @@ library_event_loop :: (frame: u64) {
                     handle_mpd_idle_events();
                     MPD.run_clear(mpd_connection);
                     handle_errors("");
+                    update_status();
 
                   case KEY_O;
                     table_set(*library_key_pressed_on_frame, KEY_O, frame);
@@ -351,6 +352,7 @@ library_event_loop :: (frame: u64) {
                         assert(mpd_connection != null);
                         MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
                         handle_errors("");
+                        update_status();
                     }
 
                   case KEY_B;
@@ -359,12 +361,14 @@ library_event_loop :: (frame: u64) {
                     handle_mpd_idle_events();
                     MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
                     handle_errors("");
+                    update_status_time();
                   case KEY_F;
                     table_set(*library_key_pressed_on_frame, KEY_F, frame);
                     library_last_key_pressed = KEY_F;
                     handle_mpd_idle_events();
                     MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
                     handle_errors("");
+                    update_status_time();
 
                   case .LEFT_ANGLE_BRACKET;
                     table_set(*library_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
@@ -372,12 +376,14 @@ library_event_loop :: (frame: u64) {
                     handle_mpd_idle_events();
                     MPD.run_previous(mpd_connection);
                     handle_errors("");
+                    update_status();
                   case .RIGHT_ANGLE_BRACKET;
                     table_set(*library_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
                     library_last_key_pressed = .RIGHT_ANGLE_BRACKET;
                     handle_mpd_idle_events();
                     MPD.run_next(mpd_connection);
                     handle_errors("");
+                    update_status();
 
                   case .EQUALS_SIGN;
                     table_set(*library_key_pressed_on_frame, .EQUALS_SIGN, frame);
@@ -385,12 +391,14 @@ library_event_loop :: (frame: u64) {
                     handle_mpd_idle_events();
                     MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
                     handle_errors("");
+                    update_status_volume();
                   case .DASH;
                     table_set(*library_key_pressed_on_frame, .DASH, frame);
                     library_last_key_pressed = .DASH;
                     handle_mpd_idle_events();
                     MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
                     handle_errors("");
+                    update_status_volume();
 
                   // case;
                   //   print("key_code: %\n", it.key_code);
@@ -461,6 +469,7 @@ library_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
         handle_errors("");
+        update_status_volume();
     } else
     if Input.input_button_states[Input.Key_Code.DASH] & .DOWN &&
        Input.Key_Code.DASH == library_last_key_pressed        &&
@@ -469,6 +478,7 @@ library_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
         handle_errors("");
+        update_status_volume();
     }
 
     if Input.input_button_states[Input.Key_Code.LEFT_ANGLE_BRACKET] & .DOWN &&
@@ -478,6 +488,7 @@ library_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_previous(mpd_connection);
         handle_errors("");
+        update_status();
     } else
     if Input.input_button_states[Input.Key_Code.RIGHT_ANGLE_BRACKET] & .DOWN &&
        Input.Key_Code.RIGHT_ANGLE_BRACKET == library_last_key_pressed        &&
@@ -486,6 +497,7 @@ library_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_next(mpd_connection);
         handle_errors("");
+        update_status();
     }
 
     if Input.input_button_states[KEY_B] & .DOWN &&
@@ -495,6 +507,7 @@ library_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
         handle_errors("");
+        update_status_time();
     } else
     if Input.input_button_states[KEY_F] & .DOWN &&
        KEY_F == library_last_key_pressed        &&
@@ -503,6 +516,7 @@ library_event_loop :: (frame: u64) {
         handle_mpd_idle_events();
         MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
         handle_errors("");
+        update_status_time();
     }
 
     if Input.input_button_states[Input.Key_Code.ENTER] & .DOWN &&
@@ -529,6 +543,7 @@ library_event_loop :: (frame: u64) {
             assert(mpd_connection != null);
             MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
             handle_errors("");
+            update_status();
         }
     }
 

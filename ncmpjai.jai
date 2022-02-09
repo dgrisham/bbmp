@@ -89,6 +89,51 @@ Status :: struct {
     volume:       s32;
 }
 
+status: Status;
+
+status_update_timer: u64 = 0;
+update_status :: (update_queue := true) {
+    status_update_timer = get_current_file_time();
+
+    mpd_status := MPD.run_status(mpd_connection);
+    handle_errors("Retrieving MPD status");
+	MPD.response_finish(mpd_connection);
+
+    if update_queue load_queue_changes();
+    queue_song_position := MPD.status_get_song_pos(mpd_status);
+    if queue_song_position >= 0 {
+        song := queue.songs[queue_song_position];
+        status.artist = song.artist;
+        status.album  = song.album;
+        status.song   = song.name;
+    } else {
+        status.artist = "";
+        status.album  = "";
+        status.song   = "";
+    }
+    status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
+    status.total_time   = MPD.status_get_total_time(mpd_status);
+    status.volume       = MPD.status_get_volume(mpd_status);
+    MPD.status_free(mpd_status);
+}
+
+update_status_volume :: () {
+    mpd_status := MPD.run_status(mpd_connection);
+    handle_errors("Retrieving MPD status");
+	MPD.response_finish(mpd_connection);
+    status.volume       = MPD.status_get_volume(mpd_status);
+    MPD.status_free(mpd_status);
+}
+
+update_status_time :: () {
+    mpd_status := MPD.run_status(mpd_connection);
+    handle_errors("Retrieving MPD status");
+	MPD.response_finish(mpd_connection);
+    status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
+    status.total_time   = MPD.status_get_total_time(mpd_status);
+    MPD.status_free(mpd_status);
+}
+
 main :: () {
 
     init_fonts();
@@ -125,33 +170,10 @@ main :: () {
 
     quit := false;
     frame: u64 = 0;
-    status_update_timer: u64 = 0;
 
-    status: Status;
     while !quit {
         if get_current_file_time() > status_update_timer + 10000000 {
-            status_update_timer = get_current_file_time();
-
-            mpd_status := MPD.run_status(mpd_connection);
-            handle_errors("Retrieving MPD status");
-    		MPD.response_finish(mpd_connection);
-
-            load_queue_changes(); // TODO: load queue diff
-            queue_song_position := MPD.status_get_song_pos(mpd_status);
-            if queue_song_position >= 0 {
-                song := queue.songs[queue_song_position];
-                status.artist = song.artist;
-                status.album  = song.album;
-                status.song   = song.name;
-            } else {
-                status.artist = "";
-                status.album  = "";
-                status.song   = "";
-            }
-            status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
-            status.total_time   = MPD.status_get_total_time(mpd_status);
-            status.volume       = MPD.status_get_volume(mpd_status); // TODO: update volume when user changes it
-            MPD.status_free(mpd_status);
+            update_status();
         }
         frame_start := get_current_file_time();
 
@@ -185,7 +207,7 @@ main :: () {
         }
 
         Simp.clear_render_target(0,0,0,1);
-        draw_header(status);
+        draw_header();
         if current_screen == {
           case .LIBRARY;
             library_event_loop(frame);
@@ -236,7 +258,7 @@ DISPLAY_BOTTOM :: 50;
 ITEMS_IN_PAGE : int;
 HEADER_BOTTOM    : int;
 
-draw_header :: (status: Status) {
+draw_header :: () {
     top := cast(int)window_height - 100;
     text_padding_y :: 5;
 
@@ -339,16 +361,16 @@ handle_mpd_idle_events :: () {
 }
 
 // // desktop
-window_width  : s32 : 2560;
-window_height : s32 : 1440;
-pixel_height := window_height / 96;
+// window_width  : s32 : 2560;
+// window_height : s32 : 1440;
+// pixel_height := window_height / 96;
 // column_width :: 700;
 // ITEMS_IN_PAGE :: 50;
 
 // laptop
-// window_width  : s32 : 1920;
-// window_height : s32 : 1080;
-// pixel_height := window_height / 72;
+window_width  : s32 : 1920;
+window_height : s32 : 1080;
+pixel_height := window_height / 72;
 // ITEMS_IN_PAGE := 40;
 
 // // desktop - streaming
