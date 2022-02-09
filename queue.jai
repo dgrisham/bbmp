@@ -121,6 +121,9 @@ load_queue_changes :: () {
         handle_errors("Receiving updated queue song");
     }
 
+    for i: mpd_queue_length..(queue.songs.count - 1) {
+        free(queue.songs[i]);
+    }
     array_resize(*queue.songs, mpd_queue_length);
 
     array_reset(*queue_columns[0]);
@@ -445,108 +448,112 @@ queue_event_loop :: (frame: u64) {
     draw_queue_frame();
 }
 
-queue_column_widths :: int.[700, 400, 400, 200];
 
 draw_queue_frame :: () {
 
-    total_column_width := 0; for queue_column_widths total_column_width += it;
-    left_bound := cast(int) (window_width - total_column_width) / 2;
-    original_y := cast(int) (window_height / 2 + ITEMS_IN_PAGE * (font.character_height + text_padding_y) / 2);
+    column_widths :: int.[
+        cast(int)(4 / 9.0 * display_width),
+        cast(int)(2 / 9.0 * display_width),
+        cast(int)(2 / 9.0 * display_width),
+        cast(int)(1 / 9.0 * display_width),
+    ];
+
+    original_y := HEADER_BOTTOM - 25;
     text_padding_y :: 5;
 
     index_start := max(0, min(queue_columns[0].count - ITEMS_IN_PAGE + 1, queue_cursor.position - ITEMS_IN_PAGE/ 2 + 1));
     index_end := min(index_start + ITEMS_IN_PAGE, queue_columns[0].count - 1);
 
-    x := left_bound;
+    x := left;
     {
         y := original_y;
-        max_characters_in_column := (queue_column_widths[0] - 100) / font.em_width;
+        max_characters_in_column := (column_widths[0] - 100) / font.em_width;
 
         for i: index_start..index_end {
             song_name := queue_columns[0][i];
 
-            width := Simp.prepare_text(font, slice(song_name, 0, max_characters_in_column));
+            text := slice(song_name, 0, max_characters_in_column);
             if i == queue_cursor.position {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := rgba(1,1,1,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + queue_column_widths[0], cast(float)y + font.character_height, color);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_widths[0], cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
-                Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
             } else {
-                Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
             }
 
             y -= text_padding_y + font.character_height;
         }
     }
 
-    x += queue_column_widths[0];
+    x += column_widths[0];
     {
         y := original_y;
-        max_characters_in_column := (queue_column_widths[1] - 100) / font.em_width;
+        max_characters_in_column := (column_widths[1] - 100) / font.em_width;
 
         for i: index_start..index_end {
             album := queue_columns[1][i];
 
-            width := Simp.prepare_text(font, slice(album, 0, max_characters_in_column));
+            text := slice(album, 0, max_characters_in_column);
             if i == queue_cursor.position {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + queue_column_widths[1], cast(float)y + font.character_height, color);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_widths[1], cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
-                Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
             } else {
-                Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
             }
 
             y -= text_padding_y + font.character_height;
         }
     }
 
-    x += queue_column_widths[1];
+    x += column_widths[1];
     {
         y := original_y;
-        max_characters_in_column := (queue_column_widths[2] - 100) / font.em_width;
+        max_characters_in_column := (column_widths[2] - 100) / font.em_width;
 
         for i: index_start..index_end {
             artist := queue_columns[2][i];
 
-            width := Simp.prepare_text(font, slice(artist, 0, max_characters_in_column));
+            text := slice(artist, 0, max_characters_in_column);
             if i == queue_cursor.position {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + queue_column_widths[2], cast(float)y + font.character_height, color);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_widths[2], cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
-                Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
             } else {
-                Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
             }
 
             y -= text_padding_y + font.character_height;
         }
     }
 
-    x += queue_column_widths[2];
+    x += column_widths[2];
     {
         y := original_y;
-        max_characters_in_column := (queue_column_widths[3] - 100) / font.em_width;
+        max_characters_in_column := (column_widths[3] - 100) / font.em_width;
 
         for i: index_start..index_end {
             song_length := queue_columns[3][i];
             display_song_length := left_pad(slice(song_length, 0, max_characters_in_column), #char " ", max_characters_in_column);
-            width := Simp.prepare_text(font, slice(display_song_length, 0, max_characters_in_column));
+            text := slice(display_song_length, 0, max_characters_in_column);
             if i == queue_cursor.position {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + queue_column_widths[3], cast(float)y + font.character_height, color);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_widths[3], cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
-                Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
             } else {
-                Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
             }
 
             y -= text_padding_y + font.character_height;

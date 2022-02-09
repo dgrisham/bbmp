@@ -603,16 +603,17 @@ library_event_loop :: (frame: u64) {
     draw_library_frame();
 }
 
-draw_library_frame :: () {
 
-    left_bound := cast(int) (window_width - column_width * 3) / 2;
-    original_y := cast(int) (window_height / 2 + ITEMS_IN_PAGE * (font.character_height + text_padding_y) / 2);
+draw_library_frame :: () {
+    column_width :: display_width / 3;
+
+    original_y := HEADER_BOTTOM - 25;
     text_padding_y :: 5;
 
-    max_characters_in_column := (column_width - 100) / font.em_width;
+    max_characters_in_column := (column_width - 60) / font.em_width;
 
+    x := left;
     {
-        x := left_bound;
         y := original_y;
 
         index_start := max(0, min(library_columns[0].count - ITEMS_IN_PAGE + 1, library_cursor.positions[0] - ITEMS_IN_PAGE/ 2 + 1));
@@ -620,24 +621,24 @@ draw_library_frame :: () {
         for i: index_start..index_end {
             artist := library_columns[0][i];
 
-            width := Simp.prepare_text(font, slice(artist, 0, max_characters_in_column));
+            text := slice(artist, 0, max_characters_in_column);
             if i == library_cursor.positions[0] {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := ifx library_cursor.selected == 0 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 100, cast(float)y + font.character_height, color);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 50, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
-                Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
             } else {
-                Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
             }
 
             y -= text_padding_y + font.character_height;
         }
     }
 
+    x += column_width;
     {
-        x := left_bound + column_width;
         y := original_y;
 
         index_start := max(0, min(library_columns[1].count - ITEMS_IN_PAGE + 1, library_cursor.positions[1] - ITEMS_IN_PAGE/ 2 + 1));
@@ -645,24 +646,24 @@ draw_library_frame :: () {
         for i: index_start..index_end {
             album := library_columns[1][i];
 
-            width := Simp.prepare_text(font, slice(album, 0, max_characters_in_column));
+            text := slice(album, 0, max_characters_in_column);
             if i == library_cursor.positions[1] {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := ifx library_cursor.selected == 1 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 100, cast(float)y + font.character_height, color);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 50, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
-                Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
             } else {
-                Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
             }
 
             y -= text_padding_y + font.character_height;
         }
     }
 
+    x += column_width;
     {
-        x := left_bound + 2 * column_width;
         y := original_y;
 
         index_start := max(0, min(library_columns[2].count - ITEMS_IN_PAGE + 1, library_cursor.positions[2] - ITEMS_IN_PAGE/ 2 + 1));
@@ -670,16 +671,16 @@ draw_library_frame :: () {
         for i: index_start..index_end {
             song := library_columns[2][i];
 
-            width := Simp.prepare_text(font, slice(song, 0, max_characters_in_column));
+            text := slice(song, 0, max_characters_in_column);
             if i == library_cursor.positions[2] {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := ifx library_cursor.selected == 2 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 100, cast(float)y + font.character_height, color);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)display_width, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
-                Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
             } else {
-                Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
             }
 
             y -= text_padding_y + font.character_height;

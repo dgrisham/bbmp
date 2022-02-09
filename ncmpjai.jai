@@ -80,6 +80,15 @@ frame_rate: float64;
 target_fps :: 30;
 max_ms_per_frame :: 1000.0 / target_fps;
 
+Status :: struct {
+    artist:       string;
+    album:        string;
+    song:         string;
+    elapsed_time: u32;
+    total_time:   u32;
+    volume:       s32;
+}
+
 main :: () {
 
     init_fonts();
@@ -118,16 +127,7 @@ main :: () {
     frame: u64 = 0;
     status_update_timer: u64 = 0;
 
-    status: struct {
-        artist:       string;
-        album:        string;
-        song:         string;
-        elapsed_time: u32;
-        total_time:   u32;
-    }
-    seconds_to_time_display :: (seconds: u32) -> string {
-        return tprint("%:%", seconds / 60, left_pad(seconds % 60, #char "0", 2));
-    }
+    status: Status;
     while !quit {
         if get_current_file_time() > status_update_timer + 10000000 {
             status_update_timer = get_current_file_time();
@@ -150,15 +150,8 @@ main :: () {
             }
             status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
             status.total_time   = MPD.status_get_total_time(mpd_status);
+            status.volume       = MPD.status_get_volume(mpd_status); // TODO: update volume when user changes it
             MPD.status_free(mpd_status);
-
-            print("% - % - % - %/%\n",
-                status.song,
-                status.album,
-                status.artist,
-                seconds_to_time_display(status.elapsed_time),
-                seconds_to_time_display(status.total_time),
-            );
         }
         frame_start := get_current_file_time();
 
@@ -192,6 +185,7 @@ main :: () {
         }
 
         Simp.clear_render_target(0,0,0,1);
+        draw_header(status);
         if current_screen == {
           case .LIBRARY;
             library_event_loop(frame);
@@ -223,6 +217,83 @@ main :: () {
         print("Failed to kill the child %: %\n", mpd_poll_process_pid, errno());
 
     MPD.connection_free(mpd_connection);
+}
+
+// Status :: struct {
+//     artist:       string;
+//     album:        string;
+//     song:         string;
+//     elapsed_time: u32;
+//     total_time:   u32;
+// }
+
+left  : int : 50;
+right : int : cast(int)window_width - 25;
+display_width :: right - left;
+DISPLAY_TOP    :: cast(int)window_height - 50;
+DISPLAY_BOTTOM :: 50;
+
+ITEMS_IN_PAGE : int;
+HEADER_BOTTOM    : int;
+
+draw_header :: (status: Status) {
+    top := cast(int)window_height - 100;
+    text_padding_y :: 5;
+
+    seconds_to_time_display :: (seconds: u32) -> string {
+        return tprint("%:%", seconds / 60, left_pad(seconds % 60, #char "0", 2));
+    }
+
+    min_y := top;
+
+    {
+        x := left;
+        y := top - text_padding_y - font.character_height;
+        Simp.draw_text(
+            font,
+              x,
+              y,
+              tprint("%/%", seconds_to_time_display(status.elapsed_time), seconds_to_time_display(status.total_time)),
+              rgba(1,1,1,1),
+        );
+
+        min_y = min(min_y, y - font.character_height);
+    }
+
+    {
+        x := cast(int)window_width / 2;
+        y := top;
+
+        // song name
+        max_characters_in_column := (display_width / 2) / font.em_width;
+        text_width := Simp.prepare_text(font, slice(status.song, 0, max_characters_in_column));
+        Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
+
+        y -= text_padding_y + font.character_height;
+
+        // artist - album
+        text_width = Simp.prepare_text(font, slice(tprint("% - %", status.artist, status.album), 0, max_characters_in_column));
+        Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
+
+        min_y = min(min_y, y - font.character_height);
+    }
+
+    {
+        x := right - font.em_width * 10 - (window_width - right);
+        y := top - text_padding_y - font.character_height;
+        Simp.draw_text(
+            font,
+              x,
+              y,
+              tprint("Vol: %1%%", left_pad(status.volume, #char " ", 3)),
+              rgba(1,1,1,1),
+        );
+        min_y = min(min_y, y - font.character_height);
+    }
+
+    // TODO: these are still being experimented with
+    HEADER_BOTTOM = min_y;
+    ITEMS_IN_PAGE = (HEADER_BOTTOM - DISPLAY_BOTTOM) / (font.character_height + text_padding_y);
 }
 
 // fork_poll_process :: (mpd_fd: s32) -> pid_t {
@@ -268,18 +339,17 @@ handle_mpd_idle_events :: () {
 }
 
 // // desktop
-// window_width  : s32 : 2560;
-// window_height : s32 : 1440;
-// pixel_height := window_height / 96;
+window_width  : s32 : 2560;
+window_height : s32 : 1440;
+pixel_height := window_height / 96;
 // column_width :: 700;
 // ITEMS_IN_PAGE :: 50;
 
 // laptop
-window_width  : s32 : 1920;
-window_height : s32 : 1080;
-pixel_height := window_height / 72;
-column_width := 600;
-ITEMS_IN_PAGE := 40;
+// window_width  : s32 : 1920;
+// window_height : s32 : 1080;
+// pixel_height := window_height / 72;
+// ITEMS_IN_PAGE := 40;
 
 // // desktop - streaming
 // window_width  : s32 : 1900;
@@ -382,22 +452,22 @@ check_connection_errors :: () -> *Error {
 	return null;
 }
 
-left_pad :: (t: $T, pad_char: u8, total_length: int) -> string {
+left_pad :: (t: $T, pad_char: u8, total_length: int, allocator := __temporary_allocator) -> string {
     #if T == string str := t;
     else            str := tprint("%", t);
 
-    result := alloc_string(total_length, __temporary_allocator);
+    result := alloc_string(total_length, allocator);
     pad_count := result.count - str.count;
     for 0..(pad_count - 1) result[it] = pad_char;
     memcpy(result.data + pad_count, str.data, str.count);
     return result;
 }
 
-right_pad :: (t: $T, pad_char: u8, total_length: int) -> string {
+right_pad :: (t: $T, pad_char: u8, total_length: int, allocator := temporary_allocator) -> string {
     #if T == string str := t;
     else            str := tprint("%", t);
 
-    result := alloc_string(total_length, __temporary_allocator);
+    result := alloc_string(total_length, allocator);
     memcpy(result.data, str.data, str.count);
     for str.count..(result.count - 1) result[it] = pad_char;
     return result;
