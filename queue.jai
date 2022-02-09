@@ -17,14 +17,11 @@ load_queue :: () {
 
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
-    // TODO: this check is okay to make but is also mainly a workaround for the mpd connection dying bug
     if !status { print("Status is null, not refreshing queue\n"); return; }
     mpd_queue_length := MPD.status_get_queue_length(status);
     queue.version = MPD.status_get_queue_version(status);
     MPD.status_free(status);
 
-    for queue.songs free(it);
-    array_reset(*queue.songs);
     // reserve the space but don't resize the array, in case we're missing metadata
     // for any songs while we're iterating below
     array_reserve(*queue.songs, mpd_queue_length);
@@ -54,6 +51,8 @@ load_queue :: () {
         entity = MPD.recv_entity(mpd_connection);
         handle_errors("Receiving entity");
     }
+
+    // TODO: should we un-reserve the unused space in the array here?
 
     array_reset(*queue_columns[0]);
     array_reset(*queue_columns[1]);
@@ -470,12 +469,11 @@ queue_event_loop :: (frame: u64) {
 
 draw_queue_frame :: () {
 
-    column_widths :: int.[
-        cast(int)(4 / 9.0 * display_width),
-        cast(int)(2 / 9.0 * display_width),
-        cast(int)(2 / 9.0 * display_width),
-        cast(int)(1 / 9.0 * display_width),
-    ];
+    column_widths: [4] s32;
+    column_widths[0] = cast(s32)(8 / 20.0 * display_width);
+    column_widths[1] = cast(s32)(5 / 20.0 * display_width);
+    column_widths[2] = cast(s32)(5 / 20.0 * display_width);
+    column_widths[3] = cast(s32)(2 / 20.0 * display_width);
 
     original_y := HEADER_BOTTOM - 25;
     text_padding_y :: 5;
@@ -483,7 +481,7 @@ draw_queue_frame :: () {
     index_start := max(0, min(queue_columns[0].count - ITEMS_IN_PAGE + 1, queue_cursor.position - ITEMS_IN_PAGE/ 2 + 1));
     index_end := min(index_start + ITEMS_IN_PAGE, queue_columns[0].count - 1);
 
-    x := left;
+    x := x_margin_size;
     {
         y := original_y;
         max_characters_in_column := (column_widths[0] - 100) / font.em_width;
@@ -558,12 +556,12 @@ draw_queue_frame :: () {
     x += column_widths[2];
     {
         y := original_y;
-        max_characters_in_column := (column_widths[3] - 100) / font.em_width;
+        max_characters_in_column := (column_widths[3] - 20) / font.em_width;
 
         for i: index_start..index_end {
             song_length := queue_columns[3][i];
             display_song_length := left_pad(slice(song_length, 0, max_characters_in_column), #char " ", max_characters_in_column);
-            text := slice(display_song_length, 0, max_characters_in_column);
+            text := left_pad(slice(display_song_length, 0, max_characters_in_column), #char " ", max_characters_in_column);
             if i == queue_cursor.position {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();

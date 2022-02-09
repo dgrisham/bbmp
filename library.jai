@@ -620,14 +620,14 @@ library_event_loop :: (frame: u64) {
 
 
 draw_library_frame :: () {
-    column_width :: display_width / 3;
+    column_width := cast(s32) display_width / 3;
 
     original_y := HEADER_BOTTOM - 25;
     text_padding_y :: 5;
 
     max_characters_in_column := (column_width - 60) / font.em_width;
 
-    x := left;
+    x := x_margin_size;
     {
         y := original_y;
 
@@ -691,7 +691,7 @@ draw_library_frame :: () {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := ifx library_cursor.selected == 2 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)display_width, cast(float)y + font.character_height, color);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
                 Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
             } else {

@@ -10,9 +10,6 @@ Simp    :: #import "Simp";
 Input   :: #import "Input";
 MPD     :: #import "libmpdclient";
 
-SEEK_SECONDS         :: 0.5;
-VOLUME_CHANGE_AMOUNT :: 2;
-
 Song :: struct {
     artist : string;
     album  : string;
@@ -55,10 +52,6 @@ KEY_X :: 88;
 
 window: Window_Type;
 
-mpd_connection: *MPD.connection;
-mpd_fd: s32;
-idle := false;
-
 copy_from_c_string :: inline (s: *u8) -> string {
     return copy_string(to_string(s));
 }
@@ -73,12 +66,10 @@ current_screen := Screen.LIBRARY;
 LONG         : s32 : 0x200000;
 TCP_NODELAY  : s32 : LONG + xx 121;
 
-mpd_poll_process_pid: pid_t;
-
-frame: u64 = 0;
-frame_rate: float64;
-target_fps :: 30;
-max_ms_per_frame :: 1000.0 / target_fps;
+mpd_connection: *MPD.connection;
+mpd_fd: s32;
+idle := false;
+// mpd_poll_process_pid: pid_t;
 
 Status :: struct {
     artist:       string;
@@ -134,11 +125,32 @@ update_status_time :: () {
     MPD.status_free(mpd_status);
 }
 
+SEEK_SECONDS         :: 0.5;
+VOLUME_CHANGE_AMOUNT :: 2;
+
+// laptop
+window_width  : s32 = 1920;
+window_height : s32 = 1080;
+display_width  : int;
+
+x_margin_size : s32;
+y_margin_size : s32;
+
+frame: u64 = 0;
+frame_rate: float64;
+target_fps :: 30;
+max_ms_per_frame :: 1000.0 / target_fps;
+
 main :: () {
 
     init_fonts();
 
     window = create_window(window_width, window_height, "ncmpjai");
+    window_width, window_height = Simp.get_render_dimensions(window);
+    display_width = window_width - 2 * x_margin_size;
+    x_margin_size = window_width / 30;
+    y_margin_size = window_height / 30;
+
     Simp.set_render_target(window);
 
     mpd_connection = MPD.connection_new(null, 0, 15000);
@@ -148,10 +160,10 @@ main :: () {
     }
     handle_errors("Initializing MPD connection");
 
-    mpd_fd = MPD.connection_get_fd(mpd_connection);
-    handle_errors("Getting file descriptor for MPD connection");
-    flag: int = 1;
-    setsockopt(mpd_fd, IPPROTO_TCP, TCP_NODELAY, *flag, size_of(type_of(flag)));
+    // mpd_fd = MPD.connection_get_fd(mpd_connection);
+    // handle_errors("Getting file descriptor for MPD connection");
+    // flag: int = 1;
+    // setsockopt(mpd_fd, IPPROTO_TCP, TCP_NODELAY, *flag, size_of(type_of(flag)));
 
     // pid := fork_poll_process(mpd_fd);
     // if pid > 0 {
@@ -182,6 +194,21 @@ main :: () {
         // idle = true;
 
         Input.update_window_events();
+
+        for Input.get_window_resizes() {
+            Simp.update_window(it.window);
+            if it.window == window {
+                should_reinit := (it.width != window_width) || (it.height != window_height);
+                window_width  = it.width;
+                window_height = it.height;
+                display_width = window_width - 2 * x_margin_size;
+                x_margin_size = window_width / 30;
+                y_margin_size = window_height / 30;
+                // resize fonts for new window size
+                if should_reinit init_fonts();
+            }
+        }
+
 
         for Input.events_this_frame {
             if it.type == {
@@ -234,9 +261,9 @@ main :: () {
         if !(frame % target_fps) print("frame rate: %\n", frame_rate);
     }
 
-    print("Killing child process\n");
-    if kill(mpd_poll_process_pid, SIGKILL) == -1
-        print("Failed to kill the child %: %\n", mpd_poll_process_pid, errno());
+    // print("Killing child process\n");
+    // if kill(mpd_poll_process_pid, SIGKILL) == -1
+    //     print("Failed to kill the child %: %\n", mpd_poll_process_pid, errno());
 
     MPD.connection_free(mpd_connection);
 }
@@ -249,17 +276,11 @@ main :: () {
 //     total_time:   u32;
 // }
 
-left  : int : 50;
-right : int : cast(int)window_width - 25;
-display_width :: right - left;
-DISPLAY_TOP    :: cast(int)window_height - 50;
-DISPLAY_BOTTOM :: 50;
-
 ITEMS_IN_PAGE : int;
-HEADER_BOTTOM    : int;
+HEADER_BOTTOM : int;
 
 draw_header :: () {
-    top := cast(int)window_height - 100;
+    top := cast(int)window_height - 2 * y_margin_size;
     text_padding_y :: 5;
 
     seconds_to_time_display :: (seconds: u32) -> string {
@@ -267,9 +288,8 @@ draw_header :: () {
     }
 
     min_y := top;
-
     {
-        x := left;
+        x := x_margin_size;
         y := top - text_padding_y - font.character_height;
         Simp.draw_text(
             font,
@@ -301,7 +321,7 @@ draw_header :: () {
     }
 
     {
-        x := right - font.em_width * 10 - (window_width - right);
+        x := display_width + x_margin_size - font.em_width * 10;
         y := top - text_padding_y - font.character_height;
         Simp.draw_text(
             font,
@@ -315,7 +335,7 @@ draw_header :: () {
 
     // TODO: these are still being experimented with
     HEADER_BOTTOM = min_y;
-    ITEMS_IN_PAGE = (HEADER_BOTTOM - DISPLAY_BOTTOM) / (font.character_height + text_padding_y);
+    ITEMS_IN_PAGE = (HEADER_BOTTOM - 2 * y_margin_size) / (font.character_height + text_padding_y);
 }
 
 // fork_poll_process :: (mpd_fd: s32) -> pid_t {
@@ -356,7 +376,7 @@ handle_mpd_idle_events :: () {
 		MPD.response_finish(mpd_connection);
 		handle_errors("Getting idle events");
 
-		// if flags & .QUEUE load_queue();
+		// if flags & .QUEUE load_queue_changes();
     }
 }
 
@@ -365,24 +385,22 @@ handle_mpd_idle_events :: () {
 // window_height : s32 : 1440;
 // pixel_height := window_height / 96;
 // column_width :: 700;
-// ITEMS_IN_PAGE :: 50;
 
-// laptop
-window_width  : s32 : 1920;
-window_height : s32 : 1080;
-pixel_height := window_height / 72;
-// ITEMS_IN_PAGE := 40;
+// // laptop
+// window_width  : s32 : 1920;
+// window_height : s32 : 1080;
+// pixel_height := window_height / 72;
 
 // // desktop - streaming
 // window_width  : s32 : 1900;
 // window_height : s32 : 1440;
 // pixel_height := window_height / 48;
 // column_width :: 600;
-// ITEMS_IN_PAGE :: 30;
 
 // TODO: load/use font for asian/etc. characters (maybe one of the expanded inconsolata sets?)
 font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
+    pixel_height := window_height / 72;
 
     font = Simp.get_font_at_size(".", "Inconsolata-Regular.ttf", pixel_height);
     assert(font != null);
@@ -433,12 +451,12 @@ handle_errors :: (message: string) -> bool {
                 print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", error.type, error.code, error.message, error.recovered);
             }
 
-            if kill(mpd_poll_process_pid, SIGKILL) == -1
-                print("Failed to kill the child %: %\n", mpd_poll_process_pid, errno());
-            mpd_fd = MPD.connection_get_fd(mpd_connection);
-            handle_errors("Getting file descriptor for MPD connection");
-            flag: int = 1;
-            setsockopt(mpd_fd, IPPROTO_TCP, TCP_NODELAY, *flag, size_of(type_of(flag)));
+            // if kill(mpd_poll_process_pid, SIGKILL) == -1
+            //     print("Failed to kill the child %: %\n", mpd_poll_process_pid, errno());
+            // mpd_fd = MPD.connection_get_fd(mpd_connection);
+            // handle_errors("Getting file descriptor for MPD connection");
+            // flag: int = 1;
+            // setsockopt(mpd_fd, IPPROTO_TCP, TCP_NODELAY, *flag, size_of(type_of(flag)));
 
             // pid := fork_poll_process(mpd_fd);
             // if pid > 0 {
