@@ -52,7 +52,7 @@ load_queue :: () {
         handle_errors("Receiving entity");
     }
 
-    // TODO: should we un-reserve the unused space in the array here?
+    array_resize(*queue.songs, queue.songs.count);
 
     array_reset(*queue_columns[0]);
     array_reset(*queue_columns[1]);
@@ -157,7 +157,9 @@ queue_init_repeatable_keys :: () {
     table_set(*queue_key_pressed_on_frame, .ENTER,   0);
 }
 
-queue_event_loop :: (frame: u64) {
+queue_event_loop :: (frame: u64, header_bottom: int) {
+
+    items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
     new_cursor: Queue_Cursor;
     new_cursor.position = queue_cursor.position;
@@ -187,10 +189,10 @@ queue_event_loop :: (frame: u64) {
     }
 
     queue_move_cursor_one_page_down :: () #expand {
-        `new_cursor.position += ITEMS_IN_PAGE;
+        `new_cursor.position += items_in_page;
     }
     queue_move_cursor_one_page_up :: () #expand {
-        `new_cursor.position -= ITEMS_IN_PAGE;
+        `new_cursor.position -= items_in_page;
     }
 
     queue_remove_selected_song :: () #expand {
@@ -304,116 +306,47 @@ queue_event_loop :: (frame: u64) {
     if new_cursor.position >= queue_columns[0].count new_cursor.position = queue_columns[0].count - 1;
 
     queue_cursor = new_cursor;
-    draw_queue_frame();
+    draw_queue_frame(header_bottom, items_in_page);
 }
 
-draw_queue_frame :: () {
+draw_queue_frame :: (header_bottom: int, items_in_page: int) {
 
     column_widths: [4] s32;
-    column_widths[0] = cast(s32)(8 / 20.0 * display_width);
-    column_widths[1] = cast(s32)(5 / 20.0 * display_width);
-    column_widths[2] = cast(s32)(5 / 20.0 * display_width);
-    column_widths[3] = cast(s32)(2 / 20.0 * display_width);
+    column_widths[0] = cast(s32)(8 / 20.0 * display_width());
+    column_widths[1] = cast(s32)(5 / 20.0 * display_width());
+    column_widths[2] = cast(s32)(5 / 20.0 * display_width());
+    column_widths[3] = cast(s32)(2 / 20.0 * display_width());
 
-    original_y := HEADER_BOTTOM - 25;
-    text_padding_y :: 5;
+    top := header_bottom - 25;
 
-    index_start := max(0, min(queue_columns[0].count - ITEMS_IN_PAGE + 1, queue_cursor.position - ITEMS_IN_PAGE/ 2 + 1));
-    index_end := min(index_start + ITEMS_IN_PAGE, queue_columns[0].count - 1);
+    index_start := max(0, min(queue_columns[0].count - items_in_page + 1, queue_cursor.position - items_in_page/ 2 + 1));
+    index_end := min(index_start + items_in_page, queue_columns[0].count - 1);
 
-    x := x_margin_size;
-    {
-        y := original_y;
-        max_characters_in_column := (column_widths[0] - 100) / font.em_width;
+    x := X_MARGIN_SIZE;
+    for column: queue_columns {
+        y := top;
+        column_width := column_widths[it_index];
+        max_characters_in_column := (column_width - 20) / font.em_width;
 
         for i: index_start..index_end {
-            song_name := queue_columns[0][i];
+            text := slice(column[i], 0, max_characters_in_column);
+            if it_index == queue_columns.count - 1 { // right-justify last column (song length)
+                text = left_pad(text, #char " ", max_characters_in_column);
+            }
 
-            text := slice(song_name, 0, max_characters_in_column);
             if i == queue_cursor.position {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
-                color := rgba(1,1,1,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_widths[0], cast(float)y + font.character_height, color);
+                color := ifx it_index == 0 then rgba(1,1,1,1) else rgba(0.5, 0.5, 0.5, 1); // highlight the first column (song title) brighter than the rest
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
                 Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
             } else {
                 Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
             }
 
-            y -= text_padding_y + font.character_height;
+            y -= TEXT_PADDING_Y + font.character_height;
         }
-    }
-
-    x += column_widths[0];
-    {
-        y := original_y;
-        max_characters_in_column := (column_widths[1] - 100) / font.em_width;
-
-        for i: index_start..index_end {
-            album := queue_columns[1][i];
-
-            text := slice(album, 0, max_characters_in_column);
-            if i == queue_cursor.position {
-                Simp.immediate_begin();
-                Simp.set_shader_for_color();
-                color := rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_widths[1], cast(float)y + font.character_height, color);
-                Simp.immediate_flush();
-                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
-            } else {
-                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
-            }
-
-            y -= text_padding_y + font.character_height;
-        }
-    }
-
-    x += column_widths[1];
-    {
-        y := original_y;
-        max_characters_in_column := (column_widths[2] - 100) / font.em_width;
-
-        for i: index_start..index_end {
-            artist := queue_columns[2][i];
-
-            text := slice(artist, 0, max_characters_in_column);
-            if i == queue_cursor.position {
-                Simp.immediate_begin();
-                Simp.set_shader_for_color();
-                color := rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_widths[2], cast(float)y + font.character_height, color);
-                Simp.immediate_flush();
-                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
-            } else {
-                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
-            }
-
-            y -= text_padding_y + font.character_height;
-        }
-    }
-
-    x += column_widths[2];
-    {
-        y := original_y;
-        max_characters_in_column := (column_widths[3] - 20) / font.em_width;
-
-        for i: index_start..index_end {
-            song_length := queue_columns[3][i];
-            display_song_length := left_pad(slice(song_length, 0, max_characters_in_column), #char " ", max_characters_in_column);
-            text := left_pad(slice(display_song_length, 0, max_characters_in_column), #char " ", max_characters_in_column);
-            if i == queue_cursor.position {
-                Simp.immediate_begin();
-                Simp.set_shader_for_color();
-                color := rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_widths[3], cast(float)y + font.character_height, color);
-                Simp.immediate_flush();
-                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
-            } else {
-                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
-            }
-
-            y -= text_padding_y + font.character_height;
-        }
+        x += column_width;
     }
 }

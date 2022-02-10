@@ -145,18 +145,18 @@ update_status_time :: () {
 
 KEY_HOLD_DELAY :: 20;
 
-// laptop
 window_width  : s32 = 1920;
 window_height : s32 = 1080;
-display_width  : int;
 
-x_margin_size : s32;
-y_margin_size : s32;
+X_MARGIN_SIZE  : s32;
+Y_MARGIN_SIZE  : s32;
+TEXT_PADDING_Y :: 5;
+
+display_width :: () -> int #expand { return window_width - 2 * X_MARGIN_SIZE; }
 
 frame: u64 = 0;
 frame_rate: float64;
-target_fps :: 30;
-max_ms_per_frame :: 1000.0 / target_fps;
+TARGET_FPS :: 30;
 
 main :: () {
 
@@ -164,9 +164,8 @@ main :: () {
 
     window = create_window(window_width, window_height, "ncmpjai");
     window_width, window_height = Simp.get_render_dimensions(window);
-    display_width = window_width - 2 * x_margin_size;
-    x_margin_size = window_width / 30;
-    y_margin_size = window_height / 30;
+    X_MARGIN_SIZE = window_width / 30;
+    Y_MARGIN_SIZE = window_height / 30;
 
     Simp.set_render_target(window);
 
@@ -189,10 +188,6 @@ main :: () {
 
     load_library();
     load_queue();
-
-    // TODO: would be nice to generalize this functionality, e.g. binding keys to functionality
-    // then having the hold delay -> repeat functionality logic generated automatically (or
-    // abstracted + looped)
 
     library_init_repeatable_keys();
     queue_init_repeatable_keys();
@@ -229,9 +224,8 @@ main :: () {
                 should_reinit := (it.width != window_width) || (it.height != window_height);
                 window_width  = it.width;
                 window_height = it.height;
-                display_width = window_width - 2 * x_margin_size;
-                x_margin_size = window_width / 30;
-                y_margin_size = window_height / 30;
+                X_MARGIN_SIZE = window_width / 30;
+                Y_MARGIN_SIZE = window_height / 30;
                 // resize fonts for new window size
                 if should_reinit init_fonts();
             }
@@ -351,12 +345,12 @@ main :: () {
         if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .DASH)                decrement_volume();
 
         Simp.clear_render_target(0,0,0,1);
-        draw_header();
+        header_bottom := draw_header();
         if current_screen == {
           case .LIBRARY;
-            library_event_loop(frame);
+            library_event_loop(frame, header_bottom);
           case .QUEUE;
-            queue_event_loop(frame);
+            queue_event_loop(frame, header_bottom);
         }
         Simp.swap_buffers(window);
         reset_temporary_storage();
@@ -369,11 +363,12 @@ main :: () {
 
         frame_rate = calculate_frame_rate(frame_start, get_current_file_time());
         frame_time_ms := 1000 / frame_rate;
-        if frame_time_ms < max_ms_per_frame {
-            sleep_milliseconds(cast(s32) (max_ms_per_frame - frame_time_ms));
+        MAX_MS_PER_FRAME :: 1000.0 / TARGET_FPS;
+        if frame_time_ms < MAX_MS_PER_FRAME {
+            sleep_milliseconds(cast(s32) (MAX_MS_PER_FRAME - frame_time_ms));
         }
         frame_rate = calculate_frame_rate(frame_start, get_current_file_time());
-        if !(frame % target_fps) print("frame rate: %\n", frame_rate);
+        if !(frame % TARGET_FPS) print("frame rate: %\n", frame_rate);
     }
 
     // print("Killing child process\n");
@@ -417,29 +412,18 @@ key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pr
     return frame > <<table_find_pointer(key_pressed_on_frame, key) + KEY_HOLD_DELAY;
 }
 
-// Status :: struct {
-//     artist:       string;
-//     album:        string;
-//     song:         string;
-//     elapsed_time: u32;
-//     total_time:   u32;
-// }
+draw_header :: () -> int {
 
-ITEMS_IN_PAGE : int;
-HEADER_BOTTOM : int;
-
-draw_header :: () {
-    top := cast(int)window_height - 2 * y_margin_size;
-    text_padding_y :: 5;
+    top := cast(int)window_height - 2 * Y_MARGIN_SIZE;
 
     seconds_to_time_display :: (seconds: u32) -> string {
         return tprint("%:%", seconds / 60, left_pad(seconds % 60, #char "0", 2));
     }
 
-    min_y := top;
+    header_bottom := top;
     {
-        x := x_margin_size;
-        y := top - text_padding_y - font.character_height;
+        x := X_MARGIN_SIZE;
+        y := top - TEXT_PADDING_Y - font.character_height;
         Simp.draw_text(
             font,
               x,
@@ -448,7 +432,7 @@ draw_header :: () {
               rgba(1,1,1,1),
         );
 
-        min_y = min(min_y, y - font.character_height);
+        header_bottom = min(header_bottom, y - font.character_height);
     }
 
     {
@@ -456,22 +440,22 @@ draw_header :: () {
         y := top;
 
         // song name
-        max_characters_in_column := (display_width / 2) / font.em_width;
+        max_characters_in_column := (display_width() / 2) / font.em_width;
         text_width := Simp.prepare_text(font, slice(status.song, 0, max_characters_in_column));
         Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
 
-        y -= text_padding_y + font.character_height;
+        y -= TEXT_PADDING_Y + font.character_height;
 
         // artist - album
         text_width = Simp.prepare_text(font, slice(tprint("% - %", status.artist, status.album), 0, max_characters_in_column));
         Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
 
-        min_y = min(min_y, y - font.character_height);
+        header_bottom = min(header_bottom, y - font.character_height);
     }
 
     {
-        x := display_width + x_margin_size - font.em_width * 10;
-        y := top - text_padding_y - font.character_height;
+        x := display_width() + X_MARGIN_SIZE - font.em_width * 10;
+        y := top - TEXT_PADDING_Y - font.character_height;
         Simp.draw_text(
             font,
               x,
@@ -479,12 +463,10 @@ draw_header :: () {
               tprint("Vol: %1%%", left_pad(status.volume, #char " ", 3)),
               rgba(1,1,1,1),
         );
-        min_y = min(min_y, y - font.character_height);
+        header_bottom = min(header_bottom, y - font.character_height);
     }
 
-    // TODO: these are still being experimented with
-    HEADER_BOTTOM = min_y;
-    ITEMS_IN_PAGE = (HEADER_BOTTOM - 2 * y_margin_size) / (font.character_height + text_padding_y);
+    return header_bottom;
 }
 
 // fork_poll_process :: (mpd_fd: s32) -> pid_t {
@@ -533,7 +515,6 @@ handle_mpd_idle_events :: () {
 // window_width  : s32 : 1900;
 // window_height : s32 : 1440;
 // pixel_height := window_height / 48;
-// column_width :: 600;
 
 // TODO: load/use font for asian/etc. characters (maybe one of the expanded inconsolata sets?)
 font, font_bold : *Simp.Dynamic_Font;

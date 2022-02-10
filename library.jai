@@ -211,7 +211,9 @@ library_init_repeatable_keys :: () {
     table_set(*library_key_pressed_on_frame, .SPACE, 0);
 }
 
-library_event_loop :: (frame: u64) {
+library_event_loop :: (frame: u64, header_bottom: int) {
+
+    items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
     new_cursor: Library_Cursor;
     for library_cursor.positions new_cursor.positions[it_index] = it;
@@ -222,10 +224,10 @@ library_event_loop :: (frame: u64) {
         if library_cursor.selected == 0 { `new_cursor.positions[1], `new_cursor.positions[2] = 0; }
         if library_cursor.selected == 1 `new_cursor.positions[2] = 0;
     }
-    move_selected_cursor_down          :: () #expand { move_selected_cursor(1);                  }
-    move_selected_cursor_up            :: () #expand { move_selected_cursor(-1);                 }
-    move_selected_cursor_one_page_down :: () #expand { move_selected_cursor(ITEMS_IN_PAGE);      }
-    move_selected_cursor_one_page_up   :: () #expand { move_selected_cursor(-1 * ITEMS_IN_PAGE); }
+    move_selected_cursor_down          :: () #expand { move_selected_cursor(1);              }
+    move_selected_cursor_up            :: () #expand { move_selected_cursor(-1);             }
+    move_selected_cursor_one_page_down :: () #expand { move_selected_cursor( items_in_page); }
+    move_selected_cursor_one_page_up   :: () #expand { move_selected_cursor(-items_in_page); }
 
     move_selected_cursor_left  :: () #expand { `new_cursor.selected -= 1; }
     move_selected_cursor_right :: () #expand { `new_cursor.selected += 1; }
@@ -301,14 +303,13 @@ library_event_loop :: (frame: u64) {
 
                   case KEY_G;
                     if it.shift_pressed {
-                        new_cursor.positions[library_cursor.selected] = queue.songs.count - 1;
+                        new_cursor.positions[library_cursor.selected] = library_columns[library_cursor.selected].count - 1;
                     } else {
                         new_cursor.positions[library_cursor.selected] = 0;
                     }
                     break it;
 
                   case KEY_O;
-                    table_set(*library_key_pressed_on_frame, .O, frame);
                     handle_mpd_idle_events();
 
                     mpd_current_song := MPD.run_current_song(mpd_connection);
@@ -411,90 +412,42 @@ library_event_loop :: (frame: u64) {
     }
 
     library_cursor = new_cursor;
-    draw_library_frame();
+    draw_library_frame(header_bottom, items_in_page);
 }
 
 
-draw_library_frame :: () {
-    column_width := cast(s32) display_width / 3;
+draw_library_frame :: (header_bottom: int, items_in_page: int) {
+    column_width := cast(s32) display_width() / 3;
 
-    original_y := HEADER_BOTTOM - 25;
-    text_padding_y :: 5;
+    top := header_bottom - 25;
 
     max_characters_in_column := (column_width - 60) / font.em_width;
 
-    x := x_margin_size;
-    {
-        y := original_y;
+    x := X_MARGIN_SIZE;
+    for column: library_columns {
+        y := top;
 
-        index_start := max(0, min(library_columns[0].count - ITEMS_IN_PAGE + 1, library_cursor.positions[0] - ITEMS_IN_PAGE/ 2 + 1));
-        index_end := min(index_start + ITEMS_IN_PAGE, library_columns[0].count - 1);
+        index_start := max(0, min(column.count - items_in_page + 1, library_cursor.positions[it_index] - items_in_page/ 2 + 1));
+        index_end := min(index_start + items_in_page, library_columns[it_index].count - 1);
         for i: index_start..index_end {
-            artist := library_columns[0][i];
-
-            text := slice(artist, 0, max_characters_in_column);
-            if i == library_cursor.positions[0] {
+            text := slice(library_columns[it_index][i], 0, max_characters_in_column);
+            if i == library_cursor.positions[it_index] {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
-                color := ifx library_cursor.selected == 0 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 50, cast(float)y + font.character_height, color);
+                color := ifx library_cursor.selected == it_index then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
+
+                rectangle_end := ifx it_index < library_columns.count - 1
+                                 then cast(float)x + column_width - 50 // leave some space between this rectangle and the next
+                                 else cast(float)x + column_width;     // draw the rightmost rectangle all the way to the end
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, rectangle_end, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
                 Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
             } else {
                 Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
             }
 
-            y -= text_padding_y + font.character_height;
+            y -= TEXT_PADDING_Y + font.character_height;
         }
-    }
-
-    x += column_width;
-    {
-        y := original_y;
-
-        index_start := max(0, min(library_columns[1].count - ITEMS_IN_PAGE + 1, library_cursor.positions[1] - ITEMS_IN_PAGE/ 2 + 1));
-        index_end := min(index_start + ITEMS_IN_PAGE, library_columns[1].count - 1);
-        for i: index_start..index_end {
-            album := library_columns[1][i];
-
-            text := slice(album, 0, max_characters_in_column);
-            if i == library_cursor.positions[1] {
-                Simp.immediate_begin();
-                Simp.set_shader_for_color();
-                color := ifx library_cursor.selected == 1 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width - 50, cast(float)y + font.character_height, color);
-                Simp.immediate_flush();
-                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
-            } else {
-                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
-            }
-
-            y -= text_padding_y + font.character_height;
-        }
-    }
-
-    x += column_width;
-    {
-        y := original_y;
-
-        index_start := max(0, min(library_columns[2].count - ITEMS_IN_PAGE + 1, library_cursor.positions[2] - ITEMS_IN_PAGE/ 2 + 1));
-        index_end := min(index_start + ITEMS_IN_PAGE, library_columns[2].count - 1);
-        for i: index_start..index_end {
-            song := library_columns[2][i];
-
-            text := slice(song, 0, max_characters_in_column);
-            if i == library_cursor.positions[2] {
-                Simp.immediate_begin();
-                Simp.set_shader_for_color();
-                color := ifx library_cursor.selected == 2 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width, cast(float)y + font.character_height, color);
-                Simp.immediate_flush();
-                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
-            } else {
-                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
-            }
-
-            y -= text_padding_y + font.character_height;
-        }
+        x += column_width;
     }
 }
