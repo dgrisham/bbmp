@@ -202,13 +202,13 @@ last_library_key_pressed: Key;
 library_key_pressed_on_frame: Table(Key, u64);
 
 library_init_repeatable_keys :: () {
-    table_set(*library_key_pressed_on_frame, .J,     0);
-    table_set(*library_key_pressed_on_frame, .K,     0);
-    table_set(*library_key_pressed_on_frame, .L,     0);
-    table_set(*library_key_pressed_on_frame, .H,     0);
-    table_set(*library_key_pressed_on_frame, .D,     0);
-    table_set(*library_key_pressed_on_frame, .U,     0);
-    table_set(*library_key_pressed_on_frame, .SPACE, 0);
+    table_set(*library_key_pressed_on_frame, .J,      0);
+    table_set(*library_key_pressed_on_frame, .K,      0);
+    table_set(*library_key_pressed_on_frame, .L,      0);
+    table_set(*library_key_pressed_on_frame, .H,      0);
+    table_set(*library_key_pressed_on_frame, .CTRL_D, 0);
+    table_set(*library_key_pressed_on_frame, .CTRL_U, 0);
+    table_set(*library_key_pressed_on_frame, .SPACE,  0);
 }
 
 library_event_loop :: (frame: u64, header_bottom: int) {
@@ -291,15 +291,19 @@ library_event_loop :: (frame: u64, header_bottom: int) {
                     break it;
 
                   case KEY_D;
-                    table_set(*library_key_pressed_on_frame, .D, frame);
-                    last_library_key_pressed = .D;
-                    move_selected_cursor_one_page_down();
-                    break it;
+                    if it.ctrl_pressed {
+                        table_set(*library_key_pressed_on_frame, .CTRL_D, frame);
+                        last_library_key_pressed = .CTRL_D;
+                        move_selected_cursor_one_page_down();
+                        break it;
+                    }
                   case KEY_U;
-                    table_set(*library_key_pressed_on_frame, .U, frame);
-                    last_library_key_pressed = .U;
-                    move_selected_cursor_one_page_up();
-                    break it;
+                    if it.ctrl_pressed {
+                        table_set(*library_key_pressed_on_frame, .CTRL_U, frame);
+                        last_library_key_pressed = .CTRL_U;
+                        move_selected_cursor_one_page_up();
+                        break it;
+                    }
 
                   case KEY_G;
                     if it.shift_pressed {
@@ -355,13 +359,13 @@ library_event_loop :: (frame: u64, header_bottom: int) {
         }
     }
 
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .J)     move_selected_cursor_down();
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .K)     move_selected_cursor_up();
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .H)     move_selected_cursor_left();
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .L)     move_selected_cursor_right();
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .D)     move_selected_cursor_one_page_down();
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .U)     move_selected_cursor_one_page_up();
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .SPACE) add_selection_to_queue();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .J)      move_selected_cursor_down();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .K)      move_selected_cursor_up();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .H)      move_selected_cursor_left();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .L)      move_selected_cursor_right();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .CTRL_D) move_selected_cursor_one_page_down();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .CTRL_U) move_selected_cursor_one_page_up();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .SPACE)  add_selection_to_queue();
 
     if new_cursor.selected != library_cursor.selected {
         if new_cursor.selected < 0

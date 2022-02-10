@@ -151,8 +151,8 @@ queue_init_repeatable_keys :: () {
     table_set(*queue_key_pressed_on_frame, .K,       0);
     table_set(*queue_key_pressed_on_frame, .SHIFT_J, 0);
     table_set(*queue_key_pressed_on_frame, .SHIFT_K, 0);
-    table_set(*queue_key_pressed_on_frame, .D,       0);
-    table_set(*queue_key_pressed_on_frame, .U,       0);
+    table_set(*queue_key_pressed_on_frame, .CTRL_D,  0);
+    table_set(*queue_key_pressed_on_frame, .CTRL_U,  0);
     table_set(*queue_key_pressed_on_frame, .X,       0);
     table_set(*queue_key_pressed_on_frame, .ENTER,   0);
 }
@@ -242,14 +242,18 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
                     break it;
 
                   case KEY_D;
-                    table_set(*queue_key_pressed_on_frame, .D, frame);
-                    last_queue_key_pressed = .D;
-                    queue_move_cursor_one_page_down();
+                    if it.ctrl_pressed {
+                        table_set(*queue_key_pressed_on_frame, .CTRL_D, frame);
+                        last_queue_key_pressed = .CTRL_D;
+                        queue_move_cursor_one_page_down();
+                    }
                     break it;
                   case KEY_U;
-                    table_set(*queue_key_pressed_on_frame, .U, frame);
-                    last_queue_key_pressed = .U;
-                    queue_move_cursor_one_page_up();
+                    if it.ctrl_pressed {
+                        table_set(*queue_key_pressed_on_frame, .CTRL_U, frame);
+                        last_queue_key_pressed = .CTRL_U;
+                        queue_move_cursor_one_page_up();
+                    }
                     break it;
 
                   case KEY_G;
@@ -298,8 +302,8 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
     if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .K)       queue_move_cursor_up();
     if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .SHIFT_J) queue_shift_selected_item_down();
     if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .SHIFT_K) queue_shift_selected_item_up();
-    if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .D)       queue_move_cursor_one_page_down();
-    if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .U)       queue_move_cursor_one_page_up();
+    if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .CTRL_D)  queue_move_cursor_one_page_down();
+    if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .CTRL_U)  queue_move_cursor_one_page_up();
     if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .X)       queue_remove_selected_song();
 
     if new_cursor.position < 0                       new_cursor.position = 0;
