@@ -269,38 +269,38 @@ library_event_loop :: (frame: u64, header_bottom: int) {
                 if it.key_code == {
 
                   case KEY_H;
-                    table_set(*library_key_pressed_on_frame, .H, frame);
                     last_library_key_pressed = .H;
+                    table_set(*library_key_pressed_on_frame, .H, frame);
                     move_selected_cursor_left();
                     break it;
                   case KEY_L;
-                    table_set(*library_key_pressed_on_frame, .L, frame);
                     last_library_key_pressed = .L;
+                    table_set(*library_key_pressed_on_frame, .L, frame);
                     move_selected_cursor_right();
                     break it;
 
                   case KEY_J;
-                    table_set(*library_key_pressed_on_frame, .J, frame);
                     last_library_key_pressed = .J;
+                    table_set(*library_key_pressed_on_frame, .J, frame);
                     move_selected_cursor_down();
                     break it;
                   case KEY_K;
-                    table_set(*library_key_pressed_on_frame, .K, frame);
                     last_library_key_pressed = .K;
+                    table_set(*library_key_pressed_on_frame, .K, frame);
                     move_selected_cursor_up();
                     break it;
 
                   case KEY_D;
                     if it.ctrl_pressed {
-                        table_set(*library_key_pressed_on_frame, .CTRL_D, frame);
                         last_library_key_pressed = .CTRL_D;
+                        table_set(*library_key_pressed_on_frame, .CTRL_D, frame);
                         move_selected_cursor_one_page_down();
                         break it;
                     }
                   case KEY_U;
                     if it.ctrl_pressed {
-                        table_set(*library_key_pressed_on_frame, .CTRL_U, frame);
                         last_library_key_pressed = .CTRL_U;
+                        table_set(*library_key_pressed_on_frame, .CTRL_U, frame);
                         move_selected_cursor_one_page_up();
                         break it;
                     }
@@ -340,14 +340,14 @@ library_event_loop :: (frame: u64, header_bottom: int) {
                     break it;
 
                   case .SPACEBAR;
-                    table_set(*library_key_pressed_on_frame, .SPACE, frame);
                     last_library_key_pressed = .SPACE;
+                    table_set(*library_key_pressed_on_frame, .SPACE, frame);
                     add_selection_to_queue();
                     break it;
 
                   case .ENTER;
-                    table_set(*library_key_pressed_on_frame, .ENTER, frame);
                     last_library_key_pressed = .ENTER;
+                    table_set(*library_key_pressed_on_frame, .ENTER, frame);
                     add_selection_to_queue_and_play();
                     break it;
 

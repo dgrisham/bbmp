@@ -294,40 +294,39 @@ main :: () {
                         break it;
 
                       case KEY_B;
-                        table_set(*global_key_pressed_on_frame, .B, frame);
                         last_global_key_pressed = .B;
+                        table_set(*global_key_pressed_on_frame, .B, frame);
                         seek_backward();
                         break it;
                       case KEY_F;
-                        table_set(*global_key_pressed_on_frame, .F, frame);
                         last_global_key_pressed = .F;
+                        table_set(*global_key_pressed_on_frame, .F, frame);
                         seek_forward();
                         break it;
 
                       case .LEFT_ANGLE_BRACKET;
-                        table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
                         last_global_key_pressed = .LEFT_ANGLE_BRACKET;
+                        table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
                         play_previous_song();
                         break it;
                       case .RIGHT_ANGLE_BRACKET;
-                        table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
                         last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
+                        table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
                         play_next_song();
                         break it;
 
                       case .EQUALS_SIGN;
-                        table_set(*global_key_pressed_on_frame, .EQUALS_SIGN, frame);
                         last_global_key_pressed = .EQUALS_SIGN;
+                        table_set(*global_key_pressed_on_frame, .EQUALS_SIGN, frame);
                         increment_volume();
                         break it;
                       case .DASH;
-                        table_set(*global_key_pressed_on_frame, .DASH, frame);
                         last_global_key_pressed = .DASH;
+                        table_set(*global_key_pressed_on_frame, .DASH, frame);
                         decrement_volume();
                         break it;
 
                       case KEY_C;
-                        table_set(*global_key_pressed_on_frame, .C, frame);
                         handle_mpd_idle_events();
                         MPD.run_clear(mpd_connection);
                         handle_errors("Clearing queue");
