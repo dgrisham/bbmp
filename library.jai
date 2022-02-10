@@ -163,7 +163,6 @@ load_library :: () {
     reset_temporary_storage();
 }
 
-// TODO: might be better to just add the entire directory if we can figure out an easy way to map between those and artists/albums
 add_album_to_queue :: (artist_name: string, album_name: string) -> s32 {
     first_id_added: s32;
     artist := table_find_pointer(library.artists, artist_name);
@@ -177,7 +176,7 @@ add_album_to_queue :: (artist_name: string, album_name: string) -> s32 {
             first_id_added = id;
         }
     }
-    handle_errors("");
+    handle_errors("Adding album's songs to queue");
     return first_id_added;
 }
 
@@ -195,28 +194,21 @@ add_artist_to_queue :: (artist_name: string) -> s32 {
             }
         }
     }
-    handle_errors("");
+    handle_errors("Adding artist's songs to queue");
     return first_id_added;
 }
 
-library_last_key_pressed: Input.Key_Code;
-library_key_pressed_on_frame: Table(Input.Key_Code, u64);
+last_library_key_pressed: Key;
+library_key_pressed_on_frame: Table(Key, u64);
 
-library_init_keys :: () {
-    table_add(*library_key_pressed_on_frame, KEY_J,                0);
-    table_add(*library_key_pressed_on_frame, KEY_K,                0);
-    table_add(*library_key_pressed_on_frame, KEY_L,                0);
-    table_add(*library_key_pressed_on_frame, KEY_H,                0);
-    table_add(*library_key_pressed_on_frame, KEY_D,                0);
-    table_add(*library_key_pressed_on_frame, KEY_U,                0);
-    table_add(*library_key_pressed_on_frame, .SPACEBAR,            0);
-    table_add(*library_key_pressed_on_frame, .ENTER,               0);
-    table_add(*library_key_pressed_on_frame, KEY_B,                0);
-    table_add(*library_key_pressed_on_frame, KEY_F,                0);
-    table_add(*library_key_pressed_on_frame, .LEFT_ANGLE_BRACKET,  0);
-    table_add(*library_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, 0);
-    table_add(*library_key_pressed_on_frame, .EQUALS_SIGN,         0);
-    table_add(*library_key_pressed_on_frame, .DASH,                0);
+library_init_repeatable_keys :: () {
+    table_set(*library_key_pressed_on_frame, .J,     0);
+    table_set(*library_key_pressed_on_frame, .K,     0);
+    table_set(*library_key_pressed_on_frame, .L,     0);
+    table_set(*library_key_pressed_on_frame, .H,     0);
+    table_set(*library_key_pressed_on_frame, .D,     0);
+    table_set(*library_key_pressed_on_frame, .U,     0);
+    table_set(*library_key_pressed_on_frame, .SPACE, 0);
 }
 
 library_event_loop :: (frame: u64) {
@@ -225,46 +217,87 @@ library_event_loop :: (frame: u64) {
     for library_cursor.positions new_cursor.positions[it_index] = it;
     new_cursor.selected = library_cursor.selected;
 
+    move_selected_cursor :: (amount: int) #expand {
+        `new_cursor.positions[library_cursor.selected] += amount;
+        if library_cursor.selected == 0 { `new_cursor.positions[1], `new_cursor.positions[2] = 0; }
+        if library_cursor.selected == 1 `new_cursor.positions[2] = 0;
+    }
+    move_selected_cursor_down          :: () #expand { move_selected_cursor(1);                  }
+    move_selected_cursor_up            :: () #expand { move_selected_cursor(-1);                 }
+    move_selected_cursor_one_page_down :: () #expand { move_selected_cursor(ITEMS_IN_PAGE);      }
+    move_selected_cursor_one_page_up   :: () #expand { move_selected_cursor(-1 * ITEMS_IN_PAGE); }
+
+    move_selected_cursor_left  :: () #expand { `new_cursor.selected -= 1; }
+    move_selected_cursor_right :: () #expand { `new_cursor.selected += 1; }
+
+    add_selection_to_queue :: () -> s32 #expand {
+        song_id_to_play: s32;
+
+        handle_mpd_idle_events();
+        if library_cursor.selected == {
+          case 0;
+            song_id_to_play = add_artist_to_queue(library.artist_names_sorted[library_cursor.positions[0]]);
+          case 1;
+            artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
+            song_id_to_play = add_album_to_queue(artist.name, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
+          case 2;
+            artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
+            album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
+            song_id_to_play = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
+        }
+        `new_cursor.positions[library_cursor.selected] += 1;
+
+        return song_id_to_play;
+    }
+
+    add_selection_to_queue_and_play :: () #expand {
+        first_song_id_added := add_selection_to_queue();
+        if first_song_id_added >= 0 {
+            assert(mpd_connection != null);
+            MPD.run_play_id(mpd_connection, cast(u32)first_song_id_added);
+            handle_errors("Playing first song in group added to queue");
+            update_status();
+        }
+    }
+
     for Input.events_this_frame {
         if it.type == {
           case .KEYBOARD;
             if it.key_pressed {
                 if it.key_code == {
 
-                  case KEY_J;
-                    table_set(*library_key_pressed_on_frame, KEY_J, frame);
-                    library_last_key_pressed = KEY_J;
-                    new_cursor.positions[new_cursor.selected] += 1;
-                    if library_cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-                    if library_cursor.selected == 1 new_cursor.positions[2] = 0;
-                  case KEY_K;
-                    table_set(*library_key_pressed_on_frame, KEY_K, frame);
-                    library_last_key_pressed = KEY_K;
-                    new_cursor.positions[new_cursor.selected] -= 1;
-                    if library_cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-                    if library_cursor.selected == 1 new_cursor.positions[2] = 0;
-
-                  case KEY_L;
-                    table_set(*library_key_pressed_on_frame, KEY_L, frame);
-                    library_last_key_pressed = KEY_L;
-                    new_cursor.selected += 1;
                   case KEY_H;
-                    table_set(*library_key_pressed_on_frame, KEY_H, frame);
-                    library_last_key_pressed = KEY_H;
-                    new_cursor.selected -= 1;
+                    table_set(*library_key_pressed_on_frame, .H, frame);
+                    last_library_key_pressed = .H;
+                    move_selected_cursor_left();
+                    break it;
+                  case KEY_L;
+                    table_set(*library_key_pressed_on_frame, .L, frame);
+                    last_library_key_pressed = .L;
+                    move_selected_cursor_right();
+                    break it;
+
+                  case KEY_J;
+                    table_set(*library_key_pressed_on_frame, .J, frame);
+                    last_library_key_pressed = .J;
+                    move_selected_cursor_down();
+                    break it;
+                  case KEY_K;
+                    table_set(*library_key_pressed_on_frame, .K, frame);
+                    last_library_key_pressed = .K;
+                    move_selected_cursor_up();
+                    break it;
 
                   case KEY_D;
-                    table_set(*library_key_pressed_on_frame, KEY_D, frame);
-                    library_last_key_pressed = KEY_D;
-                    new_cursor.positions[new_cursor.selected] += ITEMS_IN_PAGE;
-                    if library_cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-                    if library_cursor.selected == 1 new_cursor.positions[2] = 0;
+                    table_set(*library_key_pressed_on_frame, .D, frame);
+                    last_library_key_pressed = .D;
+                    move_selected_cursor_one_page_down();
+                    break it;
                   case KEY_U;
-                    table_set(*library_key_pressed_on_frame, KEY_U, frame);
-                    library_last_key_pressed = KEY_U;
-                    new_cursor.positions[new_cursor.selected] -= ITEMS_IN_PAGE;
-                    if library_cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-                    if library_cursor.selected == 1 new_cursor.positions[2] = 0;
+                    table_set(*library_key_pressed_on_frame, .U, frame);
+                    last_library_key_pressed = .U;
+                    move_selected_cursor_one_page_up();
+                    break it;
 
                   case KEY_G;
                     if it.shift_pressed {
@@ -272,28 +305,16 @@ library_event_loop :: (frame: u64) {
                     } else {
                         new_cursor.positions[library_cursor.selected] = 0;
                     }
-
-                  case KEY_P;
-                    table_set(*library_key_pressed_on_frame, KEY_P, frame);
-                    handle_mpd_idle_events();
-                    MPD.run_toggle_pause(mpd_connection);
-                    handle_errors("");
-
-                  case KEY_C;
-                    table_set(*library_key_pressed_on_frame, KEY_C, frame);
-                    handle_mpd_idle_events();
-                    MPD.run_clear(mpd_connection);
-                    handle_errors("");
-                    update_status();
+                    break it;
 
                   case KEY_O;
-                    table_set(*library_key_pressed_on_frame, KEY_O, frame);
+                    table_set(*library_key_pressed_on_frame, .O, frame);
                     handle_mpd_idle_events();
+
                     mpd_current_song := MPD.run_current_song(mpd_connection);
-                    handle_errors("");
+                    handle_errors("Getting current song");
                     if !mpd_current_song break;
                     uri := to_string(MPD.song_get_uri(mpd_current_song));
-
                     for artist, artist_name: library.artists {
                         for album, album_name: artist.albums {
                             for song, song_index: album.songs {
@@ -311,94 +332,19 @@ library_event_loop :: (frame: u64) {
                             }
                         }
                     }
+                    break it;
 
                   case .SPACEBAR;
-                    table_set(*library_key_pressed_on_frame, .SPACEBAR, frame);
-                    library_last_key_pressed = .SPACEBAR;
-                    handle_mpd_idle_events();
-                    if library_cursor.selected == {
-                      case 0;
-                        add_artist_to_queue(library.artist_names_sorted[library_cursor.positions[0]]);
-                      case 1;
-                        artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
-                        add_album_to_queue(artist.name, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
-                      case 2;
-                        artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
-                        album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
-                        MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
-                    }
-                    new_cursor.positions[new_cursor.selected] += 1;
+                    table_set(*library_key_pressed_on_frame, .SPACE, frame);
+                    last_library_key_pressed = .SPACE;
+                    add_selection_to_queue();
+                    break it;
 
                   case .ENTER;
                     table_set(*library_key_pressed_on_frame, .ENTER, frame);
-                    library_last_key_pressed = .ENTER;
-                    song_id_to_play: s32;
-
-                    handle_mpd_idle_events();
-                    if library_cursor.selected == {
-                      case 0;
-                        song_id_to_play = add_artist_to_queue(library.artist_names_sorted[library_cursor.positions[0]]);
-                      case 1;
-                        artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
-                        song_id_to_play = add_album_to_queue(artist.name, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
-                      case 2;
-                        artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
-                        album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
-                        song_id_to_play = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
-                    }
-                    new_cursor.positions[new_cursor.selected] += 1;
-
-                    if song_id_to_play >= 0 { // play first song that was added
-                        assert(mpd_connection != null);
-                        MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
-                        handle_errors("");
-                        update_status();
-                    }
-
-                  case KEY_B;
-                    table_set(*library_key_pressed_on_frame, KEY_B, frame);
-                    library_last_key_pressed = KEY_B;
-                    handle_mpd_idle_events();
-                    MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
-                    handle_errors("");
-                    update_status_time();
-                  case KEY_F;
-                    table_set(*library_key_pressed_on_frame, KEY_F, frame);
-                    library_last_key_pressed = KEY_F;
-                    handle_mpd_idle_events();
-                    MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
-                    handle_errors("");
-                    update_status_time();
-
-                  case .LEFT_ANGLE_BRACKET;
-                    table_set(*library_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
-                    library_last_key_pressed = .LEFT_ANGLE_BRACKET;
-                    handle_mpd_idle_events();
-                    MPD.run_previous(mpd_connection);
-                    handle_errors("");
-                    update_status();
-                  case .RIGHT_ANGLE_BRACKET;
-                    table_set(*library_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
-                    library_last_key_pressed = .RIGHT_ANGLE_BRACKET;
-                    handle_mpd_idle_events();
-                    MPD.run_next(mpd_connection);
-                    handle_errors("");
-                    update_status();
-
-                  case .EQUALS_SIGN;
-                    table_set(*library_key_pressed_on_frame, .EQUALS_SIGN, frame);
-                    library_last_key_pressed = .EQUALS_SIGN;
-                    handle_mpd_idle_events();
-                    MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
-                    handle_errors("");
-                    update_status_volume();
-                  case .DASH;
-                    table_set(*library_key_pressed_on_frame, .DASH, frame);
-                    library_last_key_pressed = .DASH;
-                    handle_mpd_idle_events();
-                    MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
-                    handle_errors("");
-                    update_status_volume();
+                    last_library_key_pressed = .ENTER;
+                    add_selection_to_queue_and_play();
+                    break it;
 
                   // case;
                   //   print("key_code: %\n", it.key_code);
@@ -408,163 +354,13 @@ library_event_loop :: (frame: u64) {
         }
     }
 
-    // these will trigger when the corresponding key has been held down for at least 20 frames,
-    // then will repeat the corresponding movement every 2 frames. the last press of the key
-    // also has to be after the last press of its 'opposite' (J vs K, U vs D, - vs =).
-    // this emulates how curses/terminal application new_cursor movement tends to behave
-
-    KEY_HOLD_DELAY :: 20;
-
-    if Input.input_button_states[KEY_J] & .DOWN &&
-       KEY_J == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_J) + KEY_HOLD_DELAY
-    {
-        new_cursor.positions[new_cursor.selected] += 1;
-        if library_cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-        if library_cursor.selected == 1 new_cursor.positions[2] = 0;
-    } else
-    if Input.input_button_states[KEY_K] & .DOWN    &&
-       KEY_K == library_last_key_pressed           &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_K) + KEY_HOLD_DELAY
-    {
-        new_cursor.positions[new_cursor.selected] -= 1;
-        if library_cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-        if library_cursor.selected == 1 new_cursor.positions[2] = 0;
-    }
-
-    if Input.input_button_states[KEY_L] & .DOWN &&
-       KEY_L == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_L) + KEY_HOLD_DELAY
-    {
-        new_cursor.selected += 1;
-    } else
-    if Input.input_button_states[KEY_H] & .DOWN &&
-       KEY_H == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_H) + KEY_HOLD_DELAY
-    {
-        new_cursor.selected -= 1;
-    }
-
-    if Input.input_button_states[KEY_D] & .DOWN &&
-       KEY_D == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_D) + KEY_HOLD_DELAY
-    {
-        new_cursor.positions[new_cursor.selected] += ITEMS_IN_PAGE;
-        if library_cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-        if library_cursor.selected == 1 new_cursor.positions[2] = 0;
-    } else
-    if Input.input_button_states[KEY_U] & .DOWN &&
-       KEY_U == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_U) + KEY_HOLD_DELAY
-    {
-        new_cursor.positions[new_cursor.selected] -= ITEMS_IN_PAGE;
-        if library_cursor.selected == 0 { new_cursor.positions[1], new_cursor.positions[2] = 0; }
-        if library_cursor.selected == 1 new_cursor.positions[2] = 0;
-    }
-
-    if Input.input_button_states[Input.Key_Code.EQUALS_SIGN] & .DOWN &&
-       Input.Key_Code.EQUALS_SIGN == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, Input.Key_Code.EQUALS_SIGN) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
-        handle_errors("");
-        update_status_volume();
-    } else
-    if Input.input_button_states[Input.Key_Code.DASH] & .DOWN &&
-       Input.Key_Code.DASH == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, Input.Key_Code.DASH) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
-        handle_errors("");
-        update_status_volume();
-    }
-
-    if Input.input_button_states[Input.Key_Code.LEFT_ANGLE_BRACKET] & .DOWN &&
-       Input.Key_Code.LEFT_ANGLE_BRACKET == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, Input.Key_Code.LEFT_ANGLE_BRACKET) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_previous(mpd_connection);
-        handle_errors("");
-        update_status();
-    } else
-    if Input.input_button_states[Input.Key_Code.RIGHT_ANGLE_BRACKET] & .DOWN &&
-       Input.Key_Code.RIGHT_ANGLE_BRACKET == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, Input.Key_Code.RIGHT_ANGLE_BRACKET) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_next(mpd_connection);
-        handle_errors("");
-        update_status();
-    }
-
-    if Input.input_button_states[KEY_B] & .DOWN &&
-       KEY_B == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_B) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
-        handle_errors("");
-        update_status_time();
-    } else
-    if Input.input_button_states[KEY_F] & .DOWN &&
-       KEY_F == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, KEY_F) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
-        handle_errors("");
-        update_status_time();
-    }
-
-    if Input.input_button_states[Input.Key_Code.ENTER] & .DOWN &&
-       Input.Key_Code.ENTER == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, Input.Key_Code.ENTER) + KEY_HOLD_DELAY
-    {
-        song_id_to_play: s32;
-
-        handle_mpd_idle_events();
-        if library_cursor.selected == {
-          case 0;
-            song_id_to_play = add_artist_to_queue(library.artist_names_sorted[library_cursor.positions[0]]);
-          case 1;
-            artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
-            song_id_to_play = add_album_to_queue(artist.name, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
-          case 2;
-            artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
-            album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
-            song_id_to_play = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
-        }
-        new_cursor.positions[new_cursor.selected] += 1;
-
-        if song_id_to_play >= 0 { // play first song that was added
-            assert(mpd_connection != null);
-            MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
-            handle_errors("");
-            update_status();
-        }
-    }
-
-    if Input.input_button_states[Input.Key_Code.SPACEBAR] & .DOWN &&
-       Input.Key_Code.SPACEBAR == library_last_key_pressed        &&
-       frame > <<table_find_pointer(library_key_pressed_on_frame, Input.Key_Code.SPACEBAR) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        if library_cursor.selected == {
-          case 0;
-            add_artist_to_queue(library.artist_names_sorted[library_cursor.positions[0]]);
-          case 1;
-            artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
-            add_album_to_queue(artist.name, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
-          case 2;
-            artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
-            album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
-            MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
-        }
-        new_cursor.positions[new_cursor.selected] += 1;
-    }
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .J)     move_selected_cursor_down();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .K)     move_selected_cursor_up();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .H)     move_selected_cursor_left();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .L)     move_selected_cursor_right();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .D)     move_selected_cursor_one_page_down();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .U)     move_selected_cursor_one_page_up();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .SPACE) add_selection_to_queue();
 
     if new_cursor.selected != library_cursor.selected {
         if new_cursor.selected < 0

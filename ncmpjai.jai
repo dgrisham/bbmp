@@ -36,19 +36,37 @@ KEY_G :: 71;
 KEY_H :: 72;
 KEY_J :: 74;
 KEY_K :: 75;
-// TODO: shift keys are kind of forced (we're just taking advantage of unused
-// key values, where a-z starts at 65 and A-Z at 97, but here lowercase + capitals
-// are flipped because the shift key is treated as a separate thing. not sure if
-// this is something that'll cause problems later. shift key logic generally worth
-// reconsidering, kind of ad-hoc)
-KEY_SHIFT_J :: KEY_J + 32;
-KEY_SHIFT_K :: KEY_K + 32;
 KEY_L :: 76;
 KEY_O :: 79;
 KEY_P :: 80;
 KEY_Q :: 81;
 KEY_U :: 85;
 KEY_X :: 88;
+
+Key :: enum u8 {
+    ENTER;
+    SPACE;
+    LEFT_ANGLE_BRACKET;
+    RIGHT_ANGLE_BRACKET;
+    EQUALS_SIGN;
+    DASH;
+    B;
+    C;
+    D;
+    F;
+    G;
+    H;
+    J;
+    K;
+    L;
+    O;
+    P;
+    Q;
+    U;
+    X;
+    SHIFT_J;
+    SHIFT_K;
+}
 
 window: Window_Type;
 
@@ -94,9 +112,9 @@ update_status :: (update_queue := true) {
     queue_song_position := MPD.status_get_song_pos(mpd_status);
     if queue_song_position >= 0 {
         song := queue.songs[queue_song_position];
-        status.artist = song.artist;
-        status.album  = song.album;
-        status.song   = song.name;
+        status.artist = copy_string(song.artist);
+        status.album  = copy_string(song.album);
+        status.song   = copy_string(song.name);
     } else {
         status.artist = "";
         status.album  = "";
@@ -125,8 +143,7 @@ update_status_time :: () {
     MPD.status_free(mpd_status);
 }
 
-SEEK_SECONDS         :: 0.5;
-VOLUME_CHANGE_AMOUNT :: 2;
+KEY_HOLD_DELAY :: 20;
 
 // laptop
 window_width  : s32 = 1920;
@@ -177,11 +194,22 @@ main :: () {
     // then having the hold delay -> repeat functionality logic generated automatically (or
     // abstracted + looped)
 
-    library_init_keys();
-    queue_init_keys();
+    library_init_repeatable_keys();
+    queue_init_repeatable_keys();
 
     quit := false;
     frame: u64 = 0;
+
+    last_global_key_pressed: Key;
+
+    // only keys that repeat when held go in this table
+    global_key_pressed_on_frame: Table(Key, u64);
+    table_add(*global_key_pressed_on_frame, .B,                   0);
+    table_add(*global_key_pressed_on_frame, .F,                   0);
+    table_add(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET,  0);
+    table_add(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, 0);
+    table_add(*global_key_pressed_on_frame, .EQUALS_SIGN,         0);
+    table_add(*global_key_pressed_on_frame, .DASH,                0);
 
     while !quit {
         if get_current_file_time() > status_update_timer + 10000000 {
@@ -209,6 +237,39 @@ main :: () {
             }
         }
 
+        seek :: ($seconds: float32) #expand {
+            handle_mpd_idle_events();
+            MPD.run_seek_current(mpd_connection, seconds, true);
+            handle_errors("Seeking");
+            update_status_time();
+        }
+        SEEK_SECONDS :: 0.5;
+        seek_forward  :: () #expand { seek( SEEK_SECONDS); }
+        seek_backward :: () #expand { seek(-SEEK_SECONDS); }
+
+        play_previous_song :: () #expand {
+            last_global_key_pressed = .LEFT_ANGLE_BRACKET;
+            handle_mpd_idle_events();
+            MPD.run_previous(mpd_connection);
+            handle_errors("Playing previous song");
+            update_status(false);
+        }
+        play_next_song :: () #expand {
+            handle_mpd_idle_events();
+            MPD.run_next(mpd_connection);
+            handle_errors("Playing next song");
+            update_status(false);
+        }
+
+        change_volume :: ($amount: s32) #expand {
+            handle_mpd_idle_events();
+            MPD.run_change_volume(mpd_connection, amount);
+            handle_errors("Changing volume");
+            update_status_volume();
+        }
+        VOLUME_CHANGE_AMOUNT :: 2;
+        increment_volume :: () #expand { change_volume( VOLUME_CHANGE_AMOUNT); }
+        decrement_volume :: () #expand { change_volume(-VOLUME_CHANGE_AMOUNT); }
 
         for Input.events_this_frame {
             if it.type == {
@@ -221,6 +282,7 @@ main :: () {
                       case KEY_Q;
                         quit = true;
                         break it;
+
                       case .NUMBER_1;
                         current_screen = .QUEUE;
                         load_queue_changes();
@@ -228,10 +290,65 @@ main :: () {
                       case .NUMBER_2;
                         current_screen = .LIBRARY;
                         break it;
+
+                      case KEY_P;
+                        handle_mpd_idle_events();
+                        MPD.run_toggle_pause(mpd_connection);
+                        handle_errors("Toggling pause");
+                        break it;
+
+                      case KEY_B;
+                        table_set(*global_key_pressed_on_frame, .B, frame);
+                        last_global_key_pressed = .B;
+                        seek_backward();
+                        break it;
+                      case KEY_F;
+                        table_set(*global_key_pressed_on_frame, .F, frame);
+                        last_global_key_pressed = .F;
+                        seek_forward();
+                        break it;
+
+                      case .LEFT_ANGLE_BRACKET;
+                        table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
+                        last_global_key_pressed = .LEFT_ANGLE_BRACKET;
+                        play_previous_song();
+                        break it;
+                      case .RIGHT_ANGLE_BRACKET;
+                        table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
+                        last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
+                        play_next_song();
+                        break it;
+
+                      case .EQUALS_SIGN;
+                        table_set(*global_key_pressed_on_frame, .EQUALS_SIGN, frame);
+                        last_global_key_pressed = .EQUALS_SIGN;
+                        increment_volume();
+                        break it;
+                      case .DASH;
+                        table_set(*global_key_pressed_on_frame, .DASH, frame);
+                        last_global_key_pressed = .DASH;
+                        decrement_volume();
+                        break it;
+
+                      case KEY_C;
+                        table_set(*global_key_pressed_on_frame, .C, frame);
+                        handle_mpd_idle_events();
+                        MPD.run_clear(mpd_connection);
+                        handle_errors("Clearing queue");
+                        load_queue_changes();
+                        update_status();
+                        break it;
                     }
                 }
             }
         }
+
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B)                   seek_backward();
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F)                   seek_forward();
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .LEFT_ANGLE_BRACKET)  play_previous_song();
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .RIGHT_ANGLE_BRACKET) play_next_song();
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .EQUALS_SIGN)         increment_volume();
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .DASH)                decrement_volume();
 
         Simp.clear_render_target(0,0,0,1);
         draw_header();
@@ -244,8 +361,6 @@ main :: () {
         Simp.swap_buffers(window);
         reset_temporary_storage();
 
-        // TODO: would be good to frame %= LARGE_NUMBER or something so this doesn't overflow,
-        // but the *_pressed_on_frame values would need to be updated as well
         frame += 1;
 
         calculate_frame_rate :: (start: u64, end: u64) -> float64 {
@@ -266,6 +381,40 @@ main :: () {
     //     print("Failed to kill the child %: %\n", mpd_poll_process_pid, errno());
 
     MPD.connection_free(mpd_connection);
+}
+
+key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pressed: Key, frame: u64, $key: Key) -> bool #expand {
+    if last_key_pressed != key return false;
+
+    key_code: Input.Key_Code;
+
+         #if key == .B                   key_code = KEY_B;
+    else #if key == .D                   key_code = KEY_D;
+    else #if key == .F                   key_code = KEY_F;
+    else #if key == .H                   key_code = KEY_H;
+    else #if key == .J                   key_code = KEY_J;
+    else #if key == .K                   key_code = KEY_K;
+    else #if key == .L                   key_code = KEY_L;
+    else #if key == .U                   key_code = KEY_U;
+    else #if key == .X                   key_code = KEY_X;
+    else #if key == .EQUALS_SIGN         key_code = .EQUALS_SIGN;
+    else #if key == .DASH                key_code = .DASH;
+    else #if key == .ENTER               key_code = .ENTER;
+    else #if key == .SPACE               key_code = .SPACEBAR;
+    else #if key == .LEFT_ANGLE_BRACKET  key_code = .LEFT_ANGLE_BRACKET;
+    else #if key == .RIGHT_ANGLE_BRACKET key_code = .RIGHT_ANGLE_BRACKET;
+    else #if key == .SHIFT_J {
+        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
+        key_code = KEY_J;
+    }
+    else #if key == .SHIFT_K {
+        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
+        key_code = KEY_K;
+    }
+    else #assert(false);
+
+    if !(Input.input_button_states[key_code] & .DOWN) return false;
+    return frame > <<table_find_pointer(key_pressed_on_frame, key) + KEY_HOLD_DELAY;
 }
 
 // Status :: struct {
@@ -380,17 +529,6 @@ handle_mpd_idle_events :: () {
     }
 }
 
-// // desktop
-// window_width  : s32 : 2560;
-// window_height : s32 : 1440;
-// pixel_height := window_height / 96;
-// column_width :: 700;
-
-// // laptop
-// window_width  : s32 : 1920;
-// window_height : s32 : 1080;
-// pixel_height := window_height / 72;
-
 // // desktop - streaming
 // window_width  : s32 : 1900;
 // window_height : s32 : 1440;
@@ -400,7 +538,7 @@ handle_mpd_idle_events :: () {
 // TODO: load/use font for asian/etc. characters (maybe one of the expanded inconsolata sets?)
 font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
-    pixel_height := window_height / 72;
+    pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
 
     font = Simp.get_font_at_size(".", "Inconsolata-Regular.ttf", pixel_height);
     assert(font != null);

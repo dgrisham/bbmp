@@ -143,32 +143,72 @@ load_queue_changes :: () {
     }
 }
 
-queue_last_key_pressed: Input.Key_Code;
-queue_key_pressed_on_frame: Table(Input.Key_Code, u64);
+last_queue_key_pressed: Key;
+queue_key_pressed_on_frame: Table(Key, u64);
 
-queue_init_keys :: () {
-    table_add(*queue_key_pressed_on_frame, KEY_J,                0);
-    table_add(*queue_key_pressed_on_frame, KEY_K,                0);
-    table_add(*queue_key_pressed_on_frame, KEY_SHIFT_J,          0);
-    table_add(*queue_key_pressed_on_frame, KEY_SHIFT_K,          0);
-    table_add(*queue_key_pressed_on_frame, KEY_J,                0);
-    table_add(*queue_key_pressed_on_frame, KEY_K,                0);
-    table_add(*queue_key_pressed_on_frame, KEY_D,                0);
-    table_add(*queue_key_pressed_on_frame, KEY_U,                0);
-    table_add(*queue_key_pressed_on_frame, KEY_X,                0);
-    table_add(*queue_key_pressed_on_frame, .ENTER,               0);
-    table_add(*queue_key_pressed_on_frame, KEY_B,                0);
-    table_add(*queue_key_pressed_on_frame, KEY_F,                0);
-    table_add(*queue_key_pressed_on_frame, .LEFT_ANGLE_BRACKET,  0);
-    table_add(*queue_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, 0);
-    table_add(*queue_key_pressed_on_frame, .EQUALS_SIGN,         0);
-    table_add(*queue_key_pressed_on_frame, .DASH,                0);
+queue_init_repeatable_keys :: () {
+    table_set(*queue_key_pressed_on_frame, .J,       0);
+    table_set(*queue_key_pressed_on_frame, .K,       0);
+    table_set(*queue_key_pressed_on_frame, .SHIFT_J, 0);
+    table_set(*queue_key_pressed_on_frame, .SHIFT_K, 0);
+    table_set(*queue_key_pressed_on_frame, .D,       0);
+    table_set(*queue_key_pressed_on_frame, .U,       0);
+    table_set(*queue_key_pressed_on_frame, .X,       0);
+    table_set(*queue_key_pressed_on_frame, .ENTER,   0);
 }
 
 queue_event_loop :: (frame: u64) {
 
     new_cursor: Queue_Cursor;
     new_cursor.position = queue_cursor.position;
+
+    queue_shift_selected_item_down :: () #expand {
+        if queue_cursor.position < queue.songs.count - 1 {
+            MPD.run_swap(`mpd_connection, cast(u32)queue_cursor.position, cast(u32)queue_cursor.position + 1);
+            handle_errors("Moving song down in queue");
+            load_queue_changes();
+            `new_cursor.position += 1;
+        }
+    }
+    queue_move_cursor_down :: () #expand {
+        `new_cursor.position += 1;
+    }
+
+    queue_shift_selected_item_up :: () #expand {
+        if queue_cursor.position > 0 {
+            MPD.run_swap(mpd_connection, cast(u32)queue_cursor.position, cast(u32)queue_cursor.position - 1);
+            handle_errors("Moving song up in queue");
+            load_queue_changes();
+            `new_cursor.position -= 1;
+        }
+    }
+    queue_move_cursor_up :: () #expand {
+        `new_cursor.position -= 1;
+    }
+
+    queue_move_cursor_one_page_down :: () #expand {
+        `new_cursor.position += ITEMS_IN_PAGE;
+    }
+    queue_move_cursor_one_page_up :: () #expand {
+        `new_cursor.position -= ITEMS_IN_PAGE;
+    }
+
+    queue_remove_selected_song :: () #expand {
+        if queue_cursor.position >= 0 && queue_cursor.position <= queue.songs.count {
+            handle_mpd_idle_events();
+            MPD.run_delete(mpd_connection, cast(u32)queue_cursor.position);
+            handle_errors("Removing song from queue");
+            load_queue_changes();
+            update_status(false);
+        }
+    }
+
+    queue_play_selected_song :: () #expand {
+        handle_mpd_idle_events();
+        MPD.run_play_pos(mpd_connection, cast(u32)queue_cursor.position);
+        handle_errors("Playing queue song");
+        update_status(false);
+    }
 
     for Input.events_this_frame {
         if it.type == {
@@ -178,43 +218,37 @@ queue_event_loop :: (frame: u64) {
 
                   case KEY_J;
                     if it.shift_pressed {
-                        table_set(*queue_key_pressed_on_frame, KEY_SHIFT_J, frame);
-                        queue_last_key_pressed = KEY_SHIFT_J;
-                        if queue_cursor.position < queue.songs.count - 1 {
-                            MPD.run_swap(mpd_connection, cast(u32)queue_cursor.position, cast(u32)queue_cursor.position + 1);
-                            handle_errors("Moving song down in queue");
-                            load_queue_changes();
-                            new_cursor.position += 1;
-                        }
+                        table_set(*queue_key_pressed_on_frame, .SHIFT_J, frame);
+                        last_queue_key_pressed = .SHIFT_J;
+                        queue_shift_selected_item_down();
                     } else {
-                        table_set(*queue_key_pressed_on_frame, KEY_J, frame);
-                        queue_last_key_pressed = KEY_J;
-                        new_cursor.position += 1;
+                        table_set(*queue_key_pressed_on_frame, .J, frame);
+                        last_queue_key_pressed = .J;
+                        queue_move_cursor_down();
                     }
+                    break it;
                   case KEY_K;
                     if it.shift_pressed {
-                        table_set(*queue_key_pressed_on_frame, KEY_SHIFT_K, frame);
-                        queue_last_key_pressed = KEY_SHIFT_K;
-                        if queue_cursor.position > 0 {
-                            MPD.run_swap(mpd_connection, cast(u32)queue_cursor.position, cast(u32)queue_cursor.position - 1);
-                            handle_errors("Moving song up in queue");
-                            load_queue_changes();
-                            new_cursor.position -= 1;
-                        }
+                        table_set(*queue_key_pressed_on_frame, .SHIFT_K, frame);
+                        last_queue_key_pressed = .SHIFT_K;
+                        queue_shift_selected_item_up();
                     } else {
-                        table_set(*queue_key_pressed_on_frame, KEY_K, frame);
-                        queue_last_key_pressed = KEY_K;
-                        new_cursor.position -= 1;
+                        table_set(*queue_key_pressed_on_frame, .K, frame);
+                        last_queue_key_pressed = .K;
+                        queue_move_cursor_up();
                     }
+                    break it;
 
                   case KEY_D;
-                    table_set(*queue_key_pressed_on_frame, KEY_D, frame);
-                    queue_last_key_pressed = KEY_D;
-                    new_cursor.position += ITEMS_IN_PAGE;
+                    table_set(*queue_key_pressed_on_frame, .D, frame);
+                    last_queue_key_pressed = .D;
+                    queue_move_cursor_one_page_down();
+                    break it;
                   case KEY_U;
-                    table_set(*queue_key_pressed_on_frame, KEY_U, frame);
-                    queue_last_key_pressed = KEY_U;
-                    new_cursor.position -= ITEMS_IN_PAGE;
+                    table_set(*queue_key_pressed_on_frame, .U, frame);
+                    last_queue_key_pressed = .U;
+                    queue_move_cursor_one_page_up();
+                    break it;
 
                   case KEY_G;
                     if it.shift_pressed {
@@ -222,34 +256,18 @@ queue_event_loop :: (frame: u64) {
                     } else {
                         new_cursor.position = 0;
                     }
-
-                  case KEY_P;
-                    handle_mpd_idle_events();
-                    MPD.run_toggle_pause(mpd_connection);
-                    handle_errors("");
+                    break it;
 
                   case KEY_X;
-                    table_set(*queue_key_pressed_on_frame, KEY_X, frame);
-                    queue_last_key_pressed = KEY_X;
-                    if queue_cursor.position >= 0 && queue_cursor.position <= queue.songs.count {
-                        handle_mpd_idle_events();
-                        MPD.run_delete(mpd_connection, cast(u32)queue_cursor.position);
-                        handle_errors("");
-                        load_queue_changes();
-                        update_status(false);
-                    }
+                    table_set(*queue_key_pressed_on_frame, .X, frame);
+                    last_queue_key_pressed = .X;
+                    queue_remove_selected_song();
+                    break it;
 
-                  case KEY_C;
-                    handle_mpd_idle_events();
-                    MPD.run_clear(mpd_connection);
-                    handle_errors("");
-                    load_queue_changes();
-                    update_status();
-
-                  case KEY_O;
+                  case KEY_O; // move cursor to currently playing song
                     handle_mpd_idle_events();
                     mpd_current_song := MPD.run_current_song(mpd_connection);
-                    handle_errors("");
+                    handle_errors("Getting current song");
                     if !mpd_current_song break;
                     uri := to_string(MPD.song_get_uri(mpd_current_song));
 
@@ -258,59 +276,13 @@ queue_event_loop :: (frame: u64) {
                             new_cursor.position = it_index;
                         }
                     }
+                    break it;
 
-                  case .ENTER;
+                  case .ENTER; // play selected song
                     table_set(*queue_key_pressed_on_frame, .ENTER, frame);
-                    queue_last_key_pressed = .ENTER;
-                    handle_mpd_idle_events();
-                    MPD.run_play_pos(mpd_connection, cast(u32)queue_cursor.position);
-                    handle_errors("");
-                    update_status(false);
-
-                  case KEY_B;
-                    table_set(*queue_key_pressed_on_frame, KEY_B, frame);
-                    queue_last_key_pressed = KEY_B;
-                    handle_mpd_idle_events();
-                    MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
-                    handle_errors("");
-                    update_status_time();
-                  case KEY_F;
-                    table_set(*queue_key_pressed_on_frame, KEY_F, frame);
-                    queue_last_key_pressed = KEY_F;
-                    handle_mpd_idle_events();
-                    MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
-                    handle_errors("");
-                    update_status_time();
-
-                  case .LEFT_ANGLE_BRACKET;
-                    table_set(*queue_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
-                    queue_last_key_pressed = .LEFT_ANGLE_BRACKET;
-                    handle_mpd_idle_events();
-                    MPD.run_previous(mpd_connection);
-                    handle_errors("");
-                    update_status(false);
-                  case .RIGHT_ANGLE_BRACKET;
-                    table_set(*queue_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
-                    queue_last_key_pressed = .RIGHT_ANGLE_BRACKET;
-                    handle_mpd_idle_events();
-                    MPD.run_next(mpd_connection);
-                    handle_errors("");
-                    update_status(false);
-
-                  case .EQUALS_SIGN;
-                    table_set(*queue_key_pressed_on_frame, .EQUALS_SIGN, frame);
-                    queue_last_key_pressed = .EQUALS_SIGN;
-                    handle_mpd_idle_events();
-                    MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
-                    handle_errors("");
-                    update_status_volume();
-                  case .DASH;
-                    table_set(*queue_key_pressed_on_frame, .DASH, frame);
-                    queue_last_key_pressed = .DASH;
-                    handle_mpd_idle_events();
-                    MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
-                    handle_errors("");
-                    update_status_volume();
+                    last_queue_key_pressed = .ENTER;
+                    queue_play_selected_song();
+                    break it;
 
                   // case;
                     // print("key_code: %\n", it.key_code);
@@ -320,144 +292,13 @@ queue_event_loop :: (frame: u64) {
         }
     }
 
-    // these will trigger when the corresponding key has been held down for at least 20 frames,
-    // then will repeat the corresponding movement every 2 frames. the last press of the key
-    // also has to be after the last press of its 'opposite' (J vs K, U vs D, - vs =).
-    // this emulates how curses/terminal application new_cursor movement tends to behave
-
-    KEY_HOLD_DELAY :: 20;
-
-    if Input.input_button_states[KEY_J]                & .DOWN &&
-       Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN &&
-       KEY_SHIFT_J == queue_last_key_pressed                   &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_SHIFT_J)  + KEY_HOLD_DELAY
-    {
-        if queue_cursor.position < queue.songs.count - 1 {
-            MPD.run_swap(mpd_connection, cast(u32)queue_cursor.position, cast(u32)queue_cursor.position + 1);
-            handle_errors("Moving queue song down");
-            load_queue_changes();
-            new_cursor.position += 1;
-        }
-    } else
-    if Input.input_button_states[KEY_K]                & .DOWN &&
-       Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN &&
-       KEY_SHIFT_K == queue_last_key_pressed                   &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame,  KEY_SHIFT_K) + KEY_HOLD_DELAY
-    {
-        if queue_cursor.position > 0 {
-            MPD.run_swap(mpd_connection, cast(u32)queue_cursor.position, cast(u32)queue_cursor.position - 1);
-            handle_errors("Moving queue song up");
-            load_queue_changes();
-            new_cursor.position -= 1;
-        }
-    }
-
-    if Input.input_button_states[KEY_J] & .DOWN &&
-       KEY_J == queue_last_key_pressed          &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_J) + KEY_HOLD_DELAY
-    {
-        new_cursor.position += 1;
-    } else
-    if Input.input_button_states[KEY_K] & .DOWN &&
-       KEY_K == queue_last_key_pressed          &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_K) + KEY_HOLD_DELAY
-    {
-        new_cursor.position -= 1;
-    }
-
-    if Input.input_button_states[KEY_D] & .DOWN &&
-       KEY_D == queue_last_key_pressed          &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_D) + KEY_HOLD_DELAY
-    {
-        new_cursor.position += ITEMS_IN_PAGE;
-    } else
-    if Input.input_button_states[KEY_U] & .DOWN &&
-       KEY_U == queue_last_key_pressed          &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_U) + KEY_HOLD_DELAY
-    {
-        new_cursor.position -= ITEMS_IN_PAGE;
-    }
-
-    if Input.input_button_states[Input.Key_Code.EQUALS_SIGN] & .DOWN &&
-       Input.Key_Code.EQUALS_SIGN == queue_last_key_pressed          &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, Input.Key_Code.EQUALS_SIGN) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_change_volume(mpd_connection, VOLUME_CHANGE_AMOUNT);
-        handle_errors("");
-        update_status_volume();
-    } else
-    if Input.input_button_states[Input.Key_Code.DASH] & .DOWN &&
-       Input.Key_Code.DASH == queue_last_key_pressed          &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, Input.Key_Code.DASH) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_change_volume(mpd_connection, -1 * VOLUME_CHANGE_AMOUNT);
-        handle_errors("");
-        update_status_volume();
-    }
-
-    if Input.input_button_states[Input.Key_Code.LEFT_ANGLE_BRACKET] & .DOWN &&
-       Input.Key_Code.LEFT_ANGLE_BRACKET == queue_last_key_pressed          &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, Input.Key_Code.LEFT_ANGLE_BRACKET) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_previous(mpd_connection);
-        handle_errors("");
-        update_status(false);
-    } else
-    if Input.input_button_states[Input.Key_Code.RIGHT_ANGLE_BRACKET] & .DOWN &&
-       Input.Key_Code.RIGHT_ANGLE_BRACKET == queue_last_key_pressed          &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, Input.Key_Code.RIGHT_ANGLE_BRACKET) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_next(mpd_connection);
-        handle_errors("");
-        update_status(false);
-    }
-
-    if Input.input_button_states[KEY_B] & .DOWN &&
-       KEY_B == queue_last_key_pressed          &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_B) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_seek_current(mpd_connection, -1 * SEEK_SECONDS, true);
-        handle_errors("");
-        update_status_time();
-    } else
-    if Input.input_button_states[KEY_F] & .DOWN &&
-       KEY_F == queue_last_key_pressed          &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_F) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_seek_current(mpd_connection, SEEK_SECONDS, true);
-        handle_errors("");
-        update_status_time();
-    }
-
-    if Input.input_button_states[KEY_X] & .DOWN &&
-       KEY_X == queue_last_key_pressed          &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, KEY_X) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        if queue_cursor.position >= 0 && queue_cursor.position <= queue.songs.count {
-            handle_mpd_idle_events();
-            MPD.run_delete(mpd_connection, cast(u32)queue_cursor.position);
-            handle_errors("");
-            load_queue_changes();
-            update_status(false);
-        }
-    }
-
-    if Input.input_button_states[Input.Key_Code.ENTER] & .DOWN &&
-       Input.Key_Code.ENTER == queue_last_key_pressed          &&
-       frame > <<table_find_pointer(queue_key_pressed_on_frame, Input.Key_Code.ENTER) + KEY_HOLD_DELAY
-    {
-        handle_mpd_idle_events();
-        MPD.run_play_pos(mpd_connection, cast(u32)queue_cursor.position);
-        handle_errors("");
-        update_status(false);
-    }
+    if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .J)       queue_move_cursor_down();
+    if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .K)       queue_move_cursor_up();
+    if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .SHIFT_J) queue_shift_selected_item_down();
+    if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .SHIFT_K) queue_shift_selected_item_up();
+    if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .D)       queue_move_cursor_one_page_down();
+    if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .U)       queue_move_cursor_one_page_up();
+    if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .X)       queue_remove_selected_song();
 
     if new_cursor.position < 0                       new_cursor.position = 0;
     if new_cursor.position >= queue_columns[0].count new_cursor.position = queue_columns[0].count - 1;
@@ -465,7 +306,6 @@ queue_event_loop :: (frame: u64) {
     queue_cursor = new_cursor;
     draw_queue_frame();
 }
-
 
 draw_queue_frame :: () {
 
