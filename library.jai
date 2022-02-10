@@ -70,7 +70,7 @@ Library_Cursor :: struct {
 
 library_cursor: Library_Cursor;
 
-library_columns: [3] [..] string;
+library_columns: [4] [..] string;
 
 load_library :: () {
 
@@ -86,10 +86,10 @@ load_library :: () {
         if MPD.entity_get_type(entity) == .SONG {
             mpd_song  := MPD.entity_get_song(entity);
 
-            mpd_artist := MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0);
-            mpd_album  := MPD.song_get_tag(mpd_song, .ALBUM       , 0);
-            mpd_title  := MPD.song_get_tag(mpd_song, .TITLE       , 0);
-            mpd_date   := MPD.song_get_tag(mpd_song, .DATE        , 0);
+            mpd_artist   := MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0);
+            mpd_album    := MPD.song_get_tag(mpd_song, .ALBUM       , 0);
+            mpd_title    := MPD.song_get_tag(mpd_song, .TITLE       , 0);
+            mpd_date     := MPD.song_get_tag(mpd_song, .DATE        , 0);
             if mpd_artist && mpd_album && mpd_title {
                 song: Song;
                 song.artist = copy_from_c_string(mpd_artist);
@@ -130,8 +130,9 @@ load_library :: () {
                     }
                 }
 
-                song.track = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK, 0));
-                song.uri   = copy_from_c_string(MPD.song_get_uri(mpd_song));
+                song.track    = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK, 0));
+                song.uri      = copy_from_c_string(MPD.song_get_uri(mpd_song));
+                song.duration = MPD.song_get_duration(mpd_song);
                 array_add(*album_ptr.songs, song);
             } else {
                 // print("skipping: '%', '%', '%'\n", mpd_artist, to_string(mpd_album), to_string(mpd_title));
@@ -154,8 +155,10 @@ load_library :: () {
         library_columns[1][it_index] = sprint("(%) %", to_string(album.date), album.name);
         if it_index == 0 {
             array_resize(*library_columns[2], album.songs.count);
+            array_resize(*library_columns[3], album.songs.count);
             for album.songs {
-                library_columns[2][it_index] = sprint("% %", left_pad(it.track, #char " ", 3), it.name);;
+               library_columns[2][it_index] = sprint("%. %", left_pad(it.track, #char " ", 4), it.name);
+               library_columns[3][it_index] = seconds_to_time_string(it.duration);
             }
         }
     }
@@ -407,9 +410,13 @@ library_event_loop :: (frame: u64, header_bottom: int) {
                 if !album { print("Album '%' not found for artist '%'\n", album_name, artist_name); exit(1); }
 
                 for library_columns[2] free(it);
+                for library_columns[3] free(it);
                 array_resize(*library_columns[2], album.songs.count);
+                array_resize(*library_columns[3], album.songs.count);
+
                 for album.songs {
-                   library_columns[2][it_index] = sprint("% %", left_pad(it.track, #char " ", 4), it.name);;
+                   library_columns[2][it_index] = sprint("%. %", left_pad(it.track, #char " ", 4), it.name);
+                   library_columns[3][it_index] = seconds_to_time_string(it.duration);
                 }
             }
         }
@@ -421,29 +428,35 @@ library_event_loop :: (frame: u64, header_bottom: int) {
 
 
 draw_library_frame :: (header_bottom: int, items_in_page: int) {
-    column_width := cast(s32) display_width() / 3;
+
+    column_widths: [4] s32;
+    column_widths[0] = cast(s32)(7 / 20.0 * display_width());
+    column_widths[1] = cast(s32)(6 / 20.0 * display_width());
+    column_widths[2] = cast(s32)(6 / 20.0 * display_width());
+    column_widths[3] = cast(s32)(1 / 20.0 * display_width());
 
     top := header_bottom - 25;
 
-    max_characters_in_column := (column_width - 60) / font.em_width;
-
     x := X_MARGIN_SIZE;
-    for column: library_columns {
+    for column_index: 0..library_columns.count - 2 { // draw all but the last column (song duration)
         y := top;
+        column := library_columns[column_index];
+        column_width := column_widths[column_index];
+        rectangle_width := ifx column_index < library_columns.count - 2
+                           then column_width - 50 // leave some space between this rectangle and the next
+                           else column_width;     // draw the rightmost rectangle all the way to the end (song title)
+        max_characters_in_column := rectangle_width / font.em_width - 2;
 
-        index_start := max(0, min(column.count - items_in_page + 1, library_cursor.positions[it_index] - items_in_page/ 2 + 1));
-        index_end := min(index_start + items_in_page, library_columns[it_index].count - 1);
+        index_start := max(0, min(column.count - items_in_page + 1, library_cursor.positions[column_index] - items_in_page/ 2 + 1));
+        index_end := min(index_start + items_in_page, library_columns[column_index].count - 1);
         for i: index_start..index_end {
-            text := slice(library_columns[it_index][i], 0, max_characters_in_column);
-            if i == library_cursor.positions[it_index] {
+            text := slice(library_columns[column_index][i], 0, max_characters_in_column);
+            if i == library_cursor.positions[column_index] {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
-                color := ifx library_cursor.selected == it_index then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
+                color := ifx library_cursor.selected == column_index then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
 
-                rectangle_end := ifx it_index < library_columns.count - 1
-                                 then cast(float)x + column_width - 50 // leave some space between this rectangle and the next
-                                 else cast(float)x + column_width;     // draw the rightmost rectangle all the way to the end
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, rectangle_end, cast(float)y + font.character_height, color);
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + rectangle_width, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
                 Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
             } else {
@@ -453,5 +466,39 @@ draw_library_frame :: (header_bottom: int, items_in_page: int) {
             y -= TEXT_PADDING_Y + font.character_height;
         }
         x += column_width;
+    }
+
+    {
+        // draw the song duration. this is separate from the loop because the loop relies on indexing the cursor based
+        // on which column we're drawing, and the cursor stops at the song name. so this is separate so that we can reference
+        // the cursor based on the selected song name, which tells us which song duration to highlight.
+        // TODO: this mainly stems from the fact that we want to right-justify the song duration relative to the song name,
+        // but since we don't calculate max_characters_in_column until we're actually drawing the text we can't include the
+        // song duration in that initial formatting. so the right thing to do here is probably to format the strings where we
+        // define them, then this function can be more 'dumb' and just draw whatever we give it
+        y := top;
+        column := library_columns[3];
+        cursor_position := library_cursor.positions[2];
+        column_width := column_widths[3];
+        max_characters_in_column := column_width / font.em_width - 2;
+
+        index_start := max(0, min(column.count - items_in_page + 1, cursor_position - items_in_page/ 2 + 1));
+        index_end := min(index_start + items_in_page, column.count - 1);
+        for i: index_start..index_end {
+            text := left_pad(slice(column[i], 0, max_characters_in_column), #char " ", max_characters_in_column);
+            if i == cursor_position {
+                Simp.immediate_begin();
+                Simp.set_shader_for_color();
+                color := ifx library_cursor.selected == 2 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
+
+                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width, cast(float)y + font.character_height, color);
+                Simp.immediate_flush();
+                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
+            } else {
+                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
+            }
+
+            y -= TEXT_PADDING_Y + font.character_height;
+        }
     }
 }

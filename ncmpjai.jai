@@ -11,11 +11,12 @@ Input   :: #import "Input";
 MPD     :: #import "libmpdclient";
 
 Song :: struct {
-    artist : string;
-    album  : string;
-    name   : string;
-    track  : string;
-    uri    : string;
+    artist   : string;
+    album    : string;
+    name     : string;
+    track    : string;
+    uri      : string;
+    duration : u32;
 }
 free :: (using song: Song) {
     free(artist);
@@ -23,6 +24,19 @@ free :: (using song: Song) {
     free(name);
     free(track);
     free(uri);
+}
+
+seconds_to_time_string :: (seconds: u32, allocator := context.allocator) -> string {
+    return aprint("%:%", seconds / 60, left_pad(seconds % 60, #char "0", 2), allocator=allocator);
+}
+aprint:: (format_string: string, args: .. Any, allocator: Allocator) -> string {
+    builder: String_Builder;
+    builder.allocator = allocator;
+    defer free_buffers(*builder);
+
+    print_to_builder(*builder, format_string, ..args);
+
+    return builder_to_string(*builder, allocator);
 }
 
 #load "library.jai";
@@ -425,10 +439,6 @@ draw_header :: () -> int {
 
     top := cast(int)window_height - 2 * Y_MARGIN_SIZE;
 
-    seconds_to_time_display :: (seconds: u32) -> string {
-        return tprint("%:%", seconds / 60, left_pad(seconds % 60, #char "0", 2));
-    }
-
     header_bottom := top;
     {
         x := X_MARGIN_SIZE;
@@ -437,7 +447,11 @@ draw_header :: () -> int {
             font,
               x,
               y,
-              tprint("%/%", seconds_to_time_display(status.elapsed_time), seconds_to_time_display(status.total_time)),
+              tprint(
+                  "%/%",
+                 seconds_to_time_string(status.elapsed_time, __temporary_allocator),
+                 seconds_to_time_string(status.total_time,   __temporary_allocator)
+              ),
               rgba(1,1,1,1),
         );
 

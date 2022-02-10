@@ -38,11 +38,12 @@ load_queue :: () {
             mpd_song  := MPD.entity_get_song(entity);
 
             song: Song;
-            song.track  = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK       , 0));
-            song.artist = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0));
-            song.album  = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM       , 0));
-            song.name   = copy_from_c_string(MPD.song_get_tag(mpd_song, .TITLE       , 0));
-            song.uri    = copy_from_c_string(MPD.song_get_uri(mpd_song));
+            song.track    = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK       , 0));
+            song.artist   = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0));
+            song.album    = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM       , 0));
+            song.name     = copy_from_c_string(MPD.song_get_tag(mpd_song, .TITLE       , 0));
+            song.uri      = copy_from_c_string(MPD.song_get_uri(mpd_song));
+            song.duration = MPD.song_get_duration(mpd_song);
 
             array_add(*queue.songs, song);
         }
@@ -53,11 +54,6 @@ load_queue :: () {
     }
 
     array_resize(*queue.songs, queue.songs.count);
-
-    array_reset(*queue_columns[0]);
-    array_reset(*queue_columns[1]);
-    array_reset(*queue_columns[2]);
-    array_reset(*queue_columns[3]);
 
     array_resize(*queue_columns[0], queue.songs.count);
     array_resize(*queue_columns[1], queue.songs.count);
@@ -102,11 +98,12 @@ load_queue_changes :: () {
         mpd_date   := MPD.song_get_tag(mpd_song, .DATE        , 0);
 
         song: Song;
-        song.track  = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK       , 0));
-        song.artist = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0));
-        song.album  = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM       , 0));
-        song.name   = copy_from_c_string(MPD.song_get_tag(mpd_song, .TITLE       , 0));
-        song.uri    = copy_from_c_string(MPD.song_get_uri(mpd_song));
+        song.track    = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK       , 0));
+        song.artist   = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0));
+        song.album    = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM       , 0));
+        song.name     = copy_from_c_string(MPD.song_get_tag(mpd_song, .TITLE       , 0));
+        song.uri      = copy_from_c_string(MPD.song_get_uri(mpd_song));
+        song.duration = MPD.song_get_duration(mpd_song);
 
         if queue_song_position < queue.songs.count {
             free(queue.songs[queue_song_position]);
@@ -125,6 +122,7 @@ load_queue_changes :: () {
     }
     array_resize(*queue.songs, mpd_queue_length);
 
+    // TODO: are the underlying strings always freed here too?
     array_reset(*queue_columns[0]);
     array_reset(*queue_columns[1]);
     array_reset(*queue_columns[2]);
@@ -139,7 +137,7 @@ load_queue_changes :: () {
         queue_columns[0][it_index] = song.name;
         queue_columns[1][it_index] = song.album;
         queue_columns[2][it_index] = song.artist;
-        queue_columns[3][it_index] = "0:00";
+        queue_columns[3][it_index] = seconds_to_time_string(song.duration);
     }
 }
 
@@ -330,7 +328,7 @@ draw_queue_frame :: (header_bottom: int, items_in_page: int) {
     for column: queue_columns {
         y := top;
         column_width := column_widths[it_index];
-        max_characters_in_column := (column_width - 20) / font.em_width;
+        max_characters_in_column := column_width / font.em_width - 2;
 
         for i: index_start..index_end {
             text := slice(column[i], 0, max_characters_in_column);
