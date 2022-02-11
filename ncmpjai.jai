@@ -222,6 +222,8 @@ main :: () {
     table_add(*global_key_pressed_on_frame, .EQUALS_SIGN,         0);
     table_add(*global_key_pressed_on_frame, .DASH,                0);
 
+    reset_temporary_storage();
+
     while !quit {
         if get_current_file_time() > status_update_timer + 10000000 {
             update_status();
@@ -367,8 +369,8 @@ main :: () {
           case .QUEUE;
             queue_event_loop(frame, header_bottom);
         }
-        Simp.swap_buffers(window);
         reset_temporary_storage();
+        Simp.swap_buffers(window);
 
         frame += 1;
 
@@ -638,6 +640,7 @@ left_pad :: (t: $T, pad_char: u8, total_length: int, allocator := __temporary_al
     #if T == string str := t;
     else            str := tprint("%", t);
 
+    if total_length <= 0 return str;
     result := alloc_string(total_length, allocator);
     pad_count := result.count - str.count;
     for 0..(pad_count - 1) result[it] = pad_char;

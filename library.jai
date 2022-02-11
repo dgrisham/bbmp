@@ -1,4 +1,5 @@
 #import "Hash_Table";
+#import "Unicode";
 
 library: struct {
     artists             : Table(string, Artist);
@@ -69,8 +70,6 @@ Library_Cursor :: struct {
 }
 
 library_cursor: Library_Cursor;
-
-library_columns: [4] [..] string;
 
 load_library :: () {
 
@@ -144,26 +143,24 @@ load_library :: () {
         handle_errors("Receiving entity");
     }
 
-    array_resize(*library_columns[0], library.artist_names_sorted.count);
-    for library.artist_names_sorted library_columns[0][it_index] = it;
+    // array_resize(*library_columns[0], library.artist_names_sorted.count);
+    // for library.artist_names_sorted library_columns[0][it_index] = it;
 
-    first_artist := table_find_pointer(library.artists, library.artist_names_sorted[0]);
-    array_resize(*library_columns[1], first_artist.album_names_sorted_by_date.count);
-    i := 0;
-    for album_name: first_artist.album_names_sorted_by_date {
-        album := table_find_pointer(first_artist.albums, album_name);
-        library_columns[1][it_index] = sprint("(%) %", to_string(album.date), album.name);
-        if it_index == 0 {
-            array_resize(*library_columns[2], album.songs.count);
-            array_resize(*library_columns[3], album.songs.count);
-            for album.songs {
-               library_columns[2][it_index] = sprint("%. %", left_pad(it.track, #char " ", 4), it.name);
-               library_columns[3][it_index] = seconds_to_time_string(it.duration);
-            }
-        }
-    }
-
-    reset_temporary_storage();
+    // first_artist := table_find_pointer(library.artists, library.artist_names_sorted[0]);
+    // array_resize(*library_columns[1], first_artist.album_names_sorted_by_date.count);
+    // i := 0;
+    // for album_name: first_artist.album_names_sorted_by_date {
+    //     album := table_find_pointer(first_artist.albums, album_name);
+    //     library_columns[1][it_index] = sprint("(%) %", to_string(album.date), album.name);
+    //     if it_index == 0 {
+    //         array_resize(*library_columns[2], album.songs.count);
+    //         array_resize(*library_columns[3], album.songs.count);
+    //         for album.songs {
+    //            library_columns[2][it_index] = sprint("%. %", left_pad(it.track, #char " ", 4), it.name);
+    //            library_columns[3][it_index] = seconds_to_time_string(it.duration);
+    //         }
+    //     }
+    // }
 }
 
 add_album_to_queue :: (artist_name: string, album_name: string) -> s32 {
@@ -218,22 +215,18 @@ library_event_loop :: (frame: u64, header_bottom: int) {
 
     items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
-    new_cursor: Library_Cursor;
-    for library_cursor.positions new_cursor.positions[it_index] = it;
-    new_cursor.selected = library_cursor.selected;
-
     move_selected_cursor :: (amount: int) #expand {
-        `new_cursor.positions[library_cursor.selected] += amount;
-        if library_cursor.selected == 0 { `new_cursor.positions[1], `new_cursor.positions[2] = 0; }
-        if library_cursor.selected == 1 `new_cursor.positions[2] = 0;
+        `library_cursor.positions[library_cursor.selected] += amount;
+        if library_cursor.selected == 0 { `library_cursor.positions[1], `library_cursor.positions[2] = 0; }
+        if library_cursor.selected == 1 `library_cursor.positions[2] = 0;
     }
     move_selected_cursor_down          :: () #expand { move_selected_cursor(1);              }
     move_selected_cursor_up            :: () #expand { move_selected_cursor(-1);             }
     move_selected_cursor_one_page_down :: () #expand { move_selected_cursor( items_in_page); }
     move_selected_cursor_one_page_up   :: () #expand { move_selected_cursor(-items_in_page); }
 
-    move_selected_cursor_left  :: () #expand { `new_cursor.selected -= 1; }
-    move_selected_cursor_right :: () #expand { `new_cursor.selected += 1; }
+    move_selected_cursor_left  :: () #expand { `library_cursor.selected -= 1; }
+    move_selected_cursor_right :: () #expand { `library_cursor.selected += 1; }
 
     add_selection_to_queue :: () -> s32 #expand {
         song_id_to_play: s32;
@@ -248,9 +241,9 @@ library_event_loop :: (frame: u64, header_bottom: int) {
           case 2;
             artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
             album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
-            song_id_to_play = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[new_cursor.positions[2]].uri));
+            song_id_to_play = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[library_cursor.positions[2]].uri));
         }
-        `new_cursor.positions[library_cursor.selected] += 1;
+        `library_cursor.positions[library_cursor.selected] += 1;
 
         return song_id_to_play;
     }
@@ -310,9 +303,21 @@ library_event_loop :: (frame: u64, header_bottom: int) {
 
                   case KEY_G;
                     if it.shift_pressed {
-                        new_cursor.positions[library_cursor.selected] = library_columns[library_cursor.selected].count - 1;
+                        if library_cursor.selected == {
+                            case 0;
+                              library_cursor.positions[0] = library.artists.count - 1;
+                            case 1;
+                              artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
+                              assert(artist_ptr != null);
+                              library_cursor.positions[1] = artist_ptr.albums.count - 1;
+                            case 2;
+                              artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
+                              assert(artist_ptr != null);
+                              album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[library_cursor.positions[1]]);
+                              library_cursor.positions[2] = album_ptr.songs.count - 1;
+                        }
                     } else {
-                        new_cursor.positions[library_cursor.selected] = 0;
+                        library_cursor.positions[library_cursor.selected] = 0;
                     }
                     break it;
 
@@ -332,10 +337,10 @@ library_event_loop :: (frame: u64, header_bottom: int) {
                                     artist_ptr := table_find_pointer(library.artists, artist_name);
                                     album_found, album_index := array_find(artist_ptr.album_names_sorted_by_date, album_name);
                                     if !album_found break artist;
-                                    new_cursor.positions[0] = artist_index;
-                                    new_cursor.positions[1] = album_index;
-                                    new_cursor.positions[2] = song_index;
-                                    new_cursor.selected     = 2;
+                                    library_cursor.positions[0] = artist_index;
+                                    library_cursor.positions[1] = album_index;
+                                    library_cursor.positions[2] = song_index;
+                                    library_cursor.selected     = 2;
                                 }
                             }
                         }
@@ -370,135 +375,181 @@ library_event_loop :: (frame: u64, header_bottom: int) {
     if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .CTRL_U) move_selected_cursor_one_page_up();
     if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .SPACE)  add_selection_to_queue();
 
-    if new_cursor.selected != library_cursor.selected {
-        if new_cursor.selected < 0
-            new_cursor.selected = 0;
-        if new_cursor.selected >= new_cursor.positions.count
-            new_cursor.selected = new_cursor.positions.count - 1;
+    if library_cursor.selected < 0 {
+        library_cursor.selected = 0;
+    } else if library_cursor.selected > library_cursor.positions.count - 1 {
+        library_cursor.selected = library_cursor.positions.count - 1;
     }
 
-    for * new_cursor.positions {
+    if library_cursor.selected == {
+        case 0;
+          if library_cursor.positions[0] < 0 {
+              library_cursor.positions[0] = 0;
+          } else
+          if library_cursor.positions[0] > library.artists.count - 1 {
+            library_cursor.positions[0] = library.artists.count - 1;
+          }
+        case 1;
+          artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
+          assert(artist_ptr != null);
+          if library_cursor.positions[1] < 0 {
+              library_cursor.positions[1] = 0;
+          } else
+          if library_cursor.positions[1] > artist_ptr.albums.count - 1 {
+            library_cursor.positions[1] = artist_ptr.albums.count - 1;
+          }
+        case 2;
+          artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
+          assert(artist_ptr != null);
+          album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[library_cursor.positions[1]]);
+          if library_cursor.positions[2] < 0 {
+              library_cursor.positions[2] = 0;
+          } else
+          if library_cursor.positions[2] > album_ptr.songs.count - 1 {
+            library_cursor.positions[2] = album_ptr.songs.count - 1;
+          }
+    }
 
-        if (<<it) != library_cursor.positions[it_index] { // library_cursor changed
-            if <<it < 0 {
-                <<it = 0;
-            } else if <<it >= library_columns[it_index].count {
-                <<it = library_columns[it_index].count - 1;
-            }
+    if library_cursor.selected != library_cursor.selected {
+        if library_cursor.selected < 0
+            library_cursor.selected = 0;
+        if library_cursor.selected >= library_cursor.positions.count
+            library_cursor.selected = library_cursor.positions.count - 1;
+    }
 
-            if it_index < 1 { // update albums
-                artist_name := library.artist_names_sorted[new_cursor.positions[0]];
-                artist := table_find_pointer(library.artists, artist_name);
-                if !artist { print("Artist '%' not found\n", artist_name); exit(1); }
+    display_columns := update_library_display_columns(items_in_page);
+    draw_library_frame(header_bottom, display_columns);
+}
 
-                for library_columns[1] free(it);
-                array_resize(*library_columns[1], artist.album_names_sorted_by_date.count);
-                for album_name: artist.album_names_sorted_by_date {
-                    album := table_find_pointer(artist.albums, album_name);
-                    // if !album { print("Album '%' not found for artist '%'\n", album_name, artist_name); exit(1); }
-                    library_columns[1][it_index] = sprint("(%) %", to_string(album.date), album.name);
-                }
-            }
+column_widths    : [3] s32;
+rectangle_widths : [3] s32;
 
-            if it_index < 2 { // update songs
-                artist_name := library.artist_names_sorted[new_cursor.positions[0]];
-                artist := table_find_pointer(library.artists, artist_name);
-                if !artist { print("Artist '%' not found\n", artist_name); exit(1); }
+Display_Text :: struct {
+    text     : string;
+    selected : bool;
+}
 
-                album_name := artist.album_names_sorted_by_date[new_cursor.positions[1]];
-                album := table_find_pointer(artist.albums, album_name);
-                if !album { print("Album '%' not found for artist '%'\n", album_name, artist_name); exit(1); }
+update_library_display_columns :: (items_in_page: int) -> [3] [..] Display_Text {
 
-                for library_columns[2] free(it);
-                for library_columns[3] free(it);
-                array_resize(*library_columns[2], album.songs.count);
-                array_resize(*library_columns[3], album.songs.count);
+    display_columns: [3] [..] Display_Text;
+    display_columns[0].allocator = __temporary_allocator;
+    display_columns[1].allocator = __temporary_allocator;
+    display_columns[2].allocator = __temporary_allocator;
 
-                for album.songs {
-                   library_columns[2][it_index] = sprint("%. %", left_pad(it.track, #char " ", 4), it.name);
-                   library_columns[3][it_index] = seconds_to_time_string(it.duration);
-                }
-            }
+    column_widths[0] = cast(s32)(1 / 3.0 * display_width());
+    column_widths[1] = cast(s32)(1 / 3.0 * display_width());
+    column_widths[2] = cast(s32)(1 / 3.0 * display_width());
+
+    rectangle_widths[0] = column_widths[0] - 50;
+    rectangle_widths[1] = column_widths[1] - 50;
+    rectangle_widths[2] = column_widths[2];
+
+    selected_artist_index := library_cursor.positions[0];
+    {
+        index_start := max(0, min(library.artists.count - items_in_page + 1, selected_artist_index  - items_in_page/ 2 + 1));
+        index_end   := min(index_start + items_in_page, library.artists.count - 1);
+        array_reserve(*display_columns[0], index_end - index_start + 1);
+
+        column_width := column_widths[0];
+        rectangle_width := column_width - 50;
+        max_characters_in_column := rectangle_width / font.em_width - 2;
+
+        for i: index_start..index_end {
+            display_text: Display_Text;
+            display_text.text = copy_temporary_string(slice(library.artist_names_sorted[i], 0, max_characters_in_column));
+            display_text.selected = selected_artist_index == i;
+            array_add(*display_columns[0], display_text);
         }
     }
 
-    library_cursor = new_cursor;
-    draw_library_frame(header_bottom, items_in_page);
+    selected_album_index := library_cursor.positions[1];
+    selected_artist      := table_find_pointer(library.artists, library.artist_names_sorted[selected_artist_index]);
+    {
+        index_start := max(0, min(selected_artist.albums.count - items_in_page + 1, selected_album_index - items_in_page/ 2 + 1));
+        index_end   := min(index_start + items_in_page, selected_artist.albums.count - 1);
+        array_reserve(*display_columns[1], index_end - index_start + 1);
+
+        column_width    := column_widths[1];
+        rectangle_width := column_width - 50;
+        max_characters_in_column := rectangle_width / font.em_width - 2;
+
+        for i: index_start..index_end {
+            display_text: Display_Text;
+            album := table_find_pointer(selected_artist.albums, selected_artist.album_names_sorted_by_date[i]);
+            assert(album != null);
+            display_text.text = copy_temporary_string(slice(tprint("(%) %", to_string(album.date), album.name), 0, max_characters_in_column));
+
+            display_text.selected = selected_album_index == i;
+            array_add(*display_columns[1], display_text);
+        }
+    }
+
+    selected_song_index := library_cursor.positions[2];
+    selected_album      := table_find_pointer(selected_artist.albums, selected_artist.album_names_sorted_by_date[selected_album_index]);
+    {
+        index_start := max(0, min(selected_album.songs.count - items_in_page + 1, selected_song_index - items_in_page/ 2 + 1));
+        index_end   := min(index_start + items_in_page, selected_album.songs.count - 1);
+        array_reserve(*display_columns[2], index_end - index_start + 1);
+
+        column_width    := column_widths[2];
+        rectangle_width := column_width;
+        max_characters_in_column := rectangle_width / font.em_width - 2;
+
+        for i: index_start..index_end {
+            song := selected_album.songs[i];
+
+            padded_track := left_pad(song.track, #char " ", 4);
+            duration_time_string := seconds_to_time_string(song.duration, __temporary_allocator);
+            sliced_title := slice(song.name, 0, max_characters_in_column - padded_track.count - duration_time_string.count);
+
+            track_and_title := tprint("%. %", padded_track, sliced_title);
+            duration := left_pad(duration_time_string, #char " ", max_characters_in_column - get_unicode_length(track_and_title));
+
+            display_text: Display_Text;
+            display_text.text = tprint("% %", track_and_title, duration);
+            display_text.selected = selected_song_index == i;
+            array_add(*display_columns[2], display_text);
+        }
+    }
+
+    return display_columns;
 }
 
+get_unicode_length :: (s: string) -> int {
+    length := 0;
+    i := 0;
+    while i < s.count {
+        utf8_bytes := 1 + trailingBytesForUTF8[s.data[i]];
+        length += 1;
+        i += utf8_bytes;
+    }
+    return length;
+}
 
-draw_library_frame :: (header_bottom: int, items_in_page: int) {
-
-    column_widths: [4] s32;
-    column_widths[0] = cast(s32)(7 / 20.0 * display_width());
-    column_widths[1] = cast(s32)(6 / 20.0 * display_width());
-    column_widths[2] = cast(s32)(6 / 20.0 * display_width());
-    column_widths[3] = cast(s32)(1 / 20.0 * display_width());
-
+draw_library_frame :: (header_bottom: int, library_display_columns: [3] [..] Display_Text) {
     top := header_bottom - 25;
 
     x := X_MARGIN_SIZE;
-    for column_index: 0..library_columns.count - 2 { // draw all but the last column (song duration)
+    for column_index: 0..library_display_columns.count - 1 { // draw all but the last column (song duration)
         y := top;
-        column := library_columns[column_index];
-        column_width := column_widths[column_index];
-        rectangle_width := ifx column_index < library_columns.count - 2
-                           then column_width - 50 // leave some space between this rectangle and the next
-                           else column_width;     // draw the rightmost rectangle all the way to the end (song title)
-        max_characters_in_column := rectangle_width / font.em_width - 2;
+        column_width    := column_widths[column_index];
+        rectangle_width := rectangle_widths[column_index];
 
-        index_start := max(0, min(column.count - items_in_page + 1, library_cursor.positions[column_index] - items_in_page/ 2 + 1));
-        index_end := min(index_start + items_in_page, library_columns[column_index].count - 1);
-        for i: index_start..index_end {
-            text := slice(library_columns[column_index][i], 0, max_characters_in_column);
-            if i == library_cursor.positions[column_index] {
+        for display_text: library_display_columns[column_index] {
+            if display_text.selected {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := ifx library_cursor.selected == column_index then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
 
                 Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + rectangle_width, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
-                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
+                Simp.draw_text(font, x, y, display_text.text, rgba(0,0,0,1));
             } else {
-                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
+                Simp.draw_text(font, x, y, display_text.text, rgba(1,1,1,1));
             }
 
             y -= TEXT_PADDING_Y + font.character_height;
         }
         x += column_width;
-    }
-
-    {
-        // draw the song duration. this is separate from the loop because the loop relies on indexing the cursor based
-        // on which column we're drawing, and the cursor stops at the song name. so this is separate so that we can reference
-        // the cursor based on the selected song name, which tells us which song duration to highlight.
-        // TODO: this mainly stems from the fact that we want to right-justify the song duration relative to the song name,
-        // but since we don't calculate max_characters_in_column until we're actually drawing the text we can't include the
-        // song duration in that initial formatting. so the right thing to do here is probably to format the strings where we
-        // define them, then this function can be more 'dumb' and just draw whatever we give it
-        y := top;
-        column := library_columns[3];
-        cursor_position := library_cursor.positions[2];
-        column_width := column_widths[3];
-        max_characters_in_column := column_width / font.em_width - 2;
-
-        index_start := max(0, min(column.count - items_in_page + 1, cursor_position - items_in_page/ 2 + 1));
-        index_end := min(index_start + items_in_page, column.count - 1);
-        for i: index_start..index_end {
-            text := left_pad(slice(column[i], 0, max_characters_in_column), #char " ", max_characters_in_column);
-            if i == cursor_position {
-                Simp.immediate_begin();
-                Simp.set_shader_for_color();
-                color := ifx library_cursor.selected == 2 then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width, cast(float)y + font.character_height, color);
-                Simp.immediate_flush();
-                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
-            } else {
-                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
-            }
-
-            y -= TEXT_PADDING_Y + font.character_height;
-        }
     }
 }
