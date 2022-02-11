@@ -417,40 +417,38 @@ library_event_loop :: (frame: u64, header_bottom: int) {
             library_cursor.selected = library_cursor.positions.count - 1;
     }
 
-    display_columns := update_library_display_columns(items_in_page);
+    display_columns := get_library_display_columns(items_in_page);
     draw_library_frame(header_bottom, display_columns);
 }
 
-column_widths    : [3] s32;
-rectangle_widths : [3] s32;
-
-Display_Text :: struct {
-    text     : string;
-    selected : bool;
+Library_Display_Column :: struct {
+    width           : s32;
+    rectangle_width : s32;
+    entries         : [..] Display_Text;
 }
 
-update_library_display_columns :: (items_in_page: int) -> [3] [..] Display_Text {
+get_library_display_columns :: (items_in_page: int) -> [3] Library_Display_Column {
 
-    display_columns: [3] [..] Display_Text;
-    display_columns[0].allocator = __temporary_allocator;
-    display_columns[1].allocator = __temporary_allocator;
-    display_columns[2].allocator = __temporary_allocator;
+    display_columns: [3] Library_Display_Column;
+    display_columns[0].entries.allocator = __temporary_allocator;
+    display_columns[1].entries.allocator = __temporary_allocator;
+    display_columns[2].entries.allocator = __temporary_allocator;
 
-    column_widths[0] = cast(s32)(1 / 3.0 * display_width());
-    column_widths[1] = cast(s32)(1 / 3.0 * display_width());
-    column_widths[2] = cast(s32)(1 / 3.0 * display_width());
+    display_columns[0].width = cast(s32)(1 / 3.0 * display_width());
+    display_columns[1].width = cast(s32)(1 / 3.0 * display_width());
+    display_columns[2].width = cast(s32)(1 / 3.0 * display_width());
 
-    rectangle_widths[0] = column_widths[0] - 50;
-    rectangle_widths[1] = column_widths[1] - 50;
-    rectangle_widths[2] = column_widths[2];
+    display_columns[0].rectangle_width = display_columns[0].width - 50;
+    display_columns[1].rectangle_width = display_columns[1].width - 50;
+    display_columns[2].rectangle_width = display_columns[2].width;
 
     selected_artist_index := library_cursor.positions[0];
     {
         index_start := max(0, min(library.artists.count - items_in_page + 1, selected_artist_index  - items_in_page/ 2 + 1));
         index_end   := min(index_start + items_in_page, library.artists.count - 1);
-        array_reserve(*display_columns[0], index_end - index_start + 1);
+        array_reserve(*display_columns[0].entries, index_end - index_start + 1);
 
-        column_width := column_widths[0];
+        column_width := display_columns[0].width;
         rectangle_width := column_width - 50;
         max_characters_in_column := rectangle_width / font.em_width - 2;
 
@@ -458,7 +456,7 @@ update_library_display_columns :: (items_in_page: int) -> [3] [..] Display_Text 
             display_text: Display_Text;
             display_text.text = copy_temporary_string(slice(library.artist_names_sorted[i], 0, max_characters_in_column));
             display_text.selected = selected_artist_index == i;
-            array_add(*display_columns[0], display_text);
+            array_add(*display_columns[0].entries, display_text);
         }
     }
 
@@ -467,9 +465,9 @@ update_library_display_columns :: (items_in_page: int) -> [3] [..] Display_Text 
     {
         index_start := max(0, min(selected_artist.albums.count - items_in_page + 1, selected_album_index - items_in_page/ 2 + 1));
         index_end   := min(index_start + items_in_page, selected_artist.albums.count - 1);
-        array_reserve(*display_columns[1], index_end - index_start + 1);
+        array_reserve(*display_columns[1].entries, index_end - index_start + 1);
 
-        column_width    := column_widths[1];
+        column_width    := display_columns[1].width;
         rectangle_width := column_width - 50;
         max_characters_in_column := rectangle_width / font.em_width - 2;
 
@@ -480,7 +478,7 @@ update_library_display_columns :: (items_in_page: int) -> [3] [..] Display_Text 
             display_text.text = copy_temporary_string(slice(tprint("(%) %", to_string(album.date), album.name), 0, max_characters_in_column));
 
             display_text.selected = selected_album_index == i;
-            array_add(*display_columns[1], display_text);
+            array_add(*display_columns[1].entries, display_text);
         }
     }
 
@@ -489,9 +487,9 @@ update_library_display_columns :: (items_in_page: int) -> [3] [..] Display_Text 
     {
         index_start := max(0, min(selected_album.songs.count - items_in_page + 1, selected_song_index - items_in_page/ 2 + 1));
         index_end   := min(index_start + items_in_page, selected_album.songs.count - 1);
-        array_reserve(*display_columns[2], index_end - index_start + 1);
+        array_reserve(*display_columns[2].entries, index_end - index_start + 1);
 
-        column_width    := column_widths[2];
+        column_width    := display_columns[2].width;
         rectangle_width := column_width;
         max_characters_in_column := rectangle_width / font.em_width - 2;
 
@@ -508,7 +506,7 @@ update_library_display_columns :: (items_in_page: int) -> [3] [..] Display_Text 
             display_text: Display_Text;
             display_text.text = tprint("% %", track_and_title, duration);
             display_text.selected = selected_song_index == i;
-            array_add(*display_columns[2], display_text);
+            array_add(*display_columns[2].entries, display_text);
         }
     }
 
@@ -526,16 +524,16 @@ get_unicode_length :: (s: string) -> int {
     return length;
 }
 
-draw_library_frame :: (header_bottom: int, library_display_columns: [3] [..] Display_Text) {
+draw_library_frame :: (header_bottom: int, display_columns: [3] Library_Display_Column) {
     top := header_bottom - 25;
 
     x := X_MARGIN_SIZE;
-    for column_index: 0..library_display_columns.count - 1 { // draw all but the last column (song duration)
+    for column_index: 0..display_columns.count - 1 {
         y := top;
-        column_width    := column_widths[column_index];
-        rectangle_width := rectangle_widths[column_index];
+        column_width    := display_columns[column_index].width;
+        rectangle_width := display_columns[column_index].rectangle_width;
 
-        for display_text: library_display_columns[column_index] {
+        for display_text: display_columns[column_index].entries {
             if display_text.selected {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();

@@ -4,8 +4,6 @@ Queue_Cursor :: struct {
 
 queue_cursor: Queue_Cursor;
 
-queue_columns: [4] [..] string;
-
 queue: struct {
     songs: [..] Song;
     version: u32;
@@ -54,18 +52,6 @@ load_queue :: () {
     }
 
     array_resize(*queue.songs, queue.songs.count);
-
-    array_resize(*queue_columns[0], queue.songs.count);
-    array_resize(*queue_columns[1], queue.songs.count);
-    array_resize(*queue_columns[2], queue.songs.count);
-    array_resize(*queue_columns[3], queue.songs.count);
-
-    for song: queue.songs {
-        queue_columns[0][it_index] = song.name;
-        queue_columns[1][it_index] = song.album;
-        queue_columns[2][it_index] = song.artist;
-        queue_columns[3][it_index] = "0:00";
-    }
 }
 
 load_queue_changes :: () {
@@ -121,24 +107,6 @@ load_queue_changes :: () {
         free(queue.songs[i]);
     }
     array_resize(*queue.songs, mpd_queue_length);
-
-    // TODO: are the underlying strings always freed here too?
-    array_reset(*queue_columns[0]);
-    array_reset(*queue_columns[1]);
-    array_reset(*queue_columns[2]);
-    array_reset(*queue_columns[3]);
-
-    array_resize(*queue_columns[0], queue.songs.count);
-    array_resize(*queue_columns[1], queue.songs.count);
-    array_resize(*queue_columns[2], queue.songs.count);
-    array_resize(*queue_columns[3], queue.songs.count);
-
-    for song: queue.songs {
-        queue_columns[0][it_index] = song.name;
-        queue_columns[1][it_index] = song.album;
-        queue_columns[2][it_index] = song.artist;
-        queue_columns[3][it_index] = seconds_to_time_string(song.duration);
-    }
 }
 
 last_queue_key_pressed: Key;
@@ -159,19 +127,16 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
 
     items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
-    new_cursor: Queue_Cursor;
-    new_cursor.position = queue_cursor.position;
-
     queue_shift_selected_item_down :: () #expand {
         if queue_cursor.position < queue.songs.count - 1 {
             MPD.run_swap(`mpd_connection, cast(u32)queue_cursor.position, cast(u32)queue_cursor.position + 1);
             handle_errors("Moving song down in queue");
             load_queue_changes();
-            `new_cursor.position += 1;
+            `queue_cursor.position += 1;
         }
     }
     queue_move_cursor_down :: () #expand {
-        `new_cursor.position += 1;
+        `queue_cursor.position += 1;
     }
 
     queue_shift_selected_item_up :: () #expand {
@@ -179,18 +144,18 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
             MPD.run_swap(mpd_connection, cast(u32)queue_cursor.position, cast(u32)queue_cursor.position - 1);
             handle_errors("Moving song up in queue");
             load_queue_changes();
-            `new_cursor.position -= 1;
+            `queue_cursor.position -= 1;
         }
     }
     queue_move_cursor_up :: () #expand {
-        `new_cursor.position -= 1;
+        `queue_cursor.position -= 1;
     }
 
     queue_move_cursor_one_page_down :: () #expand {
-        `new_cursor.position += items_in_page;
+        `queue_cursor.position += items_in_page;
     }
     queue_move_cursor_one_page_up :: () #expand {
-        `new_cursor.position -= items_in_page;
+        `queue_cursor.position -= items_in_page;
     }
 
     queue_remove_selected_song :: () #expand {
@@ -256,9 +221,9 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
 
                   case KEY_G;
                     if it.shift_pressed {
-                        new_cursor.position = queue.songs.count - 1;
+                        queue_cursor.position = queue.songs.count - 1;
                     } else {
-                        new_cursor.position = 0;
+                        queue_cursor.position = 0;
                     }
                     break it;
 
@@ -277,7 +242,7 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
 
                     for song: queue.songs {
                         if song.uri == uri {
-                            new_cursor.position = it_index;
+                            queue_cursor.position = it_index;
                         }
                     }
                     break it;
@@ -304,47 +269,101 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
     if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .CTRL_U)  queue_move_cursor_one_page_up();
     if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .X)       queue_remove_selected_song();
 
-    if new_cursor.position < 0                       new_cursor.position = 0;
-    if new_cursor.position >= queue_columns[0].count new_cursor.position = queue_columns[0].count - 1;
+    if queue_cursor.position < 0                       queue_cursor.position = 0;
+    if queue_cursor.position > queue.songs.count - 1   queue_cursor.position = queue.songs.count - 1;
 
-    queue_cursor = new_cursor;
-    draw_queue_frame(header_bottom, items_in_page);
+    display_columns := get_queue_display_columns(items_in_page);
+    draw_queue_frame(header_bottom, display_columns);
 }
 
-draw_queue_frame :: (header_bottom: int, items_in_page: int) {
+Queue_Display_Column :: struct {
+    width           : s32;
+    rectangle_width : s32;
+    entries         : [..] Display_Text;
+}
 
-    column_widths: [4] s32;
-    column_widths[0] = cast(s32)(8 / 20.0 * display_width());
-    column_widths[1] = cast(s32)(5 / 20.0 * display_width());
-    column_widths[2] = cast(s32)(5 / 20.0 * display_width());
-    column_widths[3] = cast(s32)(2 / 20.0 * display_width());
+get_queue_display_columns :: (items_in_page: int) -> [4] Queue_Display_Column {
 
+    display_columns: [4] Queue_Display_Column;
+    display_columns[0].entries.allocator = __temporary_allocator;
+    display_columns[1].entries.allocator = __temporary_allocator;
+    display_columns[2].entries.allocator = __temporary_allocator;
+    display_columns[3].entries.allocator = __temporary_allocator;
+
+    display_columns[0].width = cast(s32)(8 / 20.0 * display_width());
+    display_columns[1].width = cast(s32)(5 / 20.0 * display_width());
+    display_columns[2].width = cast(s32)(5 / 20.0 * display_width());
+    display_columns[3].width = cast(s32)(2 / 20.0 * display_width());
+
+    index_start := max(0, min(queue.songs.count - items_in_page + 1, queue_cursor.position - items_in_page/ 2 + 1));
+    index_end   := min(index_start + items_in_page, queue.songs.count - 1);
+
+    array_reserve(*display_columns[0].entries, index_end - index_start + 1);
+    array_reserve(*display_columns[1].entries, index_end - index_start + 1);
+    array_reserve(*display_columns[2].entries, index_end - index_start + 1);
+    array_reserve(*display_columns[3].entries, index_end - index_start + 1);
+
+    selected_index := queue_cursor.position;
+
+    for i: index_start..index_end {
+        song := queue.songs[i];
+        selected := i == selected_index;
+
+        { // song name
+            max_characters_in_column := display_columns[0].width / font.em_width - 2;
+            display_text: Display_Text;
+            display_text.text = copy_temporary_string(slice(song.name, 0, max_characters_in_column));
+            display_text.selected = selected;
+            array_add(*display_columns[0].entries, display_text);
+        }
+
+        { // album name
+            max_characters_in_column := display_columns[1].width / font.em_width - 2;
+            display_text: Display_Text;
+            display_text.selected = selected;
+            display_text.text = copy_temporary_string(slice(song.album, 0, max_characters_in_column));
+            array_add(*display_columns[1].entries, display_text);
+        }
+
+        { // artist name
+            max_characters_in_column := display_columns[2].width / font.em_width - 2;
+            display_text: Display_Text;
+            display_text.selected = selected;
+            display_text.text = copy_temporary_string(slice(song.artist, 0, max_characters_in_column));
+            array_add(*display_columns[2].entries, display_text);
+        }
+
+        { // song duration
+            max_characters_in_column := display_columns[3].width / font.em_width - 2;
+            duration_time_string := left_pad(seconds_to_time_string(song.duration), #char " ", max_characters_in_column);
+            display_text: Display_Text;
+            display_text.selected = selected;
+            display_text.text = copy_temporary_string(slice(duration_time_string, 0, max_characters_in_column));
+            array_add(*display_columns[3].entries, display_text);
+        }
+    }
+
+    return display_columns;
+}
+
+draw_queue_frame :: (header_bottom: int, display_columns: [4] Queue_Display_Column) {
     top := header_bottom - 25;
 
-    index_start := max(0, min(queue_columns[0].count - items_in_page + 1, queue_cursor.position - items_in_page/ 2 + 1));
-    index_end := min(index_start + items_in_page, queue_columns[0].count - 1);
-
     x := X_MARGIN_SIZE;
-    for column: queue_columns {
+    for column_index: 0..display_columns.count - 1 {
         y := top;
-        column_width := column_widths[it_index];
-        max_characters_in_column := column_width / font.em_width - 2;
+        column_width := display_columns[column_index].width;
 
-        for i: index_start..index_end {
-            text := slice(column[i], 0, max_characters_in_column);
-            if it_index == queue_columns.count - 1 { // right-justify last column (song length)
-                text = left_pad(text, #char " ", max_characters_in_column);
-            }
-
-            if i == queue_cursor.position {
+        for display_text: display_columns[column_index].entries {
+            if display_text.selected {
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
-                color := ifx it_index == 0 then rgba(1,1,1,1) else rgba(0.5, 0.5, 0.5, 1); // highlight the first column (song title) brighter than the rest
+                color := ifx column_index == 0 then rgba(1,1,1,1) else rgba(0.5, 0.5, 0.5, 1); // highlight the first column (song title) brighter than the rest
                 Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
-                Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
+                Simp.draw_text(font, x, y, display_text.text, rgba(0,0,0,1));
             } else {
-                Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
+                Simp.draw_text(font, x, y, display_text.text, rgba(1,1,1,1));
             }
 
             y -= TEXT_PADDING_Y + font.character_height;

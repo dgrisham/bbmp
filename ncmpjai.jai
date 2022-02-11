@@ -39,6 +39,11 @@ aprint:: (format_string: string, args: .. Any, allocator: Allocator) -> string {
     return builder_to_string(*builder, allocator);
 }
 
+Display_Text :: struct {
+    text     : string;
+    selected : bool;
+}
+
 #load "library.jai";
 #load "queue.jai";
 
