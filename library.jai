@@ -302,22 +302,33 @@ library_event_loop :: (frame: u64, header_bottom: int) {
                     }
 
                   case KEY_G;
-                    if it.shift_pressed {
-                        if library_cursor.selected == {
-                            case 0;
+                    if library_cursor.selected == {
+                        case 0;
+                          if it.shift_pressed {
                               library_cursor.positions[0] = library.artists.count - 1;
-                            case 1;
+                          } else {
+                              library_cursor.positions[0] = 0;
+                          }
+                          library_cursor.positions[1] = 0;
+                          library_cursor.positions[2] = 0;
+                        case 1;
+                          if it.shift_pressed {
                               artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
                               assert(artist_ptr != null);
                               library_cursor.positions[1] = artist_ptr.albums.count - 1;
-                            case 2;
+                          } else {
+                            library_cursor.positions[1] = 0;
+                          }
+                          library_cursor.positions[2] = 0;
+                        case 2;
+                          if it.shift_pressed {
                               artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
                               assert(artist_ptr != null);
                               album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[library_cursor.positions[1]]);
                               library_cursor.positions[2] = album_ptr.songs.count - 1;
-                        }
-                    } else {
-                        library_cursor.positions[library_cursor.selected] = 0;
+                          } else {
+                              library_cursor.positions[2] = 0;
+                          }
                     }
                     break it;
 
@@ -408,13 +419,6 @@ library_event_loop :: (frame: u64, header_bottom: int) {
           if library_cursor.positions[2] > album_ptr.songs.count - 1 {
             library_cursor.positions[2] = album_ptr.songs.count - 1;
           }
-    }
-
-    if library_cursor.selected != library_cursor.selected {
-        if library_cursor.selected < 0
-            library_cursor.selected = 0;
-        if library_cursor.selected >= library_cursor.positions.count
-            library_cursor.selected = library_cursor.positions.count - 1;
     }
 
     display_columns := get_library_display_columns(items_in_page);
