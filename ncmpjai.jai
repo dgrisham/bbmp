@@ -26,7 +26,7 @@ free :: (using song: Song) {
     free(uri);
 }
 
-seconds_to_time_string :: (seconds: u32, allocator := context.allocator) -> string {
+seconds_to_time_string :: (seconds: u32, allocator := __temporary_allocator) -> string {
     return aprint("%:%", seconds / 60, left_pad(seconds % 60, #char "0", 2), allocator=allocator);
 }
 aprint:: (format_string: string, args: .. Any, allocator: Allocator) -> string {
@@ -456,8 +456,8 @@ draw_header :: () -> int {
               y,
               tprint(
                   "%/%",
-                 seconds_to_time_string(status.elapsed_time, __temporary_allocator),
-                 seconds_to_time_string(status.total_time,   __temporary_allocator)
+                 seconds_to_time_string(status.elapsed_time),
+                 seconds_to_time_string(status.total_time)
               ),
               rgba(1,1,1,1),
         );

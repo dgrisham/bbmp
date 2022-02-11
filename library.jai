@@ -497,7 +497,7 @@ get_library_display_columns :: (items_in_page: int) -> [3] Library_Display_Colum
             song := selected_album.songs[i];
 
             padded_track := left_pad(song.track, #char " ", 4);
-            duration_time_string := seconds_to_time_string(song.duration, __temporary_allocator);
+            duration_time_string := seconds_to_time_string(song.duration);
             sliced_title := slice(song.name, 0, max_characters_in_column - padded_track.count - duration_time_string.count);
 
             track_and_title := tprint("%. %", padded_track, sliced_title);
