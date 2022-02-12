@@ -293,7 +293,7 @@ get_queue_display_columns :: (items_in_page: int) -> [4] Queue_Display_Column {
     display_columns[0].width = cast(s32)(8 / 20.0 * display_width());
     display_columns[1].width = cast(s32)(5 / 20.0 * display_width());
     display_columns[2].width = cast(s32)(5 / 20.0 * display_width());
-    display_columns[3].width = cast(s32)(2 / 20.0 * display_width());
+    display_columns[3].width = cast(s32)display_width() - display_columns[0].width - display_columns[1].width - display_columns[2].width;
 
     index_start := max(0, min(queue.songs.count - items_in_page + 1, queue_cursor.position - items_in_page/ 2 + 1));
     index_end   := min(index_start + items_in_page, queue.songs.count - 1);
@@ -310,7 +310,7 @@ get_queue_display_columns :: (items_in_page: int) -> [4] Queue_Display_Column {
         selected := i == selected_index;
 
         { // song name
-            max_characters_in_column := display_columns[0].width / font.em_width - 2;
+            max_characters_in_column := display_columns[0].width / cast(int)(1.1428571428571428 * font.em_width) - 2;
             display_text: Display_Text;
             display_text.text = copy_temporary_string(slice(song.name, 0, max_characters_in_column));
             display_text.selected = selected;
@@ -318,7 +318,7 @@ get_queue_display_columns :: (items_in_page: int) -> [4] Queue_Display_Column {
         }
 
         { // album name
-            max_characters_in_column := display_columns[1].width / font.em_width - 2;
+            max_characters_in_column := display_columns[1].width / cast(int)(1.1428571428571428 * font.em_width) - 2;
             display_text: Display_Text;
             display_text.selected = selected;
             display_text.text = copy_temporary_string(slice(song.album, 0, max_characters_in_column));
@@ -326,7 +326,7 @@ get_queue_display_columns :: (items_in_page: int) -> [4] Queue_Display_Column {
         }
 
         { // artist name
-            max_characters_in_column := display_columns[2].width / font.em_width - 2;
+            max_characters_in_column := display_columns[2].width / cast(int)(1.1428571428571428 * font.em_width) - 2;
             display_text: Display_Text;
             display_text.selected = selected;
             display_text.text = copy_temporary_string(slice(song.artist, 0, max_characters_in_column));
@@ -334,7 +334,7 @@ get_queue_display_columns :: (items_in_page: int) -> [4] Queue_Display_Column {
         }
 
         { // song duration
-            max_characters_in_column := display_columns[3].width / font.em_width - 2;
+            max_characters_in_column := display_columns[3].width / cast(int)(1.1428571428571428 * font.em_width) - 2;
             duration_time_string := left_pad(seconds_to_time_string(song.duration), #char " ", max_characters_in_column);
             display_text: Display_Text;
             display_text.selected = selected;
@@ -356,11 +356,9 @@ draw_queue_frame :: (header_bottom: int, display_columns: [4] Queue_Display_Colu
 
         for display_text: display_columns[column_index].entries {
             if display_text.selected {
-                Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := ifx column_index == 0 then rgba(1,1,1,1) else rgba(0.5, 0.5, 0.5, 1); // highlight the first column (song title) brighter than the rest
                 Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width, cast(float)y + font.character_height, color);
-                Simp.immediate_flush();
                 Simp.draw_text(font, x, y, display_text.text, rgba(0,0,0,1));
             } else {
                 Simp.draw_text(font, x, y, display_text.text, rgba(1,1,1,1));

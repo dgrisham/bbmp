@@ -421,7 +421,7 @@ get_library_display_columns :: (items_in_page: int) -> [3] Library_Display_Colum
 
     display_columns[0].width = cast(s32)(1 / 3.0 * display_width());
     display_columns[1].width = cast(s32)(1 / 3.0 * display_width());
-    display_columns[2].width = cast(s32)(1 / 3.0 * display_width());
+    display_columns[2].width = cast(s32)display_width() - display_columns[0].width - display_columns[1].width;
 
     display_columns[0].rectangle_width = display_columns[0].width - 50;
     display_columns[1].rectangle_width = display_columns[1].width - 50;
@@ -433,8 +433,7 @@ get_library_display_columns :: (items_in_page: int) -> [3] Library_Display_Colum
         index_end   := min(index_start + items_in_page, library.artists.count - 1);
         array_reserve(*display_columns[0].entries, index_end - index_start + 1);
 
-        rectangle_width := display_columns[0].width - 50;
-        max_characters_in_column := rectangle_width / font.em_width - 2;
+        max_characters_in_column := display_columns[0].rectangle_width / cast(int)(1.1428571428571428 * font.em_width) - 2;
 
         for i: index_start..index_end {
             display_text: Display_Text;
@@ -451,8 +450,7 @@ get_library_display_columns :: (items_in_page: int) -> [3] Library_Display_Colum
         index_end   := min(index_start + items_in_page, selected_artist.albums.count - 1);
         array_reserve(*display_columns[1].entries, index_end - index_start + 1);
 
-        rectangle_width := display_columns[1].width; - 50;
-        max_characters_in_column := rectangle_width / font.em_width - 2;
+        max_characters_in_column := display_columns[1].rectangle_width / cast(int)(1.1428571428571428 * font.em_width) - 2;
 
         for i: index_start..index_end {
             display_text: Display_Text;
@@ -472,8 +470,9 @@ get_library_display_columns :: (items_in_page: int) -> [3] Library_Display_Colum
         index_end   := min(index_start + items_in_page, selected_album.songs.count - 1);
         array_reserve(*display_columns[2].entries, index_end - index_start + 1);
 
-        rectangle_width := display_columns[2].width;
-        max_characters_in_column := rectangle_width / font.em_width - 2;
+        // TODO: this 8/7th's value was found empirically through a few examples. figure out how it generalizes +, if it's
+        // correct, figure out why text is far from the end of the time duration now
+        max_characters_in_column := display_columns[2].rectangle_width / cast(int)(1.1428571428571428 * font.em_width) - 2;
 
         for i: index_start..index_end {
             song := selected_album.songs[i];
@@ -517,11 +516,9 @@ draw_library_frame :: (header_bottom: int, display_columns: [3] Library_Display_
 
         for display_text: display_columns[column_index].entries {
             if display_text.selected {
-                Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := ifx library_cursor.selected == column_index then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
                 Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + rectangle_width, cast(float)y + font.character_height, color);
-                Simp.immediate_flush();
                 Simp.draw_text(font, x, y, display_text.text, rgba(0,0,0,1));
             } else {
                 Simp.draw_text(font, x, y, display_text.text, rgba(1,1,1,1));

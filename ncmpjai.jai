@@ -185,10 +185,10 @@ main :: () {
 
     window = create_window(window_width, window_height, "ncmpjai");
     window_width, window_height = Simp.get_render_dimensions(window);
-    X_MARGIN_SIZE = window_width / 30;
-    Y_MARGIN_SIZE = window_height / 30;
 
     Simp.set_render_target(window);
+    X_MARGIN_SIZE = window_width / 30;
+    Y_MARGIN_SIZE = window_height / 30;
 
     mpd_connection = MPD.connection_new(null, 0, 15000);
     if mpd_connection == null {
@@ -244,13 +244,14 @@ main :: () {
         for Input.get_window_resizes() {
             Simp.update_window(it.window);
             if it.window == window {
-                should_reinit := (it.width != window_width) || (it.height != window_height);
-                window_width  = it.width;
-                window_height = it.height;
-                X_MARGIN_SIZE = window_width / 30;
-                Y_MARGIN_SIZE = window_height / 30;
-                // resize fonts for new window size
-                if should_reinit init_fonts();
+                if (it.width != window_width) || (it.height != window_height) {
+                    window_width  = it.width;
+                    window_height = it.height;
+                    X_MARGIN_SIZE = window_width / 30;
+                    Y_MARGIN_SIZE = window_height / 30;
+                    init_fonts();
+                    break;
+                }
             }
         }
 
@@ -470,7 +471,7 @@ draw_header :: () -> int {
         y := top;
 
         // song name
-        max_characters_in_column := (display_width() / 2) / font.em_width;
+        max_characters_in_column := (display_width() / 2) / cast(int)(1.1428571428571428 * font.em_width);
         text_width := Simp.prepare_text(font, slice(status.song, 0, max_characters_in_column));
         Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
 
@@ -484,7 +485,7 @@ draw_header :: () -> int {
     }
 
     {
-        x := display_width() + X_MARGIN_SIZE - font.em_width * 10;
+        x := display_width() + X_MARGIN_SIZE - cast(int)(1.1428571428571428 * font.em_width) * 10;
         y := top - TEXT_PADDING_Y - font.character_height;
         Simp.draw_text(
             font,
@@ -551,9 +552,11 @@ font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
     pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
 
+    if (font != null) free(font);
     font = Simp.get_font_at_size(".", "Inconsolata-Regular.ttf", pixel_height);
     assert(font != null);
 
+    if (font_bold != null) free(font_bold);
     font_bold = Simp.get_font_at_size(".", "Inconsolata-SemiBold.ttf", pixel_height);
     assert(font_bold != null);
 }
