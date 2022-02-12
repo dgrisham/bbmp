@@ -142,25 +142,6 @@ load_library :: () {
         entity = MPD.recv_entity(mpd_connection);
         handle_errors("Receiving entity");
     }
-
-    // array_resize(*library_columns[0], library.artist_names_sorted.count);
-    // for library.artist_names_sorted library_columns[0][it_index] = it;
-
-    // first_artist := table_find_pointer(library.artists, library.artist_names_sorted[0]);
-    // array_resize(*library_columns[1], first_artist.album_names_sorted_by_date.count);
-    // i := 0;
-    // for album_name: first_artist.album_names_sorted_by_date {
-    //     album := table_find_pointer(first_artist.albums, album_name);
-    //     library_columns[1][it_index] = sprint("(%) %", to_string(album.date), album.name);
-    //     if it_index == 0 {
-    //         array_resize(*library_columns[2], album.songs.count);
-    //         array_resize(*library_columns[3], album.songs.count);
-    //         for album.songs {
-    //            library_columns[2][it_index] = sprint("%. %", left_pad(it.track, #char " ", 4), it.name);
-    //            library_columns[3][it_index] = seconds_to_time_string(it.duration);
-    //         }
-    //     }
-    // }
 }
 
 add_album_to_queue :: (artist_name: string, album_name: string) -> s32 {
@@ -452,8 +433,7 @@ get_library_display_columns :: (items_in_page: int) -> [3] Library_Display_Colum
         index_end   := min(index_start + items_in_page, library.artists.count - 1);
         array_reserve(*display_columns[0].entries, index_end - index_start + 1);
 
-        column_width := display_columns[0].width;
-        rectangle_width := column_width - 50;
+        rectangle_width := display_columns[0].width - 50;
         max_characters_in_column := rectangle_width / font.em_width - 2;
 
         for i: index_start..index_end {
@@ -471,8 +451,7 @@ get_library_display_columns :: (items_in_page: int) -> [3] Library_Display_Colum
         index_end   := min(index_start + items_in_page, selected_artist.albums.count - 1);
         array_reserve(*display_columns[1].entries, index_end - index_start + 1);
 
-        column_width    := display_columns[1].width;
-        rectangle_width := column_width - 50;
+        rectangle_width := display_columns[1].width; - 50;
         max_characters_in_column := rectangle_width / font.em_width - 2;
 
         for i: index_start..index_end {
@@ -493,18 +472,17 @@ get_library_display_columns :: (items_in_page: int) -> [3] Library_Display_Colum
         index_end   := min(index_start + items_in_page, selected_album.songs.count - 1);
         array_reserve(*display_columns[2].entries, index_end - index_start + 1);
 
-        column_width    := display_columns[2].width;
-        rectangle_width := column_width;
+        rectangle_width := display_columns[2].width;
         max_characters_in_column := rectangle_width / font.em_width - 2;
 
         for i: index_start..index_end {
             song := selected_album.songs[i];
 
-            padded_track := left_pad(song.track, #char " ", 4);
+            padded_track := left_pad(song.track, #char " ", 3);
             duration_time_string := seconds_to_time_string(song.duration);
-            sliced_title := slice(song.name, 0, max_characters_in_column - padded_track.count - duration_time_string.count);
+            title := slice(song.name, 0, max_characters_in_column - padded_track.count - duration_time_string.count);
 
-            track_and_title := tprint("%. %", padded_track, sliced_title);
+            track_and_title := tprint("%. %", padded_track, title);
             duration := left_pad(duration_time_string, #char " ", max_characters_in_column - get_unicode_length(track_and_title));
 
             display_text: Display_Text;
@@ -542,7 +520,6 @@ draw_library_frame :: (header_bottom: int, display_columns: [3] Library_Display_
                 Simp.immediate_begin();
                 Simp.set_shader_for_color();
                 color := ifx library_cursor.selected == column_index then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-
                 Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + rectangle_width, cast(float)y + font.character_height, color);
                 Simp.immediate_flush();
                 Simp.draw_text(font, x, y, display_text.text, rgba(0,0,0,1));
