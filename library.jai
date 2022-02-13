@@ -402,8 +402,7 @@ library_event_loop :: (frame: u64, header_bottom: int) {
           }
     }
 
-    display_columns := get_library_display_columns(items_in_page);
-    draw_library_frame(header_bottom, display_columns);
+    draw_library_frame(items_in_page, header_bottom);
 }
 
 Library_Display_Column :: struct {
@@ -412,86 +411,123 @@ Library_Display_Column :: struct {
     entries         : [..] Display_Text;
 }
 
-get_library_display_columns :: (items_in_page: int) -> [3] Library_Display_Column {
+draw_library_frame :: (items_in_page: int, header_bottom: int) {
 
     display_columns: [3] Library_Display_Column;
-    display_columns[0].entries.allocator = __temporary_allocator;
-    display_columns[1].entries.allocator = __temporary_allocator;
-    display_columns[2].entries.allocator = __temporary_allocator;
-
-    display_columns[0].width = cast(s32)(1 / 3.0 * display_width());
-    display_columns[1].width = cast(s32)(1 / 3.0 * display_width());
-    display_columns[2].width = cast(s32)display_width() - display_columns[0].width - display_columns[1].width;
-
-    display_columns[0].rectangle_width = display_columns[0].width - 50;
-    display_columns[1].rectangle_width = display_columns[1].width - 50;
-    display_columns[2].rectangle_width = display_columns[2].width;
-
-    selected_artist_index := library_cursor.positions[0];
     {
-        index_start := max(0, min(library.artists.count - items_in_page + 1, selected_artist_index  - items_in_page/ 2 + 1));
-        index_end   := min(index_start + items_in_page, library.artists.count - 1);
-        array_reserve(*display_columns[0].entries, index_end - index_start + 1);
+        display_columns[0].width = cast(s32)(1 / 3.0 * display_width());
+        display_columns[1].width = cast(s32)(1 / 3.0 * display_width());
+        display_columns[2].width = cast(s32)display_width() - display_columns[0].width - display_columns[1].width;
 
-        max_characters_in_column := display_columns[0].rectangle_width / cast(int)(1.1428571428571428 * font.em_width) - 2;
+        display_columns[0].rectangle_width = display_columns[0].width - 50;
+        display_columns[1].rectangle_width = display_columns[1].width - 50;
+        display_columns[2].rectangle_width = display_columns[2].width;
 
-        for i: index_start..index_end {
-            display_text: Display_Text;
-            display_text.text = copy_temporary_string(slice(library.artist_names_sorted[i], 0, max_characters_in_column));
-            display_text.selected = selected_artist_index == i;
-            array_add(*display_columns[0].entries, display_text);
+        display_columns[0].entries.allocator = __temporary_allocator;
+        display_columns[1].entries.allocator = __temporary_allocator;
+        display_columns[2].entries.allocator = __temporary_allocator;
+
+        selected_artist_index := library_cursor.positions[0];
+        {
+            index_start := max(0, min(library.artists.count - items_in_page + 1, selected_artist_index  - items_in_page/ 2 + 1));
+            index_end   := min(index_start + items_in_page, library.artists.count - 1);
+            array_reserve(*display_columns[0].entries, index_end - index_start + 1);
+
+            max_characters_in_column := display_columns[0].rectangle_width / font.w_width - 2;
+
+            for i: index_start..index_end {
+                display_text: Display_Text;
+                display_text.text = copy_temporary_string(slice(library.artist_names_sorted[i], 0, max_characters_in_column));
+                display_text.selected = selected_artist_index == i;
+                array_add(*display_columns[0].entries, display_text);
+            }
+        }
+
+        selected_album_index := library_cursor.positions[1];
+        selected_artist      := table_find_pointer(library.artists, library.artist_names_sorted[selected_artist_index]);
+        {
+            index_start := max(0, min(selected_artist.albums.count - items_in_page + 1, selected_album_index - items_in_page/ 2 + 1));
+            index_end   := min(index_start + items_in_page, selected_artist.albums.count - 1);
+            array_reserve(*display_columns[1].entries, index_end - index_start + 1);
+
+            max_characters_in_column := display_columns[1].rectangle_width / font.w_width - 2;
+
+            for i: index_start..index_end {
+                display_text: Display_Text;
+                album := table_find_pointer(selected_artist.albums, selected_artist.album_names_sorted_by_date[i]);
+                assert(album != null);
+                display_text.text = copy_temporary_string(slice(tprint("(%) %", to_string(album.date), album.name), 0, max_characters_in_column));
+
+                display_text.selected = selected_album_index == i;
+                array_add(*display_columns[1].entries, display_text);
+            }
+        }
+
+        selected_song_index := library_cursor.positions[2];
+        selected_album      := table_find_pointer(selected_artist.albums, selected_artist.album_names_sorted_by_date[selected_album_index]);
+        {
+            index_start := max(0, min(selected_album.songs.count - items_in_page + 1, selected_song_index - items_in_page/ 2 + 1));
+            index_end   := min(index_start + items_in_page, selected_album.songs.count - 1);
+            array_reserve(*display_columns[2].entries, index_end - index_start + 1);
+
+            // TODO: this 8/7th's value fixes this in some cases, but over-corrects in others.
+            max_characters_in_column := cast(int)(cast(float64)display_columns[2].rectangle_width / font.w_width) - 2;
+
+            for i: index_start..index_end {
+                song := selected_album.songs[i];
+
+                padded_track := left_pad(song.track, #char " ", 3);
+                duration_time_string := seconds_to_time_string(song.duration);
+                title := slice(song.name, 0, max_characters_in_column - padded_track.count - duration_time_string.count);
+
+                track_and_title := tprint("%. %", padded_track, title);
+                duration := left_pad(duration_time_string, #char " ", max_characters_in_column - get_unicode_length(track_and_title));
+
+                display_text: Display_Text;
+                display_text.text = tprint("% %", track_and_title, duration);
+                display_text.selected = selected_song_index == i;
+                array_add(*display_columns[2].entries, display_text);
+            }
         }
     }
 
-    selected_album_index := library_cursor.positions[1];
-    selected_artist      := table_find_pointer(library.artists, library.artist_names_sorted[selected_artist_index]);
     {
-        index_start := max(0, min(selected_artist.albums.count - items_in_page + 1, selected_album_index - items_in_page/ 2 + 1));
-        index_end   := min(index_start + items_in_page, selected_artist.albums.count - 1);
-        array_reserve(*display_columns[1].entries, index_end - index_start + 1);
+        top := header_bottom - 25;
+        x := X_MARGIN_SIZE;
+        for column_index: 0..display_columns.count - 1 {
+            y := top;
+            column_width    := display_columns[column_index].width;
+            rectangle_width := display_columns[column_index].rectangle_width;
 
-        max_characters_in_column := display_columns[1].rectangle_width / cast(int)(1.1428571428571428 * font.em_width) - 2;
+            for display_text: display_columns[column_index].entries {
+                if display_text.selected {
+                    Simp.set_shader_for_color();
+                    color := ifx library_cursor.selected == column_index then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
+                    Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + rectangle_width, cast(float)y + font.character_height, color);
 
-        for i: index_start..index_end {
-            display_text: Display_Text;
-            album := table_find_pointer(selected_artist.albums, selected_artist.album_names_sorted_by_date[i]);
-            assert(album != null);
-            display_text.text = copy_temporary_string(slice(tprint("(%) %", to_string(album.date), album.name), 0, max_characters_in_column));
+                    text_width := Simp.prepare_text(font, display_text.text);
+                    Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
 
-            display_text.selected = selected_album_index == i;
-            array_add(*display_columns[1].entries, display_text);
+                    if column_index == 2 { // NOTE: remove this once font width problem is better understood/definitely fixed
+                        expected_text_width := display_text.text.count * font.w_width;
+                        if expected_text_width != text_width {
+                            print("\nexpected_text_width: %\n", expected_text_width);
+                            print("actual text width  : %\n", text_width);
+                        }
+                    }
+
+                    // Simp.draw_text(font, x, y, display_text.text, rgba(0,0,0,1));
+                } else {
+                    text_width := Simp.prepare_text(font, display_text.text);
+                    Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+                    // Simp.draw_text(font, x, y, display_text.text, rgba(1,1,1,1));
+                }
+
+                y -= TEXT_PADDING_Y + font.character_height;
+            }
+            x += column_width;
         }
     }
-
-    selected_song_index := library_cursor.positions[2];
-    selected_album      := table_find_pointer(selected_artist.albums, selected_artist.album_names_sorted_by_date[selected_album_index]);
-    {
-        index_start := max(0, min(selected_album.songs.count - items_in_page + 1, selected_song_index - items_in_page/ 2 + 1));
-        index_end   := min(index_start + items_in_page, selected_album.songs.count - 1);
-        array_reserve(*display_columns[2].entries, index_end - index_start + 1);
-
-        // TODO: this 8/7th's value was found empirically through a few examples. figure out how it generalizes +, if it's
-        // correct, figure out why text is far from the end of the time duration now
-        max_characters_in_column := display_columns[2].rectangle_width / cast(int)(1.1428571428571428 * font.em_width) - 2;
-
-        for i: index_start..index_end {
-            song := selected_album.songs[i];
-
-            padded_track := left_pad(song.track, #char " ", 3);
-            duration_time_string := seconds_to_time_string(song.duration);
-            title := slice(song.name, 0, max_characters_in_column - padded_track.count - duration_time_string.count);
-
-            track_and_title := tprint("%. %", padded_track, title);
-            duration := left_pad(duration_time_string, #char " ", max_characters_in_column - get_unicode_length(track_and_title));
-
-            display_text: Display_Text;
-            display_text.text = tprint("% %", track_and_title, duration);
-            display_text.selected = selected_song_index == i;
-            array_add(*display_columns[2].entries, display_text);
-        }
-    }
-
-    return display_columns;
 }
 
 get_unicode_length :: (s: string) -> int {
@@ -503,29 +539,4 @@ get_unicode_length :: (s: string) -> int {
         i += utf8_bytes;
     }
     return length;
-}
-
-draw_library_frame :: (header_bottom: int, display_columns: [3] Library_Display_Column) {
-    top := header_bottom - 25;
-
-    x := X_MARGIN_SIZE;
-    for column_index: 0..display_columns.count - 1 {
-        y := top;
-        column_width    := display_columns[column_index].width;
-        rectangle_width := display_columns[column_index].rectangle_width;
-
-        for display_text: display_columns[column_index].entries {
-            if display_text.selected {
-                Simp.set_shader_for_color();
-                color := ifx library_cursor.selected == column_index then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + rectangle_width, cast(float)y + font.character_height, color);
-                Simp.draw_text(font, x, y, display_text.text, rgba(0,0,0,1));
-            } else {
-                Simp.draw_text(font, x, y, display_text.text, rgba(1,1,1,1));
-            }
-
-            y -= TEXT_PADDING_Y + font.character_height;
-        }
-        x += column_width;
-    }
 }

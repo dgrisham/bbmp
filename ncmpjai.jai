@@ -471,7 +471,7 @@ draw_header :: () -> int {
         y := top;
 
         // song name
-        max_characters_in_column := (display_width() / 2) / cast(int)(1.1428571428571428 * font.em_width);
+        max_characters_in_column := (display_width() / 2) / font.w_width;
         text_width := Simp.prepare_text(font, slice(status.song, 0, max_characters_in_column));
         Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
 
@@ -485,7 +485,7 @@ draw_header :: () -> int {
     }
 
     {
-        x := display_width() + X_MARGIN_SIZE - cast(int)(1.1428571428571428 * font.em_width) * 10;
+        x := display_width() + X_MARGIN_SIZE - font.w_width * 10;
         y := top - TEXT_PADDING_Y - font.character_height;
         Simp.draw_text(
             font,
@@ -550,15 +550,16 @@ handle_mpd_idle_events :: () {
 // TODO: load/use font for asian/etc. characters (maybe one of the expanded inconsolata sets?)
 font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
-    pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
+    // pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
+    pixel_height := window_height / 56;
 
     if (font != null) free(font);
     font = Simp.get_font_at_size(".", "Inconsolata-Regular.ttf", pixel_height);
     assert(font != null);
 
-    if (font_bold != null) free(font_bold);
-    font_bold = Simp.get_font_at_size(".", "Inconsolata-SemiBold.ttf", pixel_height);
-    assert(font_bold != null);
+    // if (font_bold != null) free(font_bold);
+    // font_bold = Simp.get_font_at_size(".", "Inconsolata-SemiBold.ttf", pixel_height);
+    // assert(font_bold != null);
 }
 
 Error :: struct {
