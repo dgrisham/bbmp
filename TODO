@@ -1,4 +1,5 @@
-- [ ] investgate duration being pushed off screen
+- [ ] ask about proper way of getting font width (font.em_width vs. my font.w_width hack)
+    -   expected width may stil sometimes be wrong
 - [ ] `<`/`>` might kill the application sometimes??
 - [ ] add track length to song list
 - [ ] '/' search
