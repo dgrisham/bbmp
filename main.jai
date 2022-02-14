@@ -95,6 +95,10 @@ copy_from_c_string :: inline (s: *u8) -> string {
     return copy_string(to_string(s));
 }
 
+copy_temp_from_c_string :: inline (s: *u8) -> string {
+    return copy_temporary_string(to_string(s));
+}
+
 Screen :: enum {
     LIBRARY;
     QUEUE;
@@ -542,16 +546,14 @@ handle_mpd_idle_events :: () {
     }
 }
 
-// // desktop - streaming
-// window_width  : s32 : 1900;
-// window_height : s32 : 1440;
 // pixel_height := window_height / 48;
 
 // TODO: load/use font for asian/etc. characters (maybe one of the expanded inconsolata sets?)
 font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
-    // pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
-    pixel_height := window_height / 56;
+    pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
+    // streaming
+    // pixel_height := window_height / 56;
 
     if (font != null) free(font);
     font = Simp.get_font_at_size(".", "Inconsolata-Regular.ttf", pixel_height);
@@ -627,15 +629,16 @@ handle_errors :: (message: string) -> bool {
 check_connection_errors :: () -> *Error {
 	error_code := MPD.connection_get_error(mpd_connection);
 	if (error_code != .SUCCESS) {
-		msg := copy_from_c_string(MPD.connection_get_error_message(mpd_connection));
+		msg := copy_temp_from_c_string(MPD.connection_get_error_message(mpd_connection));
 
 		if error_code == .SERVER {
-    		error := New(Server_Error);
+    		error := New(Server_Error, allocator=__temporary_allocator);
 			error.code      = MPD.connection_get_server_error(mpd_connection);
+    		error.message   = msg;
 			error.recovered = MPD.connection_clear_error(mpd_connection);
 			return error;
 		} else {
-    		error := New(Client_Error);
+    		error := New(Client_Error, allocator=__temporary_allocator);
     		error.message   = msg;
 			error.recovered = MPD.connection_clear_error(mpd_connection);
 			return error;
