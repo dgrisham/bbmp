@@ -44,8 +44,9 @@ Display_Text :: struct {
     selected : bool;
 }
 
-#load "library.jai";
 #load "queue.jai";
+#load "library.jai";
+#load "library_album_art.jai";
 
 KEY_B :: 66;
 KEY_C :: 67;
@@ -100,8 +101,9 @@ copy_temp_from_c_string :: inline (s: *u8) -> string {
 }
 
 Screen :: enum {
-    LIBRARY;
     QUEUE;
+    LIBRARY;
+    LIBRARY_ALBUM_ART;
 }
 
 current_screen := Screen.LIBRARY;
@@ -131,7 +133,7 @@ update_status :: (update_queue := true) {
 
     mpd_status := MPD.run_status(mpd_connection);
     handle_errors("Retrieving MPD status");
-	MPD.response_finish(mpd_connection);
+    MPD.response_finish(mpd_connection);
 
     if update_queue load_queue_changes();
     queue_song_position := MPD.status_get_song_pos(mpd_status);
@@ -154,7 +156,7 @@ update_status :: (update_queue := true) {
 update_status_volume :: () {
     mpd_status := MPD.run_status(mpd_connection);
     handle_errors("Retrieving MPD status");
-	MPD.response_finish(mpd_connection);
+    MPD.response_finish(mpd_connection);
     status.volume       = MPD.status_get_volume(mpd_status);
     MPD.status_free(mpd_status);
 }
@@ -162,7 +164,7 @@ update_status_volume :: () {
 update_status_time :: () {
     mpd_status := MPD.run_status(mpd_connection);
     handle_errors("Retrieving MPD status");
-	MPD.response_finish(mpd_connection);
+    MPD.response_finish(mpd_connection);
     status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
     status.total_time   = MPD.status_get_total_time(mpd_status);
     MPD.status_free(mpd_status);
@@ -312,6 +314,9 @@ main :: () {
                       case .NUMBER_2;
                         current_screen = .LIBRARY;
                         break it;
+                      case .NUMBER_3;
+                        current_screen = .LIBRARY_ALBUM_ART;
+                        break it;
 
                       case KEY_P;
                         handle_mpd_idle_events();
@@ -374,10 +379,12 @@ main :: () {
         Simp.clear_render_target(0,0,0,1);
         header_bottom := draw_header();
         if current_screen == {
-          case .LIBRARY;
-            library_event_loop(frame, header_bottom);
           case .QUEUE;
             queue_event_loop(frame, header_bottom);
+          case .LIBRARY;
+            library_event_loop(frame, header_bottom);
+          case .LIBRARY_ALBUM_ART;
+            library_album_art_event_loop(frame, header_bottom);
         }
         reset_temporary_storage();
         Simp.swap_buffers(window);
@@ -537,12 +544,12 @@ handle_mpd_idle_events :: () {
     // print("Checking MPD idle events\n");
     if idle && MPD.send_noidle(mpd_connection) {
         idle = false;
-		flags := MPD.recv_idle(mpd_connection, true);
-		print("flags: %\n", flags);
-		MPD.response_finish(mpd_connection);
-		handle_errors("Getting idle events");
+        flags := MPD.recv_idle(mpd_connection, true);
+        print("flags: %\n", flags);
+        MPD.response_finish(mpd_connection);
+        handle_errors("Getting idle events");
 
-		// if flags & .QUEUE load_queue_changes();
+        // if flags & .QUEUE load_queue_changes();
     }
 }
 
@@ -627,25 +634,25 @@ handle_errors :: (message: string) -> bool {
 }
 
 check_connection_errors :: () -> *Error {
-	error_code := MPD.connection_get_error(mpd_connection);
-	if (error_code != .SUCCESS) {
-		msg := copy_temp_from_c_string(MPD.connection_get_error_message(mpd_connection));
+    error_code := MPD.connection_get_error(mpd_connection);
+    if (error_code != .SUCCESS) {
+        msg := copy_temp_from_c_string(MPD.connection_get_error_message(mpd_connection));
 
-		if error_code == .SERVER {
-    		error := New(Server_Error, allocator=__temporary_allocator);
-			error.code      = MPD.connection_get_server_error(mpd_connection);
-    		error.message   = msg;
-			error.recovered = MPD.connection_clear_error(mpd_connection);
-			return error;
-		} else {
-    		error := New(Client_Error, allocator=__temporary_allocator);
-    		error.message   = msg;
-			error.recovered = MPD.connection_clear_error(mpd_connection);
-			return error;
-		}
-	}
+        if error_code == .SERVER {
+            error := New(Server_Error, allocator=__temporary_allocator);
+            error.code      = MPD.connection_get_server_error(mpd_connection);
+            error.message   = msg;
+            error.recovered = MPD.connection_clear_error(mpd_connection);
+            return error;
+        } else {
+            error := New(Client_Error, allocator=__temporary_allocator);
+            error.message   = msg;
+            error.recovered = MPD.connection_clear_error(mpd_connection);
+            return error;
+        }
+    }
 
-	return null;
+    return null;
 }
 
 left_pad :: (t: $T, pad_char: u8, total_length: int, allocator := __temporary_allocator) -> string {
