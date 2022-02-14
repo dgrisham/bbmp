@@ -149,7 +149,7 @@ add_album_to_queue :: (artist_name: string, album_name: string) -> s32 {
     artist := table_find_pointer(library.artists, artist_name);
     if !artist return -1;
     album := table_find_pointer(artist.albums, album_name);
-    if !artist return -1;
+    if !album return -1;
 
     for song, song_index: album.songs {
         id := MPD.run_add_id(mpd_connection, temp_c_string(song.uri));
