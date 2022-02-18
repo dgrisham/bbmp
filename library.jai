@@ -405,15 +405,14 @@ library_event_loop :: (frame: u64, header_bottom: int) {
     draw_library_frame(items_in_page, header_bottom);
 }
 
-Library_Display_Column :: struct {
-    width           : s32;
-    rectangle_width : s32;
-    entries         : [..] Display_Text;
-}
-
 draw_library_frame :: (items_in_page: int, header_bottom: int) {
 
-    display_columns: [3] Library_Display_Column;
+    display_columns: [3] struct {
+        width           : s32;
+        rectangle_width : s32;
+        entries         : [..] Display_Text;
+    };
+
     {
         display_columns[0].width = cast(s32)(1 / 3.0 * display_width());
         display_columns[1].width = cast(s32)(1 / 3.0 * display_width());

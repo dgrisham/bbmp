@@ -275,15 +275,14 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
     draw_queue_frame(items_in_page, header_bottom);
 }
 
-Queue_Display_Column :: struct {
-    width           : s32;
-    rectangle_width : s32;
-    entries         : [..] Display_Text;
-}
-
 draw_queue_frame :: (items_in_page: int, header_bottom: int) {
 
-    display_columns: [4] Queue_Display_Column;
+    display_columns: [4] struct {
+        width           : s32;
+        rectangle_width : s32;
+        entries         : [..] Display_Text;
+    };
+
     {
         display_columns[0].entries.allocator = __temporary_allocator;
         display_columns[1].entries.allocator = __temporary_allocator;
