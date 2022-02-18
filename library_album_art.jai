@@ -21,50 +21,71 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
     draw_library_album_art_frame(items_in_page, header_bottom);
 }
 
-BUFFER_MAX :: 8192;
 draw_library_album_art_frame :: (items_in_page: int, header_bottom: int) {
 
-    artist := table_find_pointer(library.artists, "Metallica");
+    create_album_art_thumbnail :: (uri: string, thumbnail_path: string) -> bool {
+        THUMBNAIL_WIDTH :: 300;
+
+        // load the album art from MPD
+        album_art_data: [..] u8;
+        defer array_free(album_art_data);
+        if !load_album_art(uri, *album_art_data) {
+            log(tprint("Failed to load album art for song URI '%'", uri), flags=.ERROR);
+            return false;
+        }
+
+        // load the raw data into a bitmap
+        bitmap: Simp.Bitmap;
+        defer Simp.deinit(*bitmap);
+        if !Simp.bitmap_load_from_memory(*bitmap, album_art_data) {
+            log(tprint("Failed to load album art into bitmap for song URI '%'", uri), flags=.ERROR);
+            return false;
+        }
+
+        // resize to thumbnail size
+        resized_bitmap: Simp.Bitmap;
+        Simp.bitmap_resize(*bitmap, THUMBNAIL_WIDTH, cast(s32)(bitmap.height * cast(float64)THUMBNAIL_WIDTH / bitmap.width), *resized_bitmap);
+        defer Simp.deinit(*resized_bitmap);
+
+        // save the thumbnail
+        if !Simp.bitmap_save(*resized_bitmap, thumbnail_path) {
+            log(tprint("Failed to save album art thumbnail to '%'", thumbnail_path), flags=.ERROR);
+            return false;
+        }
+
+        return true;
+    }
+
+    artist_name := "Metallica";
+    artist := table_find_pointer(library.artists, artist_name);
     assert(artist != null);
-    album := table_find_pointer(artist.albums, "Master of Puppets");
+    album_name := "Master of Puppets";
+    album := table_find_pointer(artist.albums, album_name);
     assert(album != null);
     assert(album.songs.count > 0);
 
     uri := album.songs[0].uri;
-    album_cover_data: [..] u8;
-    print("uri: %\n", uri);
-    album_initial := get_current_file_time();
+    thumbnail_path := "/home/grish/src/jai/jai-mpd/test.bmp";
 
-    // art_texture := New(Simp.Texture);
-    // assert(Simp.texture_load_from_file(art_texture, "/home/grish/media/music/library/metallica/1986_02-master_of_puppets/cover.jpg", srgb=true));
-    // print("DIRECT ART FILE LOAD TIME: % ms\n", (get_current_file_time() - album_initial) / 10000.0);
+    if !create_album_art_thumbnail(uri, thumbnail_path) {
+        log(tprint("Failed to create thumbnail for % - %", artist_name, album_name), flags=.ERROR);
+    }
 
-    assert(MPD.run_binarylimit(mpd_connection, BUFFER_MAX));
-    assert(read_album_cover(uri, *album_cover_data));
-    print("ART LOAD TIME: % ms\n", (get_current_file_time() - album_initial) / 10000.0);
-
-    art_texture := New(Simp.Texture);
-    simp_initial := get_current_file_time();
-    print("album_cover_data.count: %\n", album_cover_data.count);
-    print("album_cover_data.data: %\n", to_string(album_cover_data.data));
-
-    assert(Simp.texture_load_from_memory(art_texture, album_cover_data, srgb=true));
-    print("SIMP TEXTURE TIME: % ms\n", (get_current_file_time() - simp_initial) / 10000.0);
-    print("TOTAL TIME: % ms\n", (get_current_file_time() - album_initial) / 10000.0);
+    texture := New(Simp.Texture);
+    assert(Simp.texture_load_from_file(texture, thumbnail_path));
 }
 
-read_album_cover :: (uri: string, data: *[..] u8) -> success: bool {
+BUFFER_MAX :: 8192;
+load_album_art :: (uri: string, data: *[..] u8) -> success: bool {
     assert(data.count == 0);
 
     buffer: [BUFFER_MAX] u8;
     while true {
         bytes_read := MPD.run_albumart(mpd_connection, uri.data, cast(u32)data.count, buffer.data, BUFFER_MAX);
-
         if bytes_read < 0 {
-            handle_errors(tprint("Retrieving album cover for song uri: %", uri));
+            handle_errors(tprint("Retrieving album art for song uri: %", uri));
             return false;
         }
-
         array_add(data, ..buffer);
         if bytes_read < BUFFER_MAX return true;
     }
