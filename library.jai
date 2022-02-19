@@ -64,12 +64,10 @@ to_string :: (date: Date) -> string {
     return tprint("%-%-%", date.year, month_str, day_str);
 }
 
-Library_Cursor :: struct {
+library_cursor: struct {
     positions := int.[0, 0, 0];
     selected  := 0;
-}
-
-library_cursor: Library_Cursor;
+};
 
 load_library :: () {
 

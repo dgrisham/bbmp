@@ -179,7 +179,8 @@ X_MARGIN_SIZE  : s32;
 Y_MARGIN_SIZE  : s32;
 TEXT_PADDING_Y :: 5;
 
-display_width :: () -> int #expand { return window_width - 2 * X_MARGIN_SIZE; }
+display_width  :: () -> int #expand { return window_width  - 2 * X_MARGIN_SIZE; }
+// display_height :: () -> int #expand { return window_height - 2 * Y_MARGIN_SIZE; }
 
 frame: u64 = 0;
 frame_rate: float64;
@@ -215,6 +216,7 @@ main :: () {
 
     load_library();
     load_queue();
+    load_library_album_art();
 
     library_init_repeatable_keys();
     queue_init_repeatable_keys();

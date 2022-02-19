@@ -3,11 +3,9 @@ queue: struct {
     version: u32;
 }
 
-Queue_Cursor :: struct {
+queue_cursor: struct {
     position := 0;
-}
-
-queue_cursor: Queue_Cursor;
+};
 
 load_queue :: () {
 
