@@ -13,15 +13,22 @@ Artist  :: struct {
 }
 
 Album :: struct {
-    name  : string;
-    date  : Date;
-    songs : [..] Song;
+    name        : string;
+    artist_name : string;
+    date        : Date;
+    songs       : [..] Song;
 };
 
 Date :: struct {
     year  : int;
     month : int;
     day   : int;
+}
+
+library_stats: struct {
+    number_of_artists : int = 0;
+    number_of_albums  : int = 0;
+    number_of_songs   : int = 0;
 }
 
 operator < :: (a: Date, b: Date) -> bool {
@@ -106,13 +113,16 @@ load_library :: () {
                         }
                         array_insert_at(*library.artist_names_sorted, artist.name, index);
                     }
+                    library_stats.number_of_artists += 1;
                 }
 
                 album_ptr := table_find_pointer(artist_ptr.albums, song.album);
                 if !album_ptr {
                     album: Album;
-                    album.name = song.album;
-                    album.date = parse_date(to_string(mpd_date));
+                    album.name        = song.album;
+                    album.artist_name = song.artist;
+                    album.date        = parse_date(to_string(mpd_date));
+
                     album_ptr = table_add(*artist_ptr.albums, song.album, album);
 
                     { // TODO: album_ptr name is confusing from above
@@ -125,12 +135,15 @@ load_library :: () {
                         }
                         array_insert_at(*artist_ptr.album_names_sorted_by_date, album.name, index);
                     }
+                    library_stats.number_of_albums += 1;
                 }
 
                 song.track    = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK, 0));
                 song.uri      = copy_from_c_string(MPD.song_get_uri(mpd_song));
                 song.duration = MPD.song_get_duration(mpd_song);
                 array_add(*album_ptr.songs, song);
+
+                library_stats.number_of_songs += 1;
             } else {
                 // print("skipping: '%', '%', '%'\n", mpd_artist, to_string(mpd_album), to_string(mpd_title));
             }

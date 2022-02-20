@@ -267,8 +267,11 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
     if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .CTRL_U)  queue_move_cursor_one_page_up();
     if key_held_passed_threshold(queue_key_pressed_on_frame, last_queue_key_pressed, frame, .X)       queue_remove_selected_song();
 
-    if queue_cursor.position < 0                     queue_cursor.position = 0;
-    if queue_cursor.position > queue.songs.count - 1 queue_cursor.position = queue.songs.count - 1;
+    if queue_cursor.position < 0 {
+        queue_cursor.position = 0;
+    } else if queue_cursor.position > queue.songs.count - 1 {
+        queue_cursor.position = queue.songs.count - 1;
+    }
 
     draw_queue_frame(items_in_page, header_bottom);
 }
