@@ -1,16 +1,11 @@
 #import "Hash_Table";
 #import "Unicode";
 #import "File_Utilities";
+#import "Hash";
 
 library_album_art: struct {
     albums : [..] *Album;
 }
-
-// library_album_art: struct {
-//     albums                                : Table(string, *Album);
-//     albums                                : Table(string, *Album);
-//     album_names_sorted_by_artist_and_date : [..] string;
-// }
 
 library_album_art_cursor: struct {
     position := 0;
@@ -30,22 +25,25 @@ library_album_art_init_repeatable_keys :: () {
 }
 
 load_library_album_art :: () {
-
     array_resize(*library_album_art.albums, library_stats.number_of_albums);
     i := 0;
-    for artist: library.artists {
-        for * album_ptr: artist.albums {
+    for artist_name: library.artist_names_sorted {
+        artist_ptr := table_find_pointer(library.artists, artist_name);
+        assert(artist_ptr != null, "Failed to find artist '%' in table when loading library album art data", artist_name);
+
+        for album_name: artist_ptr.album_names_sorted_by_date {
+            album_ptr := table_find_pointer(artist_ptr.albums, album_name);
+            assert(album_ptr != null, "Failed to find album '%' - '%' in table when loading library album art data", artist_name, album_name);
+
             library_album_art.albums[i] = album_ptr;
             i += 1;
         }
     }
-
-    // print("library_album_art.albums: %\n", library_album_art.albums);
 }
 
 library_album_art_event_loop :: (frame: u64, header_bottom: int) {
 
-    Y_PADDING_BELOW_HEADER := 2 * Y_MARGIN_SIZE;
+    Y_PADDING_BELOW_HEADER := Y_MARGIN_SIZE;
 
     texture_width  : s32 = 200;
     texture_height : s32 = texture_width;
@@ -56,17 +54,25 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
     total_width := cast(s32)display_width();
     columns := total_width / texture_width - 1;
 
-    library_album_art_move_cursor_up :: () #expand {
-        `library_album_art_cursor.position -= columns;
-    }
     library_album_art_move_cursor_down :: () #expand {
-        `library_album_art_cursor.position += columns;
+        `library_album_art_cursor.position += ifx `library_album_art_cursor.position > (library_album_art.albums.count - columns) then 0 else columns;
     }
+    library_album_art_move_cursor_up :: () #expand {
+        `library_album_art_cursor.position -= ifx `library_album_art_cursor.position < columns then 0 else columns;
+    }
+
     library_album_art_move_cursor_left :: () #expand {
         `library_album_art_cursor.position -= 1;
     }
     library_album_art_move_cursor_right :: () #expand {
         `library_album_art_cursor.position += 1;
+    }
+
+    library_album_art_move_cursor_one_page_down :: () #expand {
+        `library_album_art_cursor.position += rows * columns;
+    }
+    library_album_art_move_cursor_one_page_up :: () #expand {
+        `library_album_art_cursor.position -= rows * columns;
     }
 
     for Input.events_this_frame {
@@ -97,28 +103,48 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                     library_album_art_move_cursor_right();
                     break it;
 
-                  // case KEY_D;
-                  //   if it.ctrl_pressed {
-                  //       table_set(*library_album_art_key_pressed_on_frame, .CTRL_D, frame);
-                  //       last_library_album_art_key_pressed = .CTRL_D;
-                  //       library_album_art_move_cursor_one_page_down();
-                  //   }
-                  //   break it;
-                  // case KEY_U;
-                  //   if it.ctrl_pressed {
-                  //       table_set(*library_album_art_key_pressed_on_frame, .CTRL_U, frame);
-                  //       last_library_album_art_key_pressed = .CTRL_U;
-                  //       library_album_art_move_cursor_one_page_up();
-                  //   }
-                  //   break it;
+                  case KEY_G;
+                    if it.shift_pressed {
+                        library_album_art_cursor.position = library_album_art.albums.count - 1;
+                    } else {
+                        library_album_art_cursor.position = 0;
+                    }
+                    break it;
 
-                  // case KEY_G;
-                  //   if it.shift_pressed {
-                  //       library_album_art_cursor.position = library_album_art.songs.count - 1;
-                  //   } else {
-                  //       library_album_art_cursor.position = 0;
-                  //   }
-                  //   break it;
+                  case KEY_D;
+                    if it.ctrl_pressed {
+                        table_set(*library_album_art_key_pressed_on_frame, .CTRL_D, frame);
+                        last_library_album_art_key_pressed = .CTRL_D;
+                        library_album_art_move_cursor_one_page_down();
+                    }
+                    break it;
+                  case KEY_U;
+                    if it.ctrl_pressed {
+                        table_set(*library_album_art_key_pressed_on_frame, .CTRL_U, frame);
+                        last_library_album_art_key_pressed = .CTRL_U;
+                        library_album_art_move_cursor_one_page_up();
+                    }
+                    break it;
+
+                  case .ENTER;
+                    last_library_album_art_key_pressed = .ENTER;
+                    table_set(*library_album_art_key_pressed_on_frame, .ENTER, frame);
+                    album := library_album_art.albums[library_album_art_cursor.position];
+                    song_id_to_play := add_album_to_queue(album.artist_name, album.name);
+                    if song_id_to_play >= 0 {
+                        assert(mpd_connection != null);
+                        MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
+                        handle_errors("Playing first song in group added to queue");
+                        update_status();
+                    }
+                    break it;
+
+                  case .SPACEBAR;
+                    last_library_album_art_key_pressed = .SPACE;
+                    table_set(*library_album_art_key_pressed_on_frame, .SPACE, frame);
+                    album := library_album_art.albums[library_album_art_cursor.position];
+                    add_album_to_queue(album.artist_name, album.name);
+                    break it;
 
                   // case;
                     // print("key_code: %\n", it.key_code);
@@ -127,6 +153,13 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
 
         }
     }
+
+    if key_held_passed_threshold(library_album_art_key_pressed_on_frame, last_library_album_art_key_pressed, frame, .J)       library_album_art_move_cursor_down();
+    if key_held_passed_threshold(library_album_art_key_pressed_on_frame, last_library_album_art_key_pressed, frame, .K)       library_album_art_move_cursor_up();
+    if key_held_passed_threshold(library_album_art_key_pressed_on_frame, last_library_album_art_key_pressed, frame, .H)       library_album_art_move_cursor_left();
+    if key_held_passed_threshold(library_album_art_key_pressed_on_frame, last_library_album_art_key_pressed, frame, .L)       library_album_art_move_cursor_right();
+    if key_held_passed_threshold(library_album_art_key_pressed_on_frame, last_library_album_art_key_pressed, frame, .CTRL_D)  library_album_art_move_cursor_one_page_down();
+    if key_held_passed_threshold(library_album_art_key_pressed_on_frame, last_library_album_art_key_pressed, frame, .CTRL_U)  library_album_art_move_cursor_one_page_up();
 
     if library_album_art_cursor.position < 0 {
         library_album_art_cursor.position = 0;
@@ -148,11 +181,9 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
             max_entries_to_draw := rows * columns;
             array_reserve(*entries_to_draw, max_entries_to_draw);
 
-            number_of_albums := 0;
-            // get index of first album to draw based on cursor position
-            x := library_album_art_cursor.position / columns * columns;
-            album_index := max(0, min(x - columns, library_album_art.albums.count - 1));
-            selected_album_index := album_index + library_album_art_cursor.position % columns + ifx x < 7 then 0 else columns;
+            index_of_first_album_in_row := library_album_art_cursor.position / columns * columns;
+            album_index := max(0, min(index_of_first_album_in_row - columns, library_album_art.albums.count - 1));
+            selected_album_index := album_index + library_album_art_cursor.position % columns + ifx index_of_first_album_in_row < columns then 0 else columns;
             while entries_to_draw.count < max_entries_to_draw {
                 album := library_album_art.albums[album_index];
 
@@ -160,7 +191,9 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                 entry.artist_name = album.artist_name;
                 entry.album_name  = album.name;
                 // TODO: thumbnail won't be in temporary storage, may not be freed correctly
-                entry.texture = load_thumbnail_if_exists(album_index);
+                if !album.art_texture
+                    album.art_texture = load_thumbnail_if_exists(album_index);
+                entry.texture = album.art_texture;
                 entry.selected = album_index == selected_album_index;
 
                 array_add(*entries_to_draw, entry);
@@ -183,9 +216,19 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
             for entry: entries_to_draw {
 
                 if entry.selected {
-                    SELECTED_COVER_HIGHLIGHT_WIDTH :: 4;
-                    Simp.set_shader_for_color();
-                    Simp.immediate_quad(cast(float)x - SELECTED_COVER_HIGHLIGHT_WIDTH, cast(float)y + SELECTED_COVER_HIGHLIGHT_WIDTH, cast(float)x + texture_width + SELECTED_COVER_HIGHLIGHT_WIDTH, cast(float)y - texture_width - SELECTED_COVER_HIGHLIGHT_WIDTH, rgba(1,1,1,1));
+                    SELECTED_COVER_HIGHLIGHT_WIDTH :: 12;
+                    for i: 0..SELECTED_COVER_HIGHLIGHT_WIDTH {
+                        c := i / cast(float)SELECTED_COVER_HIGHLIGHT_WIDTH;
+                        width := SELECTED_COVER_HIGHLIGHT_WIDTH - i;
+                        Simp.set_shader_for_color();
+                        Simp.immediate_quad(
+                            cast(float)x - width,
+                            cast(float)y + width,
+                            cast(float)x + texture_width + width,
+                            cast(float)y - texture_width - width,
+                            rgba(c,c,c,1)
+                        );
+                    }
                 }
 
                 if entry.texture {
@@ -193,6 +236,9 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                     Simp.immediate_begin();
                     Simp.immediate_quad(xy(x, y - texture_height), xy(x + texture_width, y - texture_height), xy(x + texture_width, y), xy(x, y));
                     Simp.immediate_flush();
+                } else {
+                    Simp.set_shader_for_color();
+                    Simp.immediate_quad(cast(float)x, cast(float)y, cast(float)x + texture_width, cast(float)y - texture_width, rgba(0,0,0,1));
                 }
 
                 column += 1;
@@ -212,6 +258,8 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
 }
 
 load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
+
+    THUMBNAIL_WIDTH :: 300;
 
     create_album_art_thumbnail :: (uri: string, thumbnail_path: string) -> bool {
 
@@ -249,26 +297,7 @@ load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
 
     album := library_album_art.albums[album_index];
 
-    // thumbnail_filename: string = ---;
-    // {
-    //     artist_and_album_string := tprint("%-%.bmp", album.artist_name, album.name);
-    //     replace_chars(artist_and_album_string, " ", #char "_");
-
-    //     builder: String_Builder;
-    //     init_string_builder(*builder);
-    //     for i: 0..artist_and_album_string.count-1 {
-    //         c := artist_and_album_string[i];
-    //         if is_alnum(c) || c == #char "-" || c == #char "." append(*builder, c);
-    //     }
-    //     thumbnail_filename = builder_to_string(*builder);
-    // }
-
-    thumbnail_filename := tprint("%-%.bmp", album.artist_name, album.name);
-    replace_chars(thumbnail_filename, " ", #char "_");
-
-    to_lower_in_place(thumbnail_filename);
-    print("thumbnail_filename: %\n", thumbnail_filename);
-
+    thumbnail_filename := tprint("%-%.bmp", get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
     uri := album.songs[0].uri;
     thumbnail_path := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
 
@@ -287,15 +316,6 @@ load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
     }
 
     return texture;
-}
-
-THUMBNAIL_WIDTH :: 300;
-organize_this_stuff :: () {
-    // album_ptr.texture = load_thumbnail_if_exists("Metallica", "Master of Puppets");
-
-    // if !create_album_art_thumbnail(uri, thumbnail_path) {
-    //     log("Failed to create thumbnail for % - %", artist_name, album_name, flags=.ERROR);
-    // }
 }
 
 BUFFER_MAX :: 8192;

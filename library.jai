@@ -17,6 +17,7 @@ Album :: struct {
     artist_name : string;
     date        : Date;
     songs       : [..] Song;
+    art_texture : *Simp.Texture;
 };
 
 Date :: struct {
@@ -221,30 +222,30 @@ library_event_loop :: (frame: u64, header_bottom: int) {
     move_selected_cursor_right :: () #expand { `library_cursor.selected += 1; }
 
     add_selection_to_queue :: () -> s32 #expand {
-        song_id_to_play: s32;
+        first_song_id_added: s32;
 
         handle_mpd_idle_events();
         if library_cursor.selected == {
           case 0;
-            song_id_to_play = add_artist_to_queue(library.artist_names_sorted[library_cursor.positions[0]]);
+            first_song_id_added = add_artist_to_queue(library.artist_names_sorted[library_cursor.positions[0]]);
           case 1;
             artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
-            song_id_to_play = add_album_to_queue(artist.name, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
+            first_song_id_added = add_album_to_queue(artist.name, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
           case 2;
             artist := table_find_pointer(library.artists, library.artist_names_sorted[library_cursor.positions[0]]);
             album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[library_cursor.positions[1]]);
-            song_id_to_play = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[library_cursor.positions[2]].uri));
+            first_song_id_added = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[library_cursor.positions[2]].uri));
         }
         `library_cursor.positions[library_cursor.selected] += 1;
 
-        return song_id_to_play;
+        return first_song_id_added;
     }
 
     add_selection_to_queue_and_play :: () #expand {
-        first_song_id_added := add_selection_to_queue();
-        if first_song_id_added >= 0 {
+        song_id_to_play := add_selection_to_queue();
+        if song_id_to_play >= 0 {
             assert(mpd_connection != null);
-            MPD.run_play_id(mpd_connection, cast(u32)first_song_id_added);
+            MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
             handle_errors("Playing first song in group added to queue");
             update_status();
         }
