@@ -25,7 +25,7 @@ library_album_art_init_repeatable_keys :: () {
 }
 
 load_library_album_art :: () {
-    array_resize(*library_album_art.albums, library_stats.number_of_albums);
+    array_resize(*library_album_art.albums, library.stats.number_of_albums);
     i := 0;
     for artist_name: library.artist_names_sorted {
         artist_ptr := table_find_pointer(library.artists, artist_name);
@@ -48,14 +48,14 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
     texture_width  : s32 = 200;
     texture_height : s32 = texture_width;
 
-    total_height := header_bottom - Y_PADDING_BELOW_HEADER - Y_MARGIN_SIZE;
+    total_height := header_bottom - Y_PADDING_BELOW_HEADER - 2 * Y_MARGIN_SIZE;
     rows := total_height / texture_height - 1;
 
     total_width := cast(s32)display_width();
     columns := total_width / texture_width - 1;
 
     library_album_art_move_cursor_down :: () #expand {
-        `library_album_art_cursor.position += ifx `library_album_art_cursor.position > (library_album_art.albums.count - columns) then 0 else columns;
+        `library_album_art_cursor.position += ifx `library_album_art_cursor.position > (library_album_art.albums.count - columns - 1) then 0 else columns;
     }
     library_album_art_move_cursor_up :: () #expand {
         `library_album_art_cursor.position -= ifx `library_album_art_cursor.position < columns then 0 else columns;
@@ -126,6 +126,28 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                     }
                     break it;
 
+                  case KEY_O;
+                    handle_mpd_idle_events();
+
+                    mpd_current_song := MPD.run_current_song(mpd_connection);
+                    handle_errors("Getting current song");
+                    if !mpd_current_song break;
+                    uri := to_string(MPD.song_get_uri(mpd_current_song));
+                    for album, album_index: library_album_art.albums {
+                        for song: album.songs {
+                            if song.uri == uri {
+                                library_album_art_cursor.position = album_index;
+                                break;
+                            }
+                        }
+                    }
+                    break it;
+
+                  case KEY_R;
+                    album_index := library_album_art_cursor.position;
+                    album := library_album_art.albums[album_index];
+                    album.art_texture = load_thumbnail_if_exists(album_index);
+
                   case .ENTER;
                     last_library_album_art_key_pressed = .ENTER;
                     table_set(*library_album_art_key_pressed_on_frame, .ENTER, frame);
@@ -182,8 +204,13 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
             array_reserve(*entries_to_draw, max_entries_to_draw);
 
             index_of_first_album_in_row := library_album_art_cursor.position / columns * columns;
-            album_index := max(0, min(index_of_first_album_in_row - columns, library_album_art.albums.count - 1));
-            selected_album_index := album_index + library_album_art_cursor.position % columns + ifx index_of_first_album_in_row < columns then 0 else columns;
+            album_index: s64 = 0;
+            if index_of_first_album_in_row > library_album_art.albums.count - 3 * columns {
+                album_index = library_album_art.albums.count - 3 * columns;
+            } else if index_of_first_album_in_row > columns {
+                album_index = index_of_first_album_in_row - columns;
+            }
+
             while entries_to_draw.count < max_entries_to_draw {
                 album := library_album_art.albums[album_index];
 
@@ -191,10 +218,12 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                 entry.artist_name = album.artist_name;
                 entry.album_name  = album.name;
                 // TODO: thumbnail won't be in temporary storage, may not be freed correctly
-                if !album.art_texture
+                if !album.art_texture && !album.tried_to_load_thumbnail {
                     album.art_texture = load_thumbnail_if_exists(album_index);
+                    album.tried_to_load_thumbnail = true;
+                }
                 entry.texture = album.art_texture;
-                entry.selected = album_index == selected_album_index;
+                entry.selected = album_index == library_album_art_cursor.position;
 
                 array_add(*entries_to_draw, entry);
 
@@ -206,8 +235,8 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
         }
 
         {
-            HORIZONTAL_PADDING := (total_width  - columns * texture_width) / columns;
-            VERTICAL_PADDING   := (total_height - rows    * texture_height) / rows;
+            HORIZONTAL_PADDING := (total_width  - columns * texture_width) / (columns - 1);
+            VERTICAL_PADDING   := (total_height - rows    * texture_height) / (rows - 1);
 
             x := cast(float)X_MARGIN_SIZE;
             y := cast(float)header_bottom - Y_PADDING_BELOW_HEADER;
@@ -216,10 +245,10 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
             for entry: entries_to_draw {
 
                 if entry.selected {
-                    SELECTED_COVER_HIGHLIGHT_WIDTH :: 12;
+                    SELECTED_COVER_HIGHLIGHT_WIDTH :: 8;
                     for i: 0..SELECTED_COVER_HIGHLIGHT_WIDTH {
-                        c := i / cast(float)SELECTED_COVER_HIGHLIGHT_WIDTH;
-                        width := SELECTED_COVER_HIGHLIGHT_WIDTH - i;
+                        c := 1.0 - i / cast(float)SELECTED_COVER_HIGHLIGHT_WIDTH;
+                        width := SELECTED_COVER_HIGHLIGHT_WIDTH - i + 4;
                         Simp.set_shader_for_color();
                         Simp.immediate_quad(
                             cast(float)x - width,
@@ -259,7 +288,7 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
 
 load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
 
-    THUMBNAIL_WIDTH :: 300;
+    THUMBNAIL_WIDTH :: 200;
 
     create_album_art_thumbnail :: (uri: string, thumbnail_path: string) -> bool {
 
@@ -297,7 +326,7 @@ load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
 
     album := library_album_art.albums[album_index];
 
-    thumbnail_filename := tprint("%-%.bmp", get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
+    thumbnail_filename := tprint("%-%x.bmp", get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
     uri := album.songs[0].uri;
     thumbnail_path := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
 

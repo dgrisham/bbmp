@@ -60,6 +60,7 @@ KEY_L :: 76;
 KEY_O :: 79;
 KEY_P :: 80;
 KEY_Q :: 81;
+KEY_R :: 82;
 KEY_U :: 85;
 KEY_X :: 88;
 

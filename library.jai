@@ -4,6 +4,11 @@
 library: struct {
     artists             : Table(string, Artist);
     artist_names_sorted : [..] string;
+    stats: struct {
+        number_of_artists : int = 0;
+        number_of_albums  : int = 0;
+        number_of_songs   : int = 0;
+    }
 }
 
 Artist  :: struct {
@@ -18,18 +23,14 @@ Album :: struct {
     date        : Date;
     songs       : [..] Song;
     art_texture : *Simp.Texture;
+    // TODO: remove this once we split loading thumbnails off of the main thread
+    tried_to_load_thumbnail := false;
 };
 
 Date :: struct {
     year  : int;
     month : int;
     day   : int;
-}
-
-library_stats: struct {
-    number_of_artists : int = 0;
-    number_of_albums  : int = 0;
-    number_of_songs   : int = 0;
 }
 
 operator < :: (a: Date, b: Date) -> bool {
@@ -114,7 +115,7 @@ load_library :: () {
                         }
                         array_insert_at(*library.artist_names_sorted, artist.name, index);
                     }
-                    library_stats.number_of_artists += 1;
+                    library.stats.number_of_artists += 1;
                 }
 
                 album_ptr := table_find_pointer(artist_ptr.albums, song.album);
@@ -136,7 +137,7 @@ load_library :: () {
                         }
                         array_insert_at(*artist_ptr.album_names_sorted_by_date, album.name, index);
                     }
-                    library_stats.number_of_albums += 1;
+                    library.stats.number_of_albums += 1;
                 }
 
                 song.track    = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK, 0));
@@ -144,7 +145,7 @@ load_library :: () {
                 song.duration = MPD.song_get_duration(mpd_song);
                 array_add(*album_ptr.songs, song);
 
-                library_stats.number_of_songs += 1;
+                library.stats.number_of_songs += 1;
             } else {
                 // print("skipping: '%', '%', '%'\n", mpd_artist, to_string(mpd_album), to_string(mpd_title));
             }
