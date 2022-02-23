@@ -23,8 +23,6 @@ Album :: struct {
     date        : Date;
     songs       : [..] Song;
     art_texture : *Simp.Texture;
-    // TODO: remove this once we split loading thumbnails off of the main thread
-    tried_to_load_thumbnail := false;
 };
 
 Date :: struct {
