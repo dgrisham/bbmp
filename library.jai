@@ -18,11 +18,11 @@ Artist  :: struct {
 }
 
 Album :: struct {
-    name        : string;
-    artist_name : string;
-    date        : Date;
-    songs       : [..] Song;
-    art_texture : *Simp.Texture;
+    name              : string;
+    artist_name       : string;
+    date              : Date;
+    songs             : [..] Song;
+    thumbnail_texture : *Simp.Texture;
 };
 
 Date :: struct {

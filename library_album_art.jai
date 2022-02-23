@@ -146,7 +146,7 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                   case KEY_R;
                     album_index := library_album_art_cursor.position;
                     album := library_album_art.albums[album_index];
-                    album.art_texture = load_thumbnail_if_exists(album_index);
+                    album.thumbnail_texture = load_thumbnail_if_exists(album_index);
 
                   case .ENTER;
                     last_library_album_art_key_pressed = .ENTER;
@@ -217,13 +217,10 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                 entry: Entry;
                 entry.artist_name = album.artist_name;
                 entry.album_name  = album.name;
-                // TODO: thumbnail won't be in temporary storage, may not be freed correctly
-                // if !album.art_texture && !album.tried_to_load_thumbnail {
-                if !album.art_texture {
-                    album.art_texture = load_thumbnail_if_exists(album_index);
-                    // album.tried_to_load_thumbnail = true;
+                if !album.thumbnail_texture {
+                    album.thumbnail_texture = load_thumbnail_if_exists(album_index);
                 }
-                entry.texture = album.art_texture;
+                entry.texture  = album.thumbnail_texture;
                 entry.selected = album_index == library_album_art_cursor.position;
 
                 array_add(*entries_to_draw, entry);
