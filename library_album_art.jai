@@ -342,19 +342,20 @@ start_album_art_creation_thread_group :: () -> int {
     set_allocators(*pool);
 
     num_thumbnails_attempting_to_create := 0;
-    for album: library_album_art.albums {
-        thumbnail_filename := tprint("%-%x.bmp", get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
-        uri := album.songs[0].uri;
-        thumbnail_path := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
+    push_context thread_proc_context {
+        for album: library_album_art.albums {
+            thumbnail_filename := tprint("%-%x.bmp", get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
+            thumbnail_path := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
 
-        if !file_exists(thumbnail_path) {
-            push_context thread_proc_context {
+            if !file_exists(thumbnail_path) {
+                assert(album.songs.count > 0);
+
                 work := New(Thumbnail_Job_Info);
                 work.artist          = album.artist_name;
                 work.album           = album.name;
-                work.album_directory = path_strip_filename(uri);
-
+                work.album_directory = path_strip_filename(album.songs[0].uri);
                 add_work(*album_art_creation_thread_group, work, tprint("Work item for % - %", album.artist_name, album.name));
+
                 num_thumbnails_attempting_to_create += 1;
             }
         }
