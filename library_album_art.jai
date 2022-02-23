@@ -218,9 +218,10 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                 entry.artist_name = album.artist_name;
                 entry.album_name  = album.name;
                 // TODO: thumbnail won't be in temporary storage, may not be freed correctly
-                if !album.art_texture && !album.tried_to_load_thumbnail {
+                // if !album.art_texture && !album.tried_to_load_thumbnail {
+                if !album.art_texture {
                     album.art_texture = load_thumbnail_if_exists(album_index);
-                    album.tried_to_load_thumbnail = true;
+                    // album.tried_to_load_thumbnail = true;
                 }
                 entry.texture = album.art_texture;
                 entry.selected = album_index == library_album_art_cursor.position;
@@ -286,43 +287,126 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
     }
 }
 
-load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
+THUMBNAIL_WIDTH :: 200;
 
-    THUMBNAIL_WIDTH :: 200;
+#import "System";
+#import "Thread";
+#import "Pool";
 
-    create_album_art_thumbnail :: (uri: string, thumbnail_path: string) -> bool {
+album_art_creation_thread_group: Thread_Group;
 
-        // load the album art from MPD
-        album_art_data: [..] u8;
-        defer array_free(album_art_data);
-        if !load_album_art(uri, *album_art_data) {
-            log("Failed to load album art for song URI '%'", uri, flags=.ERROR);
-            return false;
+pool: Pool;
+
+Thumbnail_Job_Info :: struct {
+    artist          : string;
+    album           : string;
+    album_directory : string;
+    success         : bool;
+}
+
+start_album_art_creation_thread_group :: () -> int {
+
+    init_thread_group :: () {
+        num_cpus := get_number_of_processors();
+        #if (OS == .WINDOWS) || (OS == .LINUX) {
+            // This routine reports hyperthreads, so, divide by two, because of Intel marketing.
+            num_cpus /= 2;
         }
+        num_threads := max(num_cpus - 1, 1);
+        log("This machine reports % CPUs; starting % threads.\n", num_cpus, num_threads);
 
-        // load the raw data into a bitmap
-        bitmap: Simp.Bitmap;
-        defer Simp.deinit(*bitmap);
-        if !Simp.bitmap_load_from_memory(*bitmap, album_art_data) {
-            log("Failed to load album art into bitmap for song URI '%'", uri, flags=.ERROR);
-            return false;
-        }
+        init(*album_art_creation_thread_group, num_threads, thread_proc);
 
-        // resize to thumbnail size
-        resized_bitmap: Simp.Bitmap;
-        Simp.bitmap_resize(*bitmap, THUMBNAIL_WIDTH, cast(s32)(bitmap.height * cast(float64)THUMBNAIL_WIDTH / bitmap.width), *resized_bitmap);
-        defer Simp.deinit(*resized_bitmap);
-
-        // save the thumbnail
-        if !Simp.bitmap_save(*resized_bitmap, thumbnail_path) {
-            log("Failed to save album art thumbnail to '%'", thumbnail_path, flags=.ERROR);
-            return false;
-        }
-
-        log("Saved album art thumbnail to '%'", thumbnail_path);
-
-        return true;
+        album_art_creation_thread_group.name = "Create album art thumbnails";
+        album_art_creation_thread_group.logging = false;
     }
+
+    thread_proc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
+        thumbnail_info := cast(*Thumbnail_Job_Info) work;
+        if !create_album_art_thumbnail(thumbnail_info.artist, thumbnail_info.album, thumbnail_info.album_directory) {
+            log("Failed to create album art thumbnail for % - %", thumbnail_info.artist, thumbnail_info.album);
+            thumbnail_info.success = false;
+        } else {
+            thumbnail_info.success = true;
+        }
+        return .CONTINUE;
+    }
+
+    init_thread_group();
+    start(*album_art_creation_thread_group);
+
+    thread_proc_context: Context;
+    thread_proc_context.allocator.proc = pool_allocator_proc;
+    thread_proc_context.allocator.data = *pool;
+
+    set_allocators(*pool);
+
+    num_thumbnails_attempting_to_create := 0;
+    for album: library_album_art.albums {
+        thumbnail_filename := tprint("%-%x.bmp", get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
+        uri := album.songs[0].uri;
+        thumbnail_path := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
+
+        if !file_exists(thumbnail_path) {
+            push_context thread_proc_context {
+                work := New(Thumbnail_Job_Info);
+                work.artist          = album.artist_name;
+                work.album           = album.name;
+                work.album_directory = path_strip_filename(uri);
+
+                add_work(*album_art_creation_thread_group, work, tprint("Work item for % - %", album.artist_name, album.name));
+                num_thumbnails_attempting_to_create += 1;
+            }
+        }
+    }
+
+    return num_thumbnails_attempting_to_create;
+}
+
+MPD_LIBRARY_DIRECTORY :: "/home/grish/media/music/library";
+create_album_art_thumbnail :: (artist: string, album: string, album_directory: string) -> bool {
+
+    cover_path: string;
+    for cover_name: string.["cover.jpg", "cover.png"] {
+        // TODO: get library path from mpd and pass into this thread UPDATE: unless libmpdclient doesn't provide that??
+        path := tprint("%/%2%3", MPD_LIBRARY_DIRECTORY, album_directory, cover_name);
+        print("path: %\n", path);
+        if file_exists(path) {
+            cover_path = path;
+        }
+    }
+    if cover_path == "" return false;
+
+    thumbnail_filename := tprint("%-%x.bmp", get_hash(tprint("%-%", artist, album)), THUMBNAIL_WIDTH);
+    thumbnail_path := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
+
+    log("Attempting to load cover at path %\n", cover_path);
+
+    // load the raw data into a bitmap
+    bitmap: Simp.Bitmap;
+    defer Simp.deinit(*bitmap);
+    if !Simp.bitmap_load(*bitmap, cover_path) {
+        log("Failed to load album art file %", cover_path, flags=.ERROR);
+        return false;
+    }
+
+    // resize to thumbnail size
+    resized_bitmap: Simp.Bitmap;
+    Simp.bitmap_resize(*bitmap, THUMBNAIL_WIDTH, cast(s32)(bitmap.height * cast(float64)THUMBNAIL_WIDTH / bitmap.width), *resized_bitmap);
+    defer Simp.deinit(*resized_bitmap);
+
+    // save the thumbnail
+    if !Simp.bitmap_save(*resized_bitmap, thumbnail_path) {
+        log("Failed to save album art thumbnail to '%'", thumbnail_path, flags=.ERROR);
+        return false;
+    }
+
+    log("Saved album art thumbnail to '%'", thumbnail_path);
+
+    return true;
+}
+
+load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
 
     album := library_album_art.albums[album_index];
 
@@ -331,11 +415,8 @@ load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
     thumbnail_path := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
 
     if !file_exists(thumbnail_path) {
-        log("Thumbnail not found for % - %, attempting to create", album.artist_name, album.name);
-        if !create_album_art_thumbnail(uri, thumbnail_path) { // try to create thumbnail
-            log("Failed to create thumbnail for % - %", album.artist_name, album.name, flags=.ERROR);
-            return null;
-        }
+        // log("Thumbnail not found for % - %", album.artist_name, album.name);
+        return null;
     }
 
     texture := New(Simp.Texture);
@@ -348,7 +429,7 @@ load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
 }
 
 BUFFER_MAX :: 8192;
-load_album_art :: (uri: string, data: *[..] u8) -> success: bool {
+load_album_art :: (mpd_connection: *MPD.connection, uri: string, data: *[..] u8) -> success: bool {
     assert(data.count == 0);
 
     buffer: [BUFFER_MAX] u8;

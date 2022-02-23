@@ -218,6 +218,7 @@ main :: () {
     load_library();
     load_queue();
     load_library_album_art();
+    remaining_thumbnail_jobs := start_album_art_creation_thread_group();
 
     library_init_repeatable_keys();
     queue_init_repeatable_keys();
@@ -243,6 +244,27 @@ main :: () {
             update_status();
         }
         frame_start := get_current_file_time();
+
+        // @Cleanup This lives outside of the library_album_art_event_loop() function so that we
+        // can clean up these threads regardless of whether the user switches to that screen.
+        if remaining_thumbnail_jobs > 0 {
+            results := get_completed_work(*album_art_creation_thread_group);
+            if results.count > 0 {
+                successes, failures := 0;
+                for results {
+                    job_info := cast(*Thumbnail_Job_Info) it;
+                    if job_info.success successes += 1;
+                    else                failures  += 1;
+                }
+                remaining_thumbnail_jobs -= results.count;
+                log("thumbnail jobs finished: % successes, % failures, % remaining\n", successes, failures, remaining_thumbnail_jobs);
+                if remaining_thumbnail_jobs == 0 {
+                    log("No more remaining thumbnail jobs, shutting down thread group");
+                    shutdown(*album_art_creation_thread_group);
+                }
+            }
+        }
+
 
         // if !idle MPD.send_idle(mpd_connection);
         // handle_errors("Putting MPD into idle mode");
