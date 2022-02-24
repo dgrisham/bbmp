@@ -295,10 +295,9 @@ album_art_creation_thread_group: Thread_Group;
 pool: Pool;
 
 Thumbnail_Job_Info :: struct {
-    artist          : string;
-    album           : string;
-    album_directory : string;
-    success         : bool;
+    cover_path     : string;
+    thumbnail_path : string;
+    success        : bool;
 }
 
 start_album_art_creation_thread_group :: () -> int {
@@ -320,7 +319,7 @@ start_album_art_creation_thread_group :: () -> int {
 
     thread_proc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
         thumbnail_info := cast(*Thumbnail_Job_Info) work;
-        if !create_album_art_thumbnail(thumbnail_info.artist, thumbnail_info.album, thumbnail_info.album_directory) {
+        if !create_album_art_thumbnail(thumbnail_info.cover_path, thumbnail_info.thumbnail_path) {
             log("Failed to create album art thumbnail for % - %", thumbnail_info.artist, thumbnail_info.album);
             thumbnail_info.success = false;
         } else {
@@ -342,41 +341,38 @@ start_album_art_creation_thread_group :: () -> int {
     push_context thread_proc_context {
         for album: library_album_art.albums {
             thumbnail_filename := tprint("%-%x.bmp", get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
-            thumbnail_path := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
+            thumbnail_path     := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
 
-            if !file_exists(thumbnail_path) {
-                assert(album.songs.count > 0);
+            if !file_exists(thumbnail_path) continue;
 
-                work := New(Thumbnail_Job_Info);
-                work.artist          = album.artist_name;
-                work.album           = album.name;
-                work.album_directory = path_strip_filename(album.songs[0].uri);
-                add_work(*album_art_creation_thread_group, work, tprint("Work item for % - %", album.artist_name, album.name));
+            assert(album.songs.count > 0);
 
-                num_thumbnails_attempting_to_create += 1;
+            cover_path: string;
+            for cover_name: string.["cover.jpg", "cover.png"] {
+                // TODO: get library path from mpd and pass into this thread UPDATE: unless libmpdclient doesn't provide that??
+                path := tprint("%/%2%3", MPD_LIBRARY_DIRECTORY, album_directory, cover_name);
+                if file_exists(path) {
+                    cover_path = path;
+                    break;
+                }
             }
+            if cover_path == "" continue;
+
+            work := New(Thumbnail_Job_Info);
+            work.cover_path     = sprint("%", cover_path);
+            work.thumbnail_path = sprint("%", thumbnail_path);
+            add_work(*album_art_creation_thread_group, work, tprint("Work item for % - %", album.artist_name, album.name));
+
+            num_thumbnails_attempting_to_create += 1;
         }
     }
 
     return num_thumbnails_attempting_to_create;
 }
 
-MPD_LIBRARY_DIRECTORY :: "/home/grish/media/music/library";
-create_album_art_thumbnail :: (artist: string, album: string, album_directory: string) -> bool {
-
-    cover_path: string;
-    for cover_name: string.["cover.jpg", "cover.png"] {
-        // TODO: get library path from mpd and pass into this thread UPDATE: unless libmpdclient doesn't provide that??
-        path := tprint("%/%2%3", MPD_LIBRARY_DIRECTORY, album_directory, cover_name);
-        print("path: %\n", path);
-        if file_exists(path) {
-            cover_path = path;
-        }
-    }
-    if cover_path == "" return false;
-
-    thumbnail_filename := tprint("%-%x.bmp", get_hash(tprint("%-%", artist, album)), THUMBNAIL_WIDTH);
-    thumbnail_path := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
+// MPD_LIBRARY_DIRECTORY :: "/home/grish/media/music/library";
+MPD_LIBRARY_DIRECTORY :: "/home/josie/music";
+create_album_art_thumbnail :: (cover_path: string, thumbnail_path: string) -> bool {
 
     log("Attempting to load cover at path %\n", cover_path);
 
