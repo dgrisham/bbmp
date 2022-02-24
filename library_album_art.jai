@@ -203,12 +203,14 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
             max_entries_to_draw := rows * columns;
             array_reserve(*entries_to_draw, max_entries_to_draw);
 
+            album_index: s64 = 0; // index of first album to show
+
             index_of_first_album_in_row := library_album_art_cursor.position / columns * columns;
-            album_index: s64 = 0;
-            if index_of_first_album_in_row > library_album_art.albums.count - 3 * columns {
-                album_index = library_album_art.albums.count - 3 * columns;
-            } else if index_of_first_album_in_row > columns {
-                album_index = index_of_first_album_in_row - columns;
+            index_of_first_album_on_last_page := (library_album_art.albums.count - (rows - 1) * columns) / columns * columns;
+            if index_of_first_album_in_row > index_of_first_album_on_last_page { // we're on the last page
+                album_index = index_of_first_album_on_last_page;
+            } else if index_of_first_album_in_row > columns { // we're on a column after the first but before the last page
+                album_index = index_of_first_album_in_row - ((rows - 1) / 2) * columns;
             }
 
             while entries_to_draw.count < max_entries_to_draw {
