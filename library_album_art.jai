@@ -302,14 +302,14 @@ Thumbnail_Job_Info :: struct {
 
 start_album_art_creation_thread_group :: () -> int {
 
-    init_thread_group :: () {
+    init_thread_group :: (num_jobs: s32) {
         num_cpus := get_number_of_processors();
         #if (OS == .WINDOWS) || (OS == .LINUX) {
             // This routine reports hyperthreads, so, divide by two, because of Intel marketing.
             num_cpus /= 2;
         }
-        num_threads := max(num_cpus - 1, 1);
-        log("This machine reports % CPUs; starting % threads.\n", num_cpus, num_threads);
+        num_threads := min(num_jobs, max(num_cpus - 1, 1));
+        log("This machine reports % CPUs for % job(s); starting % threads.\n", num_cpus, num_jobs, num_threads);
 
         init(*album_art_creation_thread_group, num_threads, thread_proc);
 
@@ -320,7 +320,7 @@ start_album_art_creation_thread_group :: () -> int {
     thread_proc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
         thumbnail_info := cast(*Thumbnail_Job_Info) work;
         if !create_album_art_thumbnail(thumbnail_info.cover_path, thumbnail_info.thumbnail_path) {
-            log("Failed to create album art thumbnail for % - %", thumbnail_info.artist, thumbnail_info.album);
+            log("Failed to convert cover % to thumbnail at %", thumbnail_info.cover_path, thumbnail_info.thumbnail_path);
             thumbnail_info.success = false;
         } else {
             thumbnail_info.success = true;
@@ -328,25 +328,24 @@ start_album_art_creation_thread_group :: () -> int {
         return .CONTINUE;
     }
 
-    init_thread_group();
-    start(*album_art_creation_thread_group);
-
     thread_proc_context: Context;
     thread_proc_context.allocator.proc = pool_allocator_proc;
     thread_proc_context.allocator.data = *pool;
-
     set_allocators(*pool);
+
+    work_list: [..] *Thumbnail_Job_Info;
 
     num_thumbnails_attempting_to_create := 0;
     push_context thread_proc_context {
-        for album: library_album_art.albums {
+        for album: library_album_art.albums { // find all albums that don't have a thumbnail but do have a cover we can use to create one
             thumbnail_filename := tprint("%-%x.bmp", get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
             thumbnail_path     := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
 
-            if !file_exists(thumbnail_path) continue;
+            if file_exists(thumbnail_path) continue;
 
             assert(album.songs.count > 0);
 
+            album_directory := path_strip_filename(album.songs[0].uri);
             cover_path: string;
             for cover_name: string.["cover.jpg", "cover.png"] {
                 // TODO: get library path from mpd and pass into this thread UPDATE: unless libmpdclient doesn't provide that??
@@ -361,17 +360,24 @@ start_album_art_creation_thread_group :: () -> int {
             work := New(Thumbnail_Job_Info);
             work.cover_path     = sprint("%", cover_path);
             work.thumbnail_path = sprint("%", thumbnail_path);
-            add_work(*album_art_creation_thread_group, work, tprint("Work item for % - %", album.artist_name, album.name));
-
-            num_thumbnails_attempting_to_create += 1;
+            array_add(*work_list, work);
         }
     }
 
-    return num_thumbnails_attempting_to_create;
+    if work_list.count > 0 { // only start threads if we have any work to do
+        init_thread_group(cast(s32)work_list.count);
+        start(*album_art_creation_thread_group);
+
+        for work_list {
+            add_work(*album_art_creation_thread_group, it, tprint("Work item to create thumbnail from cover at %", it.cover_path));
+        }
+    }
+    array_free(work_list);
+
+    return work_list.count;
 }
 
-// MPD_LIBRARY_DIRECTORY :: "/home/grish/media/music/library";
-MPD_LIBRARY_DIRECTORY :: "/home/josie/music";
+MPD_LIBRARY_DIRECTORY :: "/home/grish/media/music/library";
 create_album_art_thumbnail :: (cover_path: string, thumbnail_path: string) -> bool {
 
     log("Attempting to load cover at path %\n", cover_path);

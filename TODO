@@ -1,4 +1,5 @@
 - [ ] josiah resizing a lot resulted in core dump
+- [ ] scrolling one row above the last page of album covers fucks up
 - [ ] some album covers can be saved as thumbnails at 300x but not 200x
     -   calculation issue on the height? try printing stb error
 - [ ] ask about proper way of getting font width (font.em_width vs. my font.w_width hack)
