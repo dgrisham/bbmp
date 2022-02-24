@@ -213,12 +213,30 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                 album_index = index_of_first_album_in_row - ((rows - 1) / 2) * columns;
             }
 
+            max_characters_in_column := texture_width / font.w_width;
             while entries_to_draw.count < max_entries_to_draw {
                 album := library_album_art.albums[album_index];
 
+                ellipsis :: u8.[226, 128, 166];
+
                 entry: Entry;
-                entry.artist_name = album.artist_name;
-                entry.album_name  = album.name;
+
+                if album.artist_name.count > max_characters_in_column {
+                    entry.artist_name = alloc_string(max_characters_in_column + 2, __temporary_allocator);
+                    memcpy(entry.artist_name.data, album.artist_name.data, max_characters_in_column - 1);
+                    memcpy(entry.artist_name.data + max_characters_in_column - 1, ellipsis.data, ellipsis.count);
+                } else {
+                    entry.artist_name = copy_temporary_string(slice(album.artist_name, 0, max_characters_in_column));
+                }
+
+                if album.name.count > max_characters_in_column {
+                    entry.album_name = alloc_string(max_characters_in_column + 2, __temporary_allocator);
+                    memcpy(entry.album_name.data, album.name.data, max_characters_in_column - 1);
+                    memcpy(entry.album_name.data + max_characters_in_column - 1, ellipsis.data, ellipsis.count);
+                } else {
+                    entry.album_name = copy_temporary_string(slice(album.name, 0, max_characters_in_column));
+                }
+
                 if !album.thumbnail_texture {
                     album.thumbnail_texture = load_thumbnail_if_exists(album_index);
                 }
@@ -235,17 +253,47 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
         }
 
         {
+            TEXT_PADDING_Y :: 5;
+            SELECTED_COVER_HIGHLIGHT_WIDTH :: 8;
             HORIZONTAL_PADDING := (total_width  - columns * texture_width) / (columns - 1);
-            VERTICAL_PADDING   := (total_height - rows    * texture_height) / (rows - 1);
+            VERTICAL_PADDING   := (total_height - rows * (texture_height + 2 * (font.character_height + TEXT_PADDING_Y + SELECTED_COVER_HIGHLIGHT_WIDTH))) / (rows - 1);
 
-            x := cast(float)X_MARGIN_SIZE;
-            y := cast(float)header_bottom - Y_PADDING_BELOW_HEADER;
+            x := X_MARGIN_SIZE;
+            y := header_bottom - Y_PADDING_BELOW_HEADER;
 
             row, column := 0;
             for entry: entries_to_draw {
 
+                { // album name
+                    text_width := Simp.prepare_text(font, entry.album_name);
+                    text_x := x + texture_width / 2 - text_width / 2;
+                    text_y := y - texture_height - SELECTED_COVER_HIGHLIGHT_WIDTH - (TEXT_PADDING_Y + font.character_height);
+
+                    if entry.selected {
+                        rectangle_width := texture_width;
+                        Simp.set_shader_for_color();
+                        Simp.immediate_quad(cast(float)text_x - 10, cast(float)text_y - 5, cast(float)text_x + text_width + 10, cast(float)text_y + font.character_height, rgba(1,1,1,1));
+                        Simp.draw_prepared_text(font, text_x, text_y, rgba(0,0,0,1));
+                    } else {
+                        Simp.draw_prepared_text(font, text_x, text_y, rgba(1,1,1,1));
+                    }
+                }
+                { // artist name
+                    text_width := Simp.prepare_text(font, entry.artist_name);
+                    text_x := x + texture_width / 2 - text_width / 2;
+                    text_y := y - texture_height - SELECTED_COVER_HIGHLIGHT_WIDTH - 2 * (TEXT_PADDING_Y + font.character_height);
+
+                    if entry.selected {
+                        rectangle_width := texture_width;
+                        Simp.set_shader_for_color();
+                        Simp.immediate_quad(cast(float)text_x - 10, cast(float)text_y - 5, cast(float)text_x + text_width + 10, cast(float)text_y + font.character_height, rgba(1,1,1,1));
+                        Simp.draw_prepared_text(font, text_x, text_y, rgba(0,0,0,1));
+                    } else {
+                        Simp.draw_prepared_text(font, text_x, text_y, rgba(1,1,1,1));
+                    }
+                }
+
                 if entry.selected {
-                    SELECTED_COVER_HIGHLIGHT_WIDTH :: 8;
                     for i: 0..SELECTED_COVER_HIGHLIGHT_WIDTH {
                         c := 1.0 - i / cast(float)SELECTED_COVER_HIGHLIGHT_WIDTH;
                         width := SELECTED_COVER_HIGHLIGHT_WIDTH - i + 4;
@@ -254,17 +302,24 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                             cast(float)x - width,
                             cast(float)y + width,
                             cast(float)x + texture_width + width,
-                            cast(float)y - texture_width - width,
+                            cast(float)y - texture_height - width,
                             rgba(c,c,c,1)
                         );
                     }
+                    Simp.set_shader_for_color();
                 }
 
                 if entry.texture {
                     Simp.set_shader_for_images(entry.texture);
                     Simp.immediate_begin();
-                    Simp.immediate_quad(xy(x, y - texture_height), xy(x + texture_width, y - texture_height), xy(x + texture_width, y), xy(x, y));
+                    Simp.immediate_quad(
+                        xy(cast(float)x, cast(float)y - texture_height),
+                        xy(cast(float)x + texture_width, cast(float)y - texture_height),
+                        xy(cast(float)x + texture_width, cast(float)y),
+                        xy(cast(float)x, cast(float)y)
+                    );
                     Simp.immediate_flush();
+
                 } else {
                     Simp.set_shader_for_color();
                     Simp.immediate_quad(cast(float)x, cast(float)y, cast(float)x + texture_width, cast(float)y - texture_width, rgba(0,0,0,1));
@@ -274,8 +329,8 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                 if column == columns {
                     row += 1;
                     column = 0;
-                    x = cast(float)X_MARGIN_SIZE;
-                    y -= texture_width;
+                    x = X_MARGIN_SIZE;
+                    y -= texture_height + SELECTED_COVER_HIGHLIGHT_WIDTH + 2 * (TEXT_PADDING_Y + font.character_height);
                     y -= VERTICAL_PADDING;
                 } else {
                     x += texture_width;
