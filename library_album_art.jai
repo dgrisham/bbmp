@@ -206,7 +206,7 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
             album_index: s64 = 0; // index of first album to show
 
             index_of_first_album_in_row := library_album_art_cursor.position / columns * columns;
-            index_of_first_album_on_last_page := (library_album_art.albums.count - (rows - 1) * columns) / columns * columns;
+            index_of_first_album_on_last_page := (library_album_art.albums.count - 1 - (rows - 1) * columns) / columns * columns;
             if index_of_first_album_in_row > index_of_first_album_on_last_page { // we're on the last page
                 album_index = index_of_first_album_on_last_page;
             } else if index_of_first_album_in_row > columns { // we're on a column after the first but before the last page
