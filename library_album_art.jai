@@ -302,6 +302,8 @@ Thumbnail_Job_Info :: struct {
     success        : bool;
 }
 
+THUMBNAIL_DIRECTORY :: "/home/grish/src/jai/jai-mpd/.thumbnails";
+
 start_album_art_creation_thread_group :: () -> int {
 
     init_thread_group :: (num_jobs: s32) {
@@ -340,8 +342,7 @@ start_album_art_creation_thread_group :: () -> int {
     num_thumbnails_attempting_to_create := 0;
     push_context thread_proc_context {
         for album: library_album_art.albums { // find all albums that don't have a thumbnail but do have a cover we can use to create one
-            thumbnail_filename := tprint("%-%x.bmp", get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
-            thumbnail_path     := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
+            thumbnail_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
 
             if file_exists(thumbnail_path) continue;
 
@@ -412,10 +413,7 @@ load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
 
     album := library_album_art.albums[album_index];
 
-    thumbnail_filename := tprint("%-%x.bmp", get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
-    uri := album.songs[0].uri;
-    thumbnail_path := tprint("/home/grish/src/jai/jai-mpd/.thumbnails/%", thumbnail_filename);
-
+    thumbnail_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
     if !file_exists(thumbnail_path) {
         // log("Thumbnail not found for % - %", album.artist_name, album.name);
         return null;
