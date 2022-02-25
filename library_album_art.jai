@@ -203,14 +203,17 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
             max_entries_to_draw := rows * columns;
             array_reserve(*entries_to_draw, max_entries_to_draw);
 
-            album_index: s64 = 0; // index of first album to show
+            album_index: s64 = 0;
+            { // calculate index of first album to display
+                index_of_first_album_in_current_row := library_album_art_cursor.position / columns * columns;
+                index_of_first_album_on_last_page   := (library_album_art.albums.count - 1 - (rows - 1) * columns) / columns * columns;
+                number_of_albums_in_half_page       := ((rows - 1) / 2) * columns;
 
-            index_of_first_album_in_row := library_album_art_cursor.position / columns * columns;
-            index_of_first_album_on_last_page := (library_album_art.albums.count - 1 - (rows - 1) * columns) / columns * columns;
-            if index_of_first_album_in_row > index_of_first_album_on_last_page { // we're on the last page
-                album_index = index_of_first_album_on_last_page;
-            } else if index_of_first_album_in_row > columns { // we're on a column after the first but before the last page
-                album_index = index_of_first_album_in_row - ((rows - 1) / 2) * columns;
+                if index_of_first_album_in_current_row > index_of_first_album_on_last_page { // we're on the last page
+                    album_index = index_of_first_album_on_last_page;
+                } else if index_of_first_album_in_current_row > number_of_albums_in_half_page { // we're on a column after the first but before the last page
+                    album_index = index_of_first_album_in_current_row - number_of_albums_in_half_page;
+                }
             }
 
             max_characters_in_column := texture_width / font.w_width;
