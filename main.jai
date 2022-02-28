@@ -54,6 +54,7 @@ KEY_D :: 68;
 KEY_F :: 70;
 KEY_G :: 71;
 KEY_H :: 72;
+KEY_I :: 73;
 KEY_J :: 74;
 KEY_K :: 75;
 KEY_L :: 76;

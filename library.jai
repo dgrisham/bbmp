@@ -22,7 +22,10 @@ Album :: struct {
     artist_name       : string;
     date              : Date;
     songs             : [..] Song;
+    directory         : string;
+    cover_path        : string;
     thumbnail_texture : *Simp.Texture;
+    art_texture       : *Simp.Texture;
 };
 
 Date :: struct {
@@ -96,9 +99,12 @@ load_library :: () {
             mpd_date     := MPD.song_get_tag(mpd_song, .DATE        , 0);
             if mpd_artist && mpd_album && mpd_title {
                 song: Song;
-                song.artist = copy_from_c_string(mpd_artist);
-                song.album  = copy_from_c_string(mpd_album);
-                song.name   = copy_from_c_string(mpd_title);
+                song.artist   = copy_from_c_string(mpd_artist);
+                song.album    = copy_from_c_string(mpd_album);
+                song.name     = copy_from_c_string(mpd_title);
+                song.track    = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK, 0));
+                song.uri      = copy_from_c_string(MPD.song_get_uri(mpd_song));
+                song.duration = MPD.song_get_duration(mpd_song);
 
                 artist_ptr := table_find_pointer(library.artists, song.artist);
                 if !artist_ptr {
@@ -122,6 +128,16 @@ load_library :: () {
                     album.name        = song.album;
                     album.artist_name = song.artist;
                     album.date        = parse_date(to_string(mpd_date));
+                    album.directory   = path_strip_filename(song.uri);
+
+                    for cover_name: string.["cover.jpg", "cover.png"] {
+                        // TODO: get library path from mpd and pass into this thread UPDATE: unless libmpdclient doesn't provide that??
+                        path := tprint("%/%2%3", MPD_LIBRARY_DIRECTORY, album.directory, cover_name);
+                        if file_exists(path) {
+                            album.cover_path = copy_string(path);
+                            break;
+                        }
+                    }
 
                     album_ptr = table_add(*artist_ptr.albums, song.album, album);
 
@@ -138,9 +154,6 @@ load_library :: () {
                     library.stats.number_of_albums += 1;
                 }
 
-                song.track    = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK, 0));
-                song.uri      = copy_from_c_string(MPD.song_get_uri(mpd_song));
-                song.duration = MPD.song_get_duration(mpd_song);
                 array_add(*album_ptr.songs, song);
 
                 library.stats.number_of_songs += 1;
@@ -361,12 +374,8 @@ library_event_loop :: (frame: u64, header_bottom: int) {
                     table_set(*library_key_pressed_on_frame, .ENTER, frame);
                     add_selection_to_queue_and_play();
                     break it;
-
-                  // case;
-                  //   print("key_code: %\n", it.key_code);
                 }
             }
-
         }
     }
 

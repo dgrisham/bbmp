@@ -250,9 +250,6 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
                     last_queue_key_pressed = .ENTER;
                     queue_play_selected_song();
                     break it;
-
-                  // case;
-                    // print("key_code: %\n", it.key_code);
                 }
             }
 

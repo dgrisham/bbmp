@@ -41,18 +41,27 @@ load_library_album_art :: () {
     }
 }
 
+#load "album.jai";
+
+SHOW_CURRENT_ALBUM := false;
+
 library_album_art_event_loop :: (frame: u64, header_bottom: int) {
+
+    if SHOW_CURRENT_ALBUM {
+        album_event_loop(library_album_art.albums[library_album_art_cursor.position]);
+        return;
+    }
 
     Y_PADDING_BELOW_HEADER := Y_MARGIN_SIZE;
 
-    texture_width  : s32 = 200;
-    texture_height : s32 = texture_width;
+    thumbnail_slot_width  : s32 = 200;
+    thumbnail_slot_height : s32 = thumbnail_slot_width;
 
     total_height := header_bottom - Y_PADDING_BELOW_HEADER - 2 * Y_MARGIN_SIZE;
-    rows := total_height / texture_height - 1;
+    rows := total_height / thumbnail_slot_height - 1;
 
     total_width := cast(s32)display_width();
-    columns := total_width / texture_width - 1;
+    columns := total_width / thumbnail_slot_width - 1;
 
     library_album_art_move_cursor_down :: () #expand {
         `library_album_art_cursor.position += ifx `library_album_art_cursor.position > (library_album_art.albums.count - columns - 1) then 0 else columns;
@@ -168,8 +177,10 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                     add_album_to_queue(album.artist_name, album.name);
                     break it;
 
-                  // case;
-                    // print("key_code: %\n", it.key_code);
+                  case KEY_I;
+                    SHOW_CURRENT_ALBUM = true;
+                    break it;
+
                 }
             }
 
@@ -216,7 +227,7 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                 }
             }
 
-            max_characters_in_column := texture_width / font.w_width;
+            max_characters_in_column := thumbnail_slot_width / font.w_width;
             while entries_to_draw.count < max_entries_to_draw {
                 album := library_album_art.albums[album_index];
 
@@ -258,8 +269,8 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
         {
             TEXT_PADDING_Y :: 5;
             SELECTED_COVER_HIGHLIGHT_WIDTH :: 8;
-            HORIZONTAL_PADDING := (total_width  - columns * texture_width) / (columns - 1);
-            VERTICAL_PADDING   := (total_height - rows * (texture_height + 2 * (font.character_height + TEXT_PADDING_Y + SELECTED_COVER_HIGHLIGHT_WIDTH))) / (rows - 1);
+            HORIZONTAL_PADDING := (total_width  - columns * thumbnail_slot_width) / (columns - 1);
+            VERTICAL_PADDING   := (total_height - rows * (thumbnail_slot_height + 2 * (font.character_height + TEXT_PADDING_Y + SELECTED_COVER_HIGHLIGHT_WIDTH))) / (rows - 1);
 
             x := X_MARGIN_SIZE;
             y := header_bottom - Y_PADDING_BELOW_HEADER;
@@ -269,11 +280,11 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
 
                 { // album name
                     text_width := Simp.prepare_text(font, entry.album_name);
-                    text_x := x + texture_width / 2 - text_width / 2;
-                    text_y := y - texture_height - SELECTED_COVER_HIGHLIGHT_WIDTH - (TEXT_PADDING_Y + font.character_height);
+                    text_x := x + thumbnail_slot_width / 2 - text_width / 2;
+                    text_y := y - thumbnail_slot_height - SELECTED_COVER_HIGHLIGHT_WIDTH - (TEXT_PADDING_Y + font.character_height);
 
                     if entry.selected {
-                        rectangle_width := texture_width;
+                        rectangle_width := thumbnail_slot_width;
                         Simp.set_shader_for_color();
                         Simp.immediate_quad(cast(float)text_x - 10, cast(float)text_y - 5, cast(float)text_x + text_width + 10, cast(float)text_y + font.character_height, rgba(1,1,1,1));
                         Simp.draw_prepared_text(font, text_x, text_y, rgba(0,0,0,1));
@@ -283,11 +294,11 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                 }
                 { // artist name
                     text_width := Simp.prepare_text(font, entry.artist_name);
-                    text_x := x + texture_width / 2 - text_width / 2;
-                    text_y := y - texture_height - SELECTED_COVER_HIGHLIGHT_WIDTH - 2 * (TEXT_PADDING_Y + font.character_height);
+                    text_x := x + thumbnail_slot_width / 2 - text_width / 2;
+                    text_y := y - thumbnail_slot_height - SELECTED_COVER_HIGHLIGHT_WIDTH - 2 * (TEXT_PADDING_Y + font.character_height);
 
                     if entry.selected {
-                        rectangle_width := texture_width;
+                        rectangle_width := thumbnail_slot_width;
                         Simp.set_shader_for_color();
                         Simp.immediate_quad(cast(float)text_x - 10, cast(float)text_y - 5, cast(float)text_x + text_width + 10, cast(float)text_y + font.character_height, rgba(1,1,1,1));
                         Simp.draw_prepared_text(font, text_x, text_y, rgba(0,0,0,1));
@@ -304,8 +315,8 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                         Simp.immediate_quad(
                             cast(float)x - width,
                             cast(float)y + width,
-                            cast(float)x + texture_width + width,
-                            cast(float)y - texture_height - width,
+                            cast(float)x + thumbnail_slot_width + width,
+                            cast(float)y - thumbnail_slot_height - width,
                             rgba(c,c,c,1)
                         );
                     }
@@ -315,17 +326,20 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                 if entry.texture {
                     Simp.set_shader_for_images(entry.texture);
                     Simp.immediate_begin();
+                    // scale the display height of the cover
+                    cover_display_height := min(cast(float)thumbnail_slot_height, cast(float)thumbnail_slot_width * cast(float)entry.texture.height/entry.texture.width);
+                    height_difference := thumbnail_slot_height - cover_display_height;
                     Simp.immediate_quad(
-                        xy(cast(float)x, cast(float)y - texture_height),
-                        xy(cast(float)x + texture_width, cast(float)y - texture_height),
-                        xy(cast(float)x + texture_width, cast(float)y),
-                        xy(cast(float)x, cast(float)y)
+                        xy(cast(float)x, cast(float)y - thumbnail_slot_height + height_difference / 2),
+                        xy(cast(float)x + thumbnail_slot_width, cast(float)y - thumbnail_slot_height + height_difference / 2),
+                        xy(cast(float)x + thumbnail_slot_width, cast(float)y - height_difference / 2),
+                        xy(cast(float)x, cast(float)y - height_difference / 2)
                     );
                     Simp.immediate_flush();
 
                 } else {
                     Simp.set_shader_for_color();
-                    Simp.immediate_quad(cast(float)x, cast(float)y, cast(float)x + texture_width, cast(float)y - texture_width, rgba(0,0,0,1));
+                    Simp.immediate_quad(cast(float)x, cast(float)y, cast(float)x + thumbnail_slot_width, cast(float)y - thumbnail_slot_width, rgba(0,0,0,1));
                 }
 
                 column += 1;
@@ -333,10 +347,10 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
                     row += 1;
                     column = 0;
                     x = X_MARGIN_SIZE;
-                    y -= texture_height + SELECTED_COVER_HIGHLIGHT_WIDTH + 2 * (TEXT_PADDING_Y + font.character_height);
+                    y -= thumbnail_slot_height + SELECTED_COVER_HIGHLIGHT_WIDTH + 2 * (TEXT_PADDING_Y + font.character_height);
                     y -= VERTICAL_PADDING;
                 } else {
-                    x += texture_width;
+                    x += thumbnail_slot_width;
                     x += HORIZONTAL_PADDING;
                 }
             }
@@ -406,20 +420,10 @@ start_album_art_creation_thread_group :: () -> int {
 
             assert(album.songs.count > 0);
 
-            album_directory := path_strip_filename(album.songs[0].uri);
-            cover_path: string;
-            for cover_name: string.["cover.jpg", "cover.png"] {
-                // TODO: get library path from mpd and pass into this thread UPDATE: unless libmpdclient doesn't provide that??
-                path := tprint("%/%2%3", MPD_LIBRARY_DIRECTORY, album_directory, cover_name);
-                if file_exists(path) {
-                    cover_path = path;
-                    break;
-                }
-            }
-            if cover_path == "" continue;
+            if album.cover_path == "" continue;
 
             work := New(Thumbnail_Job_Info);
-            work.cover_path     = sprint("%", cover_path);
+            work.cover_path     = sprint("%", album.cover_path);
             work.thumbnail_path = sprint("%", thumbnail_path);
             array_add(*work_list, work);
         }
@@ -484,22 +488,4 @@ load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
     }
 
     return texture;
-}
-
-BUFFER_MAX :: 8192;
-load_album_art :: (mpd_connection: *MPD.connection, uri: string, data: *[..] u8) -> success: bool {
-    assert(data.count == 0);
-
-    buffer: [BUFFER_MAX] u8;
-    while true {
-        bytes_read := MPD.run_albumart(mpd_connection, uri.data, cast(u32)data.count, buffer.data, BUFFER_MAX);
-        if bytes_read < 0 {
-            handle_errors(tprint("Retrieving album art for song uri: %", uri));
-            return false;
-        }
-        array_add(data, ..buffer);
-        if bytes_read < BUFFER_MAX return true;
-    }
-
-    return true;
 }
