@@ -14,7 +14,7 @@ album_init_repeatable_keys :: () {
     table_set(*album_key_pressed_on_frame, .ENTER,   0);
 }
 
-album_event_loop :: (album: *Album) {
+album_process_input :: (frame: u64, album: *Album) {
 
     if album.art_texture == null {
         if album.cover_path != "" {
@@ -59,6 +59,9 @@ album_event_loop :: (album: *Album) {
 
                   case KEY_I;
                     SHOW_CURRENT_ALBUM = false;
+                    free(album.art_texture);
+                    album.art_texture = null;
+                    album_cursor.position = 0;
                     break it;
 
                   case KEY_J;
@@ -74,16 +77,35 @@ album_event_loop :: (album: *Album) {
 
                   case KEY_D;
                     if it.ctrl_pressed {
-                        table_set(*album_key_pressed_on_frame, .D, frame);
-                        last_album_key_pressed = .D;
+                        table_set(*album_key_pressed_on_frame, .CTRL_D, frame);
+                        last_album_key_pressed = .CTRL_D;
                         album_move_cursor_one_page_down();
                     }
                     break it;
                   case KEY_U;
                     if it.ctrl_pressed {
-                        table_set(*album_key_pressed_on_frame, .U, frame);
-                        last_album_key_pressed = .U;
+                        table_set(*album_key_pressed_on_frame, .CTRL_U, frame);
+                        last_album_key_pressed = .CTRL_U;
                         album_move_cursor_one_page_up();
+                    }
+                    break it;
+
+                  case KEY_O;
+                    handle_mpd_idle_events();
+
+                    mpd_current_song := MPD.run_current_song(mpd_connection);
+                    handle_errors("Getting current song");
+                    if !mpd_current_song break;
+                    uri := to_string(MPD.song_get_uri(mpd_current_song));
+                    for album, album_index: library_album_art.albums {
+                        for song, song_index: album.songs {
+                            if song.uri == uri {
+                                // @Cleanup This is the first time we're updating cursor for another 'view'.
+                                library_album_art_cursor.position = album_index;
+                                album_cursor.position = song_index;
+                                break;
+                            }
+                        }
                     }
                     break it;
 
@@ -115,11 +137,9 @@ album_event_loop :: (album: *Album) {
     } else if album_cursor.position > album.songs.count - 1 {
         album_cursor.position = album.songs.count - 1;
     }
-
-    draw_one_frame(album);
 }
 
-draw_one_frame :: (album: *Album) {
+album_draw_one_frame :: (album: *Album) {
 
     COVER_DISPLAY_WIDTH :: 500;
 
