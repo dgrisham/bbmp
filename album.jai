@@ -16,16 +16,6 @@ album_init_repeatable_keys :: () {
 
 album_process_input :: (frame: u64, album: *Album) {
 
-    if album.art_texture == null {
-        if album.cover_path != "" {
-            album.art_texture = New(Simp.Texture);
-            if !Simp.texture_load_from_file(album.art_texture, album.cover_path) {
-                log("Failed to load thumbnail for % - %", album.artist_name, album.name, flags=.ERROR);
-                free(album.art_texture);
-            }
-        }
-    }
-
     // TODO calculate based on window size
     items_in_page := 20;
 
@@ -59,8 +49,6 @@ album_process_input :: (frame: u64, album: *Album) {
 
                   case KEY_I;
                     SHOW_CURRENT_ALBUM = false;
-                    free(album.art_texture);
-                    album.art_texture = null;
                     album_cursor.position = 0;
                     break it;
 
@@ -139,17 +127,48 @@ album_process_input :: (frame: u64, album: *Album) {
     }
 }
 
-album_draw_one_frame :: (album: *Album) {
+loaded_album: struct {
+    artist_name: string;
+    album_name: string;
+    art_texture: *Simp.Texture;
+    art_loaded: bool = false;
+}
 
-    COVER_DISPLAY_WIDTH :: 500;
+COVER_DISPLAY_WIDTH :: 600;
+album_draw_one_frame :: (album: *Album, load_current_album_cover: bool) {
+
+    if loaded_album.art_texture == null loaded_album.art_texture = New(Simp.Texture);
+    if album.artist_name != loaded_album.artist_name || album.name != loaded_album.album_name {
+        free(loaded_album.artist_name);
+        free(loaded_album.album_name);
+        loaded_album.artist_name = copy_string(album.artist_name);
+        loaded_album.album_name  = copy_string(album.name);
+        loaded_album.art_loaded  = false;
+
+        load_current_album_cover = true;
+    }
+    if load_current_album_cover {
+        if album.cover_path != "" {
+            display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, get_hash(tprint("%-%", album.artist_name, album.name)), COVER_DISPLAY_WIDTH);
+            if file_exists(display_art_path) {
+                start := get_current_file_time();
+                if !Simp.texture_load_from_file(loaded_album.art_texture, display_art_path) {
+                    log("Failed to load display art for % - %", album.artist_name, album.name, flags=.ERROR);
+                } else {
+                    log("display album art load time: %\n", (get_current_file_time() - start) / 10000.0);
+                    loaded_album.art_loaded = true;
+                }
+            }
+        }
+    }
 
     cover_display_width  := cast(float)COVER_DISPLAY_WIDTH;
     COVER_X := cast(float)window_width  / 2 - cover_display_width - 100;
     COVER_Y := cast(float)window_height / 2 - COVER_DISPLAY_WIDTH / 2;
-    if album.art_texture {
-        cover_display_height := cast(float)COVER_DISPLAY_WIDTH * cast(float)album.art_texture.height/album.art_texture.width;
+    if loaded_album.art_loaded {
+        cover_display_height := cast(float)COVER_DISPLAY_WIDTH * cast(float)loaded_album.art_texture.height/loaded_album.art_texture.width;
 
-        Simp.set_shader_for_images(album.art_texture);
+        Simp.set_shader_for_images(loaded_album.art_texture);
         Simp.immediate_begin();
 
         v2 :: make_vector2;
