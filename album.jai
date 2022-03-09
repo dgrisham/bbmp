@@ -115,12 +115,14 @@ album_process_input :: (frame: u64, album: *Album) {
                     table_set(*album_key_pressed_on_frame, .SPACE, frame);
                     last_album_key_pressed = .SPACE;
                     album_add_selected_song_to_queue();
+                    clamp_album_cursor(album.songs.count);
                     break it;
 
                   case .ENTER;
                     table_set(*album_key_pressed_on_frame, .ENTER, frame);
                     last_album_key_pressed = .ENTER;
                     album_add_selected_song_to_queue_and_play();
+                    clamp_album_cursor(album.songs.count);
                     break it;
                 }
             }
