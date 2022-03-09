@@ -1,7 +1,9 @@
 #import "Hash_Table";
 #import "Unicode";
 
-library: struct {
+library: Library;
+
+Library :: struct {
     artists             : Table(string, Artist);
     artist_names_sorted : [..] string;
     stats: struct {
@@ -25,6 +27,7 @@ Album :: struct {
     directory         : string;
     cover_path        : string;
     thumbnail_texture : *Simp.Texture;
+    thumbnail_data    : [] u8;
 };
 
 Date :: struct {
@@ -128,6 +131,7 @@ load_library :: () {
                     album.artist_name = song.artist;
                     album.date        = parse_date(to_string(mpd_date));
                     album.directory   = path_strip_filename(song.uri);
+                    // album.thumbnail_texture = New(Simp.Texture);
 
                     for cover_name: string.["cover.jpg", "cover.png"] {
                         // TODO: get library path from mpd and pass into this thread UPDATE: unless libmpdclient doesn't provide that??

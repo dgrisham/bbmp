@@ -16,6 +16,14 @@ album_init_repeatable_keys :: () {
 
 album_process_input :: (frame: u64, album: *Album) {
 
+    clamp_album_cursor :: (number_of_songs_in_album: int) #expand {
+        if `album_cursor.position < 0 {
+            `album_cursor.position = 0;
+        } else if `album_cursor.position > number_of_songs_in_album - 1 {
+            `album_cursor.position = number_of_songs_in_album - 1;
+        }
+    }
+
     // TODO calculate based on window size
     items_in_page := 20;
 
@@ -50,17 +58,20 @@ album_process_input :: (frame: u64, album: *Album) {
                   case KEY_I;
                     SHOW_CURRENT_ALBUM = false;
                     album_cursor.position = 0;
+                    clamp_album_cursor(album.songs.count);
                     break it;
 
                   case KEY_J;
                     table_set(*album_key_pressed_on_frame, .J, frame);
                     last_album_key_pressed = .J;
                     album_move_cursor_down();
+                    clamp_album_cursor(album.songs.count);
                     break it;
                   case KEY_K;
                     table_set(*album_key_pressed_on_frame, .K, frame);
                     last_album_key_pressed = .K;
                     album_move_cursor_up();
+                    clamp_album_cursor(album.songs.count);
                     break it;
 
                   case KEY_D;
@@ -68,6 +79,7 @@ album_process_input :: (frame: u64, album: *Album) {
                         table_set(*album_key_pressed_on_frame, .CTRL_D, frame);
                         last_album_key_pressed = .CTRL_D;
                         album_move_cursor_one_page_down();
+                        clamp_album_cursor(album.songs.count);
                     }
                     break it;
                   case KEY_U;
@@ -75,6 +87,7 @@ album_process_input :: (frame: u64, album: *Album) {
                         table_set(*album_key_pressed_on_frame, .CTRL_U, frame);
                         last_album_key_pressed = .CTRL_U;
                         album_move_cursor_one_page_up();
+                        clamp_album_cursor(album.songs.count);
                     }
                     break it;
 
@@ -91,6 +104,7 @@ album_process_input :: (frame: u64, album: *Album) {
                                 // @Cleanup This is the first time we're updating cursor for another 'view'.
                                 library_album_art_cursor.position = album_index;
                                 album_cursor.position = song_index;
+                                clamp_album_cursor(album.songs.count);
                                 break;
                             }
                         }
@@ -119,12 +133,6 @@ album_process_input :: (frame: u64, album: *Album) {
     if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .CTRL_U)  album_move_cursor_one_page_up();
     if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .SPACE)   album_add_selected_song_to_queue();
     if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .ENTER)   album_add_selected_song_to_queue_and_play();
-
-    if album_cursor.position < 0 {
-        album_cursor.position = 0;
-    } else if album_cursor.position > album.songs.count - 1 {
-        album_cursor.position = album.songs.count - 1;
-    }
 }
 
 loaded_album: struct {

@@ -2,6 +2,7 @@
 #import "Unicode";
 #import "File_Utilities";
 #import "Hash";
+#import "File";
 
 library_album_art: struct {
     albums : [..] *Album;
@@ -163,10 +164,10 @@ library_album_art_process_input :: (frame: u64, rows: int, columns: int) {
                     }
                     break it;
 
-                  case KEY_R;
-                    album_index := library_album_art_cursor.position;
-                    album := library_album_art.albums[album_index];
-                    album.thumbnail_texture = load_thumbnail_if_exists(album_index);
+                  // case KEY_R;
+                  //   album_index := library_album_art_cursor.position;
+                  //   album := library_album_art.albums[album_index];
+                  //   album.thumbnail_texture = load_thumbnail_if_exists(album_index);
 
                   case .ENTER;
                     last_library_album_art_key_pressed = .ENTER;
@@ -380,10 +381,24 @@ album_art_creation_thread_group: Thread_Group;
 
 pool: Pool;
 
-Thumbnail_Job_Info :: struct {
-    cover_path     : string;
-    thumbnail_path : string;
-    success        : bool;
+Bitmap_Job_Info :: struct {
+    cover_path          : string;
+    thumbnail_path      : string;
+
+    create_thumbnail    : bool = false;
+    thumbnail_width     : s32;
+    thumbnail_success   : bool;
+
+    create_display_art  : bool = false;
+    display_art_path    : string;
+    display_art_width   : s32;
+    display_art_success : bool;
+
+    // load_thumbnail         : bool = false;
+    artist_name            : string;
+    album_name             : string;
+    thumbnail_bitmap       : *Simp.Bitmap;
+    thumbnail_load_success : bool;
 }
 
 THUMBNAIL_DIRECTORY :: "/home/grish/src/jai/jai-mpd/.thumbnails";
@@ -406,39 +421,114 @@ start_album_art_creation_thread_group :: () -> int {
     }
 
     thread_proc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
-        thumbnail_info := cast(*Thumbnail_Job_Info) work;
-        if !create_album_art_thumbnail(thumbnail_info.cover_path, thumbnail_info.thumbnail_path) {
-            log("Failed to convert cover % to thumbnail at %", thumbnail_info.cover_path, thumbnail_info.thumbnail_path);
-            thumbnail_info.success = false;
-        } else {
-            thumbnail_info.success = true;
+        job_info := cast(*Bitmap_Job_Info) work;
+
+        log("Attempting to load cover at path %\n", job_info.cover_path);
+
+        // load the raw data into a bitmap
+        bitmap := New(Simp.Bitmap);
+        defer { Simp.deinit(bitmap); free(bitmap); };
+        if !Simp.bitmap_load(bitmap, job_info.cover_path) {
+            log("Failed to load album art file %", job_info.cover_path, flags=.ERROR);
+            return .CONTINUE;
         }
+
+        if job_info.create_thumbnail {
+            if !resize_and_save_bitmap(bitmap, job_info.thumbnail_path, job_info.thumbnail_width) {
+                log("Failed to convert cover % to thumbnail at %", job_info.cover_path, job_info.thumbnail_path);
+                job_info.thumbnail_success = false;
+            } else {
+                job_info.thumbnail_success = true;
+            }
+        }
+        if job_info.create_display_art {
+            if !resize_and_save_bitmap(bitmap, job_info.display_art_path, job_info.display_art_width) {
+                log("Failed to convert cover % to display art bitmap at %", job_info.cover_path, job_info.display_art_path);
+                job_info.display_art_success = false;
+            } else {
+                job_info.display_art_success = true;
+            }
+        }
+
+        if file_exists(job_info.thumbnail_path) {
+            log("loading thumbnail at path %", job_info.thumbnail_path);
+
+            artist_ptr := table_find_pointer(library.artists, job_info.artist_name);
+            assert(artist_ptr != null);
+            album_ptr := table_find_pointer(artist_ptr.albums, job_info.album_name);
+            assert(album_ptr != null);
+
+            thumbnail_file, success := file_open(job_info.thumbnail_path);
+            if !success {
+                log("Could not open thumbnail file %", job_info.thumbnail_path);
+                return .CONTINUE;
+            }
+            defer file_close(*thumbnail_file);
+
+            length := file_length(thumbnail_file);
+            buffer := cast(*u8) alloc(length);
+
+            success = file_read(thumbnail_file, buffer, length);
+            if !success {
+                log("Could not read thumbnail file %\n", job_info.thumbnail_path);
+                free(buffer);
+                return .CONTINUE;
+            }
+
+            album_ptr.thumbnail_data.data  = buffer;
+            album_ptr.thumbnail_data.count = length;
+            job_info.thumbnail_load_success = true;
+
+            // job_info.thumbnail_bitmap = New(Simp.Bitmap);
+            // if !Simp.bitmap_load(job_info.thumbnail_bitmap, job_info.thumbnail_path) {
+
+            // if !Simp.texture_load_from_file(album_ptr.thumbnail_texture, job_info.thumbnail_path) {
+                // log("Failed to load thumbnail for % - %", job_info.artist_name, job_info.album_name, flags=.ERROR);
+                // Simp.deinit(job_info.thumbnail_bitmap);
+                // free(album_ptr.thumbnail_texture);
+                // job_info.thumbnail_load_success = false;
+            // } else {
+                // job_info.thumbnail_load_success = true;
+            // }
+        }
+
         return .CONTINUE;
     }
 
+    set_allocators(*pool);
     thread_proc_context: Context;
     thread_proc_context.allocator.proc = pool_allocator_proc;
     thread_proc_context.allocator.data = *pool;
-    set_allocators(*pool);
 
-    work_list: [..] *Thumbnail_Job_Info;
+    print("pool: %\n", *pool);
+    work_list: [..] *Bitmap_Job_Info;
 
     num_thumbnails_attempting_to_create := 0;
     push_context thread_proc_context {
         for album: library_album_art.albums { // find all albums that don't have a thumbnail but do have a cover we can use to create one
-            thumbnail_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
+            if album.cover_path && file_exists(album.cover_path) {
+                album_hash := get_hash(tprint("%-%", album.artist_name, album.name));
+                thumbnail_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, THUMBNAIL_WIDTH);
+                display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, COVER_DISPLAY_WIDTH);
 
-            if file_exists(thumbnail_path) continue;
-
-            assert(album.songs.count > 0);
-
-            if album.cover_path == "" continue;
-
-            work := New(Thumbnail_Job_Info);
-            work.cover_path     = sprint("%", album.cover_path);
-            work.thumbnail_path = sprint("%", thumbnail_path);
-            array_add(*work_list, work);
+                work := New(Bitmap_Job_Info);
+                work.artist_name    = copy_string(album.artist_name);
+                work.album_name     = copy_string(album.name);
+                work.cover_path     = copy_string(album.cover_path);
+                work.thumbnail_path = copy_string(thumbnail_path);
+                if !file_exists(thumbnail_path) {
+                    work.create_thumbnail = true;
+                    work.thumbnail_width  = THUMBNAIL_WIDTH;
+                }
+                if !file_exists(display_art_path) {
+                    work.create_display_art = true;
+                    work.display_art_path   = copy_string(display_art_path);
+                    work.display_art_width  = COVER_DISPLAY_WIDTH;
+                }
+                array_add(*work_list, work);
+            }
         }
+
     }
 
     if work_list.count > 0 { // only start threads if we have any work to do
@@ -451,34 +541,25 @@ start_album_art_creation_thread_group :: () -> int {
     }
     array_free(work_list);
 
+
     return work_list.count;
 }
 
 MPD_LIBRARY_DIRECTORY :: "/home/grish/media/music/library";
-create_album_art_thumbnail :: (cover_path: string, thumbnail_path: string) -> bool {
 
-    log("Attempting to load cover at path %\n", cover_path);
+resize_and_save_bitmap :: (bitmap: *Simp.Bitmap, output_path: string, width: s32) -> bool {
+    // resize to bitmap size
+    resized_bitmap := New(Simp.Bitmap);
+    Simp.bitmap_resize(bitmap, width, cast(s32)(bitmap.height * cast(float64)width / bitmap.width), resized_bitmap);
+    defer { Simp.deinit(resized_bitmap); free(resized_bitmap); };
 
-    // load the raw data into a bitmap
-    bitmap: Simp.Bitmap;
-    defer Simp.deinit(*bitmap);
-    if !Simp.bitmap_load(*bitmap, cover_path) {
-        log("Failed to load album art file %", cover_path, flags=.ERROR);
+    // save the bitmap
+    if !Simp.bitmap_save(resized_bitmap, output_path) {
+        log("Failed to save resized album art bitmap to '%'", output_path, flags=.ERROR);
         return false;
     }
 
-    // resize to thumbnail size
-    resized_bitmap: Simp.Bitmap;
-    Simp.bitmap_resize(*bitmap, THUMBNAIL_WIDTH, cast(s32)(bitmap.height * cast(float64)THUMBNAIL_WIDTH / bitmap.width), *resized_bitmap);
-    defer Simp.deinit(*resized_bitmap);
-
-    // save the thumbnail
-    if !Simp.bitmap_save(*resized_bitmap, thumbnail_path) {
-        log("Failed to save album art thumbnail to '%'", thumbnail_path, flags=.ERROR);
-        return false;
-    }
-
-    log("Saved album art thumbnail to '%'", thumbnail_path);
+    log("Saved resized album art bitmap to '%'", output_path);
 
     return true;
 }
@@ -486,18 +567,29 @@ create_album_art_thumbnail :: (cover_path: string, thumbnail_path: string) -> bo
 load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
 
     album := library_album_art.albums[album_index];
-
-    thumbnail_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
-    if !file_exists(thumbnail_path) {
-        // log("Thumbnail not found for % - %", album.artist_name, album.name);
+    if !album.thumbnail_data {
         return null;
     }
+    defer array_free(album.thumbnail_data);
 
     texture := New(Simp.Texture);
-    if !Simp.texture_load_from_file(texture, thumbnail_path) {
-        log("Failed to load thumbnail for % - %", album.artist_name, album.name, flags=.ERROR);
+    if !Simp.texture_load_from_memory(texture, album.thumbnail_data) {
+        free(texture);
+        log("Failed to load thumbnail from memory for % - %", album.artist_name, album.name);
         return null;
     }
+
+    // thumbnail_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
+    // if !file_exists(thumbnail_path) {
+    //     // log("Thumbnail not found for % - %", album.artist_name, album.name);
+    //     return null;
+    // }
+
+    // texture := New(Simp.Texture);
+    // if !Simp.texture_load_from_file(texture, thumbnail_path) {
+    //     log("Failed to load thumbnail for % - %", album.artist_name, album.name, flags=.ERROR);
+    //     return null;
+    // }
 
     return texture;
 }
