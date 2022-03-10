@@ -27,7 +27,8 @@ Album :: struct {
     directory         : string;
     cover_path        : string;
     thumbnail_texture : *Simp.Texture;
-    thumbnail_bitmap  : Simp.Bitmap;
+    thumbnail_bitmap  : *Simp.Bitmap;
+    mutex             : Mutex;
 };
 
 Date :: struct {

@@ -267,7 +267,6 @@ library_album_art_draw_one_frame :: (header_bottom: int, rows: int, columns: int
 
             if !album.thumbnail_texture {
                 album.thumbnail_texture = load_thumbnail_if_exists(album_index);
-                report_memory_leaks();
             }
             entry.texture  = album.thumbnail_texture;
             entry.selected = album_index == library_album_art_cursor.position;
@@ -451,16 +450,19 @@ start_album_art_creation_thread_group :: () -> int {
         }
 
         if file_exists(job_info.thumbnail_path) {
-            log("loading thumbnail at path %", job_info.thumbnail_path);
+            // log("loading thumbnail at path %", job_info.thumbnail_path);
 
             artist_ptr := table_find_pointer(library.artists, job_info.artist_name);
             assert(artist_ptr != null);
             album_ptr := table_find_pointer(artist_ptr.albums, job_info.album_name);
             assert(album_ptr != null);
 
-            if !Simp.bitmap_load(*album_ptr.thumbnail_bitmap, job_info.thumbnail_path) {
+            lock(*album_ptr.mutex);
+            defer unlock(*album_ptr.mutex);
+            album_ptr.thumbnail_bitmap = New(Simp.Bitmap);
+            if !Simp.bitmap_load(album_ptr.thumbnail_bitmap, job_info.thumbnail_path) {
                 log("Failed to load thumbnail for % - %", job_info.artist_name, job_info.album_name, flags=.ERROR);
-                Simp.deinit(*album_ptr.thumbnail_bitmap);
+                free(album_ptr.thumbnail_bitmap);
                 job_info.load_thumbnail_success = false;
             } else {
                 job_info.load_thumbnail_success = true;
@@ -502,7 +504,6 @@ start_album_art_creation_thread_group :: () -> int {
                 array_add(*work_list, work);
             }
         }
-
     }
 
     if work_list.count > 0 { // only start threads if we have any work to do
@@ -514,7 +515,6 @@ start_album_art_creation_thread_group :: () -> int {
         }
     }
     array_free(work_list);
-
 
     return work_list.count;
 }
@@ -541,13 +541,15 @@ resize_and_save_bitmap :: (bitmap: *Simp.Bitmap, output_path: string, width: s32
 load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
 
     album := library_album_art.albums[album_index];
-    if !album.thumbnail_bitmap.data {
+    lock(*album.mutex);
+    defer unlock(*album.mutex);
+    if !album.thumbnail_bitmap {
         return null;
     }
-    defer Simp.deinit(*album.thumbnail_bitmap);
+    defer { Simp.deinit(album.thumbnail_bitmap); free(album.thumbnail_bitmap); };
 
     texture := New(Simp.Texture);
-    if !Simp.texture_load_from_bitmap(texture, *album.thumbnail_bitmap) {
+    if !Simp.texture_load_from_bitmap(texture, album.thumbnail_bitmap) {
         log("Failed to load thumbnail from memory for % - %", album.artist_name, album.name);
         free(texture);
         return null;

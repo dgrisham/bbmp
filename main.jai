@@ -1,4 +1,4 @@
-#import "Basic"()(MEMORY_DEBUGGER=true);
+#import "Basic"()(MEMORY_DEBUGGER=false);
 #import "Math";
 #import "String";
 #import "Window_Creation";
@@ -257,11 +257,13 @@ main :: () {
                 for results {
                     job_info := cast(*Album_Art_Job_Info) it;
 
-                    if job_info.create_thumbnail_success create_thumbnail_successes += 1;
-                    else                                 create_thumbnail_failures  += 1;
+                    if job_info.create_thumbnail
+                        if job_info.create_thumbnail_success create_thumbnail_successes += 1;
+                        else                                 create_thumbnail_failures  += 1;
 
-                    if job_info.create_display_art_success create_display_art_successes += 1;
-                    else                                   create_display_art_failures  += 1;
+                    if job_info.create_display_art
+                        if job_info.create_display_art_success create_display_art_successes += 1;
+                        else                                   create_display_art_failures  += 1;
 
                     if job_info.load_thumbnail_success load_thumbnail_successes += 1;
                     else                               load_thumbnail_failures  += 1;
