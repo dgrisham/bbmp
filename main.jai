@@ -1,4 +1,4 @@
-#import "Basic"()(MEMORY_DEBUGGER=false);
+#import "Basic"()(MEMORY_DEBUGGER=true);
 #import "Math";
 #import "String";
 #import "Window_Creation";
@@ -251,34 +251,26 @@ main :: () {
         if remaining_cover_jobs > 0 {
             results := get_completed_work(*album_art_creation_thread_group);
             if results.count > 0 {
-                thumbnail_successes, thumbnail_failures     := 0;
-                display_art_successes, display_art_failures := 0;
+                create_thumbnail_successes,   create_thumbnail_failures   := 0;
+                create_display_art_successes, create_display_art_failures := 0;
+                load_thumbnail_successes,     load_thumbnail_failures     := 0;
                 for results {
-                    job_info := cast(*Bitmap_Job_Info) it;
+                    job_info := cast(*Album_Art_Job_Info) it;
 
-                    if job_info.thumbnail_success thumbnail_successes += 1;
-                    else                          thumbnail_failures  += 1;
+                    if job_info.create_thumbnail_success create_thumbnail_successes += 1;
+                    else                                 create_thumbnail_failures  += 1;
 
-                    if job_info.display_art_success display_art_successes += 1;
-                    else                            display_art_failures  += 1;
+                    if job_info.create_display_art_success create_display_art_successes += 1;
+                    else                                   create_display_art_failures  += 1;
 
-                    // if job_info.thumbnail_load_success {
-                    //     defer { Simp.deinit(job_info.thumbnail_bitmap); free(job_info.thumbnail_bitmap); };
-                    //     artist_ptr := table_find_pointer(library.artists, job_info.artist_name);
-                    //     if artist_ptr == null continue;
-                    //     album_ptr := table_find_pointer(artist_ptr.albums, job_info.album_name);
-                    //     if album_ptr == null continue;
-                    //     album_ptr.thumbnail_texture = New(Simp.Texture);
-                    //     if !Simp.texture_load_from_bitmap(album_ptr.thumbnail_texture, job_info.thumbnail_bitmap) {
-                    //         log("Failed to load thumbnail bitmap into texture for % - %", job_info.artist_name, job_info.album_name);
-                    //         free(album_ptr.thumbnail_texture);
-                    //     }
-                    // }
+                    if job_info.load_thumbnail_success load_thumbnail_successes += 1;
+                    else                               load_thumbnail_failures  += 1;
                 }
 
                 remaining_cover_jobs -= results.count;
-                log("thumbnail jobs finished: % successes, % failures\n", thumbnail_successes, thumbnail_failures);
-                log("display art jobs finished: % successes, % failures\n", display_art_successes, display_art_failures);
+                log("create thumbnail jobs finished: % successes, % failures\n", create_thumbnail_successes, create_thumbnail_failures);
+                log("create display art jobs finished: % successes, % failures\n", create_display_art_successes, create_display_art_failures);
+                log("load thumbnail jobs finished: % successes, % failures\n", load_thumbnail_successes, load_thumbnail_failures);
                 log("% remaining cover jobs\n", remaining_cover_jobs);
                 if remaining_cover_jobs == 0 {
                     log("No more remaining thumbnail jobs, shutting down thread group");
