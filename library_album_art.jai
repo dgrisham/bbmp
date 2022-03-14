@@ -524,7 +524,10 @@ MPD_LIBRARY_DIRECTORY :: "/home/grish/media/music/library";
 resize_and_save_bitmap :: (bitmap: *Simp.Bitmap, output_path: string, width: s32) -> bool {
     // resize to bitmap size
     resized_bitmap := New(Simp.Bitmap);
-    Simp.bitmap_resize(bitmap, width, cast(s32)(bitmap.height * cast(float64)width / bitmap.width), resized_bitmap);
+    if !Simp.bitmap_resize(bitmap, width, cast(s32)(bitmap.height * cast(float64)width / bitmap.width), resized_bitmap) {
+        log("Failed to resize bitmap", flags=.ERROR);
+        return false;
+    }
     defer { Simp.deinit(resized_bitmap); free(resized_bitmap); };
 
     // save the bitmap
