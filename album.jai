@@ -53,6 +53,16 @@ album_process_input :: (frame: u64, album: *Album) {
         }
     }
 
+    move_cursor_to_next_album :: () #expand {
+        library_album_art_move_cursor_right();
+        album_cursor.position = 0;
+    }
+
+    move_cursor_to_prev_album :: () #expand {
+        library_album_art_move_cursor_left();
+        album_cursor.position = 0;
+    }
+
     for Input.events_this_frame {
         if it.type == {
           case .KEYBOARD;
@@ -73,6 +83,17 @@ album_process_input :: (frame: u64, album: *Album) {
                     table_set(*album_key_pressed_on_frame, .K, frame);
                     last_album_key_pressed = .K;
                     album_move_cursor_up();
+                    break it;
+
+                  case KEY_H;
+                    table_set(*album_key_pressed_on_frame, .H, frame);
+                    last_album_key_pressed = .H;
+                    move_cursor_to_prev_album();
+                    break it;
+                  case KEY_L;
+                    table_set(*album_key_pressed_on_frame, .L, frame);
+                    last_album_key_pressed = .L;
+                    move_cursor_to_next_album();
                     break it;
 
                   case KEY_D;
@@ -127,6 +148,8 @@ album_process_input :: (frame: u64, album: *Album) {
 
     if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .J)       album_move_cursor_down();
     if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .K)       album_move_cursor_up();
+    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .H)       move_cursor_to_prev_album();
+    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .L)       move_cursor_to_next_album();
     if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .CTRL_D)  album_move_cursor_one_page_down();
     if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .CTRL_U)  album_move_cursor_one_page_up();
     if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .SPACE)   album_add_selected_song_to_queue();

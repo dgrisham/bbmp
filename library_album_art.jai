@@ -73,28 +73,28 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
 THUMBNAIL_SLOT_WIDTH  : s32 : 200;
 THUMBNAIL_SLOT_HEIGHT : s32 : THUMBNAIL_SLOT_WIDTH;
 
+library_album_art_move_cursor :: (amount: int) #expand {
+    `library_album_art_cursor.position += amount;
+    if library_album_art_cursor.position < 0 {
+        library_album_art_cursor.position = 0;
+    } else if `library_album_art_cursor.position > library_album_art.albums.count - 1 {
+        `library_album_art_cursor.position = library_album_art.albums.count - 1;
+    }
+}
+
+library_album_art_move_cursor_left  :: () #expand { library_album_art_move_cursor(-1); }
+library_album_art_move_cursor_right :: () #expand { library_album_art_move_cursor(1); }
+
 library_album_art_process_input :: (frame: u64, rows: int, columns: int) {
 
-    library_album_art_move_cursor_down :: () #expand {
-        `library_album_art_cursor.position += ifx `library_album_art_cursor.position > (library_album_art.albums.count - columns - 1) then 0 else columns;
-    }
-    library_album_art_move_cursor_up :: () #expand {
-        `library_album_art_cursor.position -= ifx `library_album_art_cursor.position < columns then 0 else columns;
-    }
+    library_album_art_move_cursor_up   :: () #expand { library_album_art_move_cursor(-columns); }
+    library_album_art_move_cursor_down :: () #expand { library_album_art_move_cursor(columns); }
 
-    library_album_art_move_cursor_left :: () #expand {
-        `library_album_art_cursor.position -= 1;
-    }
-    library_album_art_move_cursor_right :: () #expand {
-        `library_album_art_cursor.position += 1;
-    }
+    library_album_art_move_cursor_left  :: () #expand { library_album_art_move_cursor(-1); }
+    library_album_art_move_cursor_right :: () #expand { library_album_art_move_cursor(1); }
 
-    library_album_art_move_cursor_one_page_down :: () #expand {
-        `library_album_art_cursor.position += rows * columns;
-    }
-    library_album_art_move_cursor_one_page_up :: () #expand {
-        `library_album_art_cursor.position -= rows * columns;
-    }
+    library_album_art_move_cursor_one_page_up   :: () #expand { library_album_art_move_cursor(-rows * columns); }
+    library_album_art_move_cursor_one_page_down :: () #expand { library_album_art_move_cursor(rows * columns); }
 
     for Input.events_this_frame {
         if it.type == {
@@ -557,6 +557,15 @@ load_thumbnail_if_exists :: (album_index: s64) -> *Simp.Texture {
         free(texture);
         return null;
     }
+
+    // album_hash := get_hash(tprint("%-%", album.artist_name, album.name));
+    // thumbnail_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, THUMBNAIL_WIDTH);
+    // texture := New(Simp.Texture);
+    // if !Simp.texture_load_from_file(texture, thumbnail_path) {
+    //     log("Failed to load thumbnail from memory for % - %", album.artist_name, album.name);
+    //     free(texture);
+    //     return null;
+    // }
 
     return texture;
 }
