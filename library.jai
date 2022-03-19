@@ -492,7 +492,6 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
             index_end   := min(index_start + items_in_page, selected_album.songs.count - 1);
             array_reserve(*display_columns[2].entries, index_end - index_start + 1);
 
-            // TODO: this 8/7th's value fixes this in some cases, but over-corrects in others.
             max_characters_in_column := cast(int)(cast(float64)display_columns[2].rectangle_width / font.w_width) - 2;
 
             for i: index_start..index_end {
@@ -527,22 +526,29 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
                     color := ifx library_cursor.selected == column_index then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
                     Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + rectangle_width, cast(float)y + font.character_height, color);
 
-                    text_width := Simp.prepare_text(font, display_text.text);
-                    Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+                    // text_width := Simp.prepare_text(font, display_text.text);
+                    // Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+                    // if column_index == 2 { // @Debug: remove this once font width problem is better understood/definitely fixed
+                    //     expected_text_width := display_text.text.count * font.w_width;
+                    //     if expected_text_width != text_width {
+                    //         print("\nexpected_text_width: %\n", expected_text_width);
+                    //         print("actual text width  : %\n", text_width);
+                    //     }
+                    // }
 
-                    if column_index == 2 { // NOTE: remove this once font width problem is better understood/definitely fixed
-                        expected_text_width := display_text.text.count * font.w_width;
-                        if expected_text_width != text_width {
-                            print("\nexpected_text_width: %\n", expected_text_width);
-                            print("actual text width  : %\n", text_width);
-                        }
-                    }
-
-                    // Simp.draw_text(font, x, y, display_text.text, rgba(0,0,0,1));
+                    Simp.draw_text(font, x, y, display_text.text, rgba(0,0,0,1));
                 } else {
-                    text_width := Simp.prepare_text(font, display_text.text);
-                    Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
-                    // Simp.draw_text(font, x, y, display_text.text, rgba(1,1,1,1));
+                    // text_width := Simp.prepare_text(font, display_text.text);
+                    // Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+                    // if column_index == 2 { // @Debug: remove this once font width problem is better understood/definitely fixed
+                    //     expected_text_width := display_text.text.count * font.w_width;
+                    //     if expected_text_width != text_width {
+                    //         print("\nexpected_text_width: %\n", expected_text_width);
+                    //         print("actual text width  : %\n", text_width);
+                    //     }
+                    // }
+
+                    Simp.draw_text(font, x, y, display_text.text, rgba(1,1,1,1));
                 }
 
                 y -= TEXT_PADDING_Y + font.character_height;
