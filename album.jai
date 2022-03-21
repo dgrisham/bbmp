@@ -183,7 +183,7 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, items_in_pag
         }
     }
 
-    y := header_bottom + Y_MARGIN_SIZE;
+    y := header_bottom - Y_MARGIN_SIZE;
 
     {
         artist_name_width := Simp.prepare_text(font, album.artist_name);
