@@ -492,7 +492,7 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
             index_end   := min(index_start + items_in_page, selected_album.songs.count - 1);
             array_reserve(*display_columns[2].entries, index_end - index_start + 1);
 
-            max_characters_in_column := cast(int)(cast(float64)display_columns[2].rectangle_width / font.w_width) - 2;
+            max_characters_in_column := display_columns[2].rectangle_width / font.w_width - 2;
 
             for i: index_start..index_end {
                 song := selected_album.songs[i];
