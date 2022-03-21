@@ -186,21 +186,26 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, items_in_pag
     y := header_bottom - Y_MARGIN_SIZE;
 
     {
-        artist_name_width := Simp.prepare_text(font, album.artist_name);
-        Simp.draw_prepared_text(font, window_width / 2 - artist_name_width / 2, y, rgba(1,1,1,1));
+        width := Simp.prepare_text(font, album.artist_name);
+        Simp.draw_prepared_text(font, window_width / 2 - width / 2, y, rgba(1,1,1,1));
     }
     y -= TEXT_PADDING_Y + font.character_height;
 
     {
-        album_name_width := Simp.prepare_text(font, album.name);
-        Simp.draw_prepared_text(font, window_width / 2 - album_name_width / 2, y, rgba(1,1,1,1));
+        width := Simp.prepare_text(font, album.name);
+        Simp.draw_prepared_text(font, window_width / 2 - width / 2, y, rgba(1,1,1,1));
     }
-    // y -= TEXT_PADDING_Y + font.character_height;
+    y -= TEXT_PADDING_Y + font.character_height;
 
+    {
+        width := Simp.prepare_text(font, to_string(album.date));
+        Simp.draw_prepared_text(font, window_width / 2 - width / 2, y, rgba(1,1,1,1));
+    }
 
     cover_display_width := cast(float)COVER_DISPLAY_WIDTH;
     cover_display_height := cover_display_width;
-    cover_x := cast(float)window_width * 1 / 3 - cover_display_width;
+    cover_x := cast(float)X_MARGIN_SIZE;
+    // cover_x := cast(float)window_width * 1 / 3 - cover_display_width;
     y = cast(int)(window_height - cover_display_height) / 2;
     if loaded_album.art_loaded {
         cover_display_height := cover_display_width * cast(float)loaded_album.art_texture.height / loaded_album.art_texture.width;
@@ -236,13 +241,17 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, items_in_pag
 
             padded_track := left_pad(song.track, #char " ", 3);
             duration_time_string := seconds_to_time_string(song.duration);
-            title := slice(song.name, 0, max_characters_in_column - padded_track.count - duration_time_string.count);
+            // the additional constant subtraction at the end is from:
+            // -    2 for the '. ' between the track and title
+            // -    3 for the 3 spaces added between track_and_title and duration
+            title := slice_unicode(song.name, 0, max_characters_in_column - padded_track.count - duration_time_string.count - 5);
 
             track_and_title := tprint("%. %", padded_track, title);
-            duration := left_pad(duration_time_string, #char " ", max_characters_in_column - get_unicode_length(track_and_title));
+            // subtract 3 here, again for the 3 spaces added between track_and_title and duration
+            duration := left_pad(duration_time_string, #char " ", max_characters_in_column - get_unicode_length(track_and_title) - 3);
 
             display_text: Display_Text;
-            display_text.text = tprint("% %", track_and_title, duration);
+            display_text.text = tprint("%   %", track_and_title, duration);
             display_text.selected = selected_song_index == i;
             array_add(*display_entries, display_text);
         }

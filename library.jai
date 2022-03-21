@@ -499,13 +499,17 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
 
                 padded_track := left_pad(song.track, #char " ", 3);
                 duration_time_string := seconds_to_time_string(song.duration);
-                title := slice(song.name, 0, max_characters_in_column - padded_track.count - duration_time_string.count);
+                // the additional constant subtraction at the end is from:
+                // -    2 for the '. ' between the track and title
+                // -    3 for the 3 spaces added between track_and_title and duration
+                title := slice_unicode(song.name, 0, max_characters_in_column - padded_track.count - duration_time_string.count - 5);
 
                 track_and_title := tprint("%. %", padded_track, title);
-                duration := left_pad(duration_time_string, #char " ", max_characters_in_column - get_unicode_length(track_and_title));
+                // subtract 3 here, again for the 3 spaces added between track_and_title and duration
+                duration := left_pad(duration_time_string, #char " ", max_characters_in_column - get_unicode_length(track_and_title) - 3);
 
                 display_text: Display_Text;
-                display_text.text = tprint("% %", track_and_title, duration);
+                display_text.text = tprint("%   %", track_and_title, duration);
                 display_text.selected = selected_song_index == i;
                 array_add(*display_columns[2].entries, display_text);
             }
@@ -567,4 +571,36 @@ get_unicode_length :: (s: string) -> int {
         i += utf8_bytes;
     }
     return length;
+}
+
+slice_unicode :: (s: string, index: s64, count: s64) -> string {
+    assert(index >= 0, "index = %", index);
+    assert(count >= 0, "count = %", count);
+    unicode_length := get_unicode_length(s);
+    if index >= unicode_length  return "";
+
+    unicode_index := 0;
+    length := 0;
+    while length < index {
+        utf8_bytes := 1 + trailingBytesForUTF8[s.data[length]];
+        length += 1;
+        unicode_index += utf8_bytes;
+    }
+
+    if index + count > unicode_length {
+        count = unicode_length - unicode_index;
+    }
+
+    unicode_count := unicode_index;
+    length = 0;
+    while length < count {
+        utf8_bytes := 1 + trailingBytesForUTF8[s.data[unicode_count]];
+        length += 1;
+        unicode_count += utf8_bytes;
+    }
+
+    c: string = ---;
+    c.data    = s.data + index;
+    c.count   = unicode_count;
+    return c;
 }
