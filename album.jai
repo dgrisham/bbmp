@@ -105,6 +105,14 @@ album_process_input :: (frame: u64, album: *Album, items_in_page: int) {
                     }
                     break it;
 
+                  case KEY_G;
+                    if it.shift_pressed {
+                        library_album_art_cursor.song_position = album.songs.count - 1;
+                    } else {
+                        library_album_art_cursor.song_position = 0;
+                    }
+                    break it;
+
                   case KEY_O;
                     handle_mpd_idle_events();
 
