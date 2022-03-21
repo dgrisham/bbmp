@@ -11,8 +11,6 @@ album_init_repeatable_keys :: () {
 }
 
 album_process_input :: (frame: u64, album: *Album, items_in_page: int) {
-    print("items_in_page: %\n", items_in_page);
-
     clamp_album_cursor :: (number_of_songs_in_album: int) #expand {
         if `library_album_art_cursor.song_position < 0 {
             `library_album_art_cursor.song_position = 0;

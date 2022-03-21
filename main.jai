@@ -310,8 +310,8 @@ main :: () {
             update_status_time();
         }
         SEEK_SECONDS :: 0.5;
-        seek_forward  :: () #expand { seek( SEEK_SECONDS); }
-        seek_backward :: () #expand { seek(-SEEK_SECONDS); }
+        seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(seconds);  }
+        seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(-seconds); }
 
         play_previous_song :: () #expand {
             last_global_key_pressed = .LEFT_ANGLE_BRACKET;
@@ -411,8 +411,22 @@ main :: () {
             }
         }
 
-        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B)                   seek_backward();
-        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F)                   seek_forward();
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B, threshold=8*KEY_HOLD_DELAY) seek_backward(6*SEEK_SECONDS);
+        else
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B, threshold=6*KEY_HOLD_DELAY) seek_backward(4*SEEK_SECONDS);
+        else
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B, threshold=4*KEY_HOLD_DELAY) seek_backward(2*SEEK_SECONDS);
+        else
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B)                             seek_backward();
+
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F, threshold=8*KEY_HOLD_DELAY) seek_forward(6*SEEK_SECONDS);
+        else
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F, threshold=6*KEY_HOLD_DELAY) seek_forward(4*SEEK_SECONDS);
+        else
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F, threshold=4*KEY_HOLD_DELAY) seek_forward(2*SEEK_SECONDS);
+        else
+        if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F)                             seek_forward();
+
         if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .LEFT_ANGLE_BRACKET)  play_previous_song();
         if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .RIGHT_ANGLE_BRACKET) play_next_song();
         if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .EQUALS_SIGN)         increment_volume();
@@ -456,7 +470,7 @@ main :: () {
     MPD.connection_free(mpd_connection);
 }
 
-key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pressed: Key, frame: u64, $key: Key) -> bool #expand {
+key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pressed: Key, frame: u64, $key: Key, threshold := KEY_HOLD_DELAY) -> bool #expand {
     if last_key_pressed != key return false;
 
     key_code: Input.Key_Code;
@@ -493,7 +507,7 @@ key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pr
     else #assert(false);
 
     if !(Input.input_button_states[key_code] & .DOWN) return false;
-    return frame > <<table_find_pointer(key_pressed_on_frame, key) + KEY_HOLD_DELAY;
+    return frame > <<table_find_pointer(key_pressed_on_frame, key) + threshold;
 }
 
 draw_header :: () -> int {
