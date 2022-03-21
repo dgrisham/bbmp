@@ -57,15 +57,17 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
     total_width := cast(s32)display_width();
     columns := total_width / THUMBNAIL_SLOT_WIDTH - 1;
 
+    items_in_page := (COVER_DISPLAY_WIDTH - font.character_height) / (font.character_height + TEXT_PADDING_Y);
+
     OLD_SHOW_CURRENT_ALBUM := SHOW_CURRENT_ALBUM;
     if SHOW_CURRENT_ALBUM {
-        album_process_input(frame, library_album_art.albums[library_album_art_cursor.album_position]);
+        album_process_input(frame, library_album_art.albums[library_album_art_cursor.album_position], items_in_page);
     } else {
         library_album_art_process_input(frame, rows, columns);
     }
 
     if SHOW_CURRENT_ALBUM {
-        album_draw_one_frame(library_album_art.albums[library_album_art_cursor.album_position], !OLD_SHOW_CURRENT_ALBUM);
+        draw_album_frame(library_album_art.albums[library_album_art_cursor.album_position], !OLD_SHOW_CURRENT_ALBUM, items_in_page, header_bottom);
     } else {
         library_album_art_draw_one_frame(header_bottom, rows, columns, total_width, total_height, Y_PADDING_BELOW_HEADER);
     }

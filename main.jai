@@ -501,33 +501,34 @@ draw_header :: () -> int {
     top := cast(int)window_height - 2 * Y_MARGIN_SIZE;
 
     header_bottom := top;
-    { // top line
-        y := cast(float) top + font.character_height + 3 * TEXT_PADDING_Y;
-        line_width := window_width - 2 * X_MARGIN_SIZE;
-        line_height := 2;
-        Simp.set_shader_for_color();
-        Simp.immediate_quad(
-            xy(cast(float) X_MARGIN_SIZE,              y - line_height),
-            xy(cast(float) X_MARGIN_SIZE + line_width, y - line_height),
-            xy(cast(float) X_MARGIN_SIZE + line_width, y),
-            xy(cast(float) X_MARGIN_SIZE,              y),
-        );
-        header_bottom -= line_height;
-    }
+    // { // top line
+    //     y := cast(float) top + font.character_height + 3 * TEXT_PADDING_Y;
+    //     line_width := window_width - 2 * X_MARGIN_SIZE;
+    //     line_height := 2;
+    //     Simp.set_shader_for_color();
+    //     Simp.immediate_quad(
+    //         xy(cast(float) X_MARGIN_SIZE,              y - line_height),
+    //         xy(cast(float) X_MARGIN_SIZE + line_width, y - line_height),
+    //         xy(cast(float) X_MARGIN_SIZE + line_width, y),
+    //         xy(cast(float) X_MARGIN_SIZE,              y),
+    //     );
+    //     header_bottom -= line_height;
+    // }
 
     { // current track time
         x := X_MARGIN_SIZE;
+        // y := top - TEXT_PADDING_Y;
         y := top - TEXT_PADDING_Y - font.character_height / 2;
         Simp.draw_text(
             font,
-              x,
-              y,
-              tprint(
-                  "%/%",
-                 seconds_to_time_string(status.elapsed_time),
-                 seconds_to_time_string(status.total_time)
-              ),
-              rgba(1,1,1,1),
+            x,
+            y,
+            tprint(
+              "%/%",
+             seconds_to_time_string(status.elapsed_time),
+             seconds_to_time_string(status.total_time)
+            ),
+            rgba(1,1,1,1),
         );
 
         header_bottom = min(header_bottom, y - font.character_height);
@@ -553,30 +554,33 @@ draw_header :: () -> int {
 
     { // volume
         x := display_width() + X_MARGIN_SIZE - font.w_width * 10;
+        // y := top - TEXT_PADDING_Y;
         y := top - TEXT_PADDING_Y - font.character_height / 2;
         Simp.draw_text(
             font,
-              x,
-              y,
-              tprint("Vol: %1%%", left_pad(status.volume, #char " ", 3)),
-              rgba(1,1,1,1),
+            x,
+            y,
+            tprint("Vol: %1%%", left_pad(status.volume, #char " ", 3)),
+            rgba(1,1,1,1),
         );
         header_bottom = min(header_bottom, y - font.character_height);
     }
 
-    { // bottom line
-        y := cast(float) header_bottom - TEXT_PADDING_Y;
-        line_width := window_width - 2 * X_MARGIN_SIZE;
-        line_height := 2;
-        Simp.set_shader_for_color();
-        Simp.immediate_quad(
-            xy(cast(float) X_MARGIN_SIZE,              y - line_height),
-            xy(cast(float) X_MARGIN_SIZE + line_width, y - line_height),
-            xy(cast(float) X_MARGIN_SIZE + line_width, y),
-            xy(cast(float) X_MARGIN_SIZE,              y),
-        );
-        header_bottom -= line_height + TEXT_PADDING_Y;
-    }
+    // { // bottom line
+    //     y := cast(float) header_bottom - TEXT_PADDING_Y;
+    //     line_width := window_width - 2 * X_MARGIN_SIZE;
+    //     line_height := 2;
+    //     Simp.set_shader_for_color();
+    //     Simp.immediate_quad(
+    //         xy(cast(float) X_MARGIN_SIZE,              y - line_height),
+    //         xy(cast(float) X_MARGIN_SIZE + line_width, y - line_height),
+    //         xy(cast(float) X_MARGIN_SIZE + line_width, y),
+    //         xy(cast(float) X_MARGIN_SIZE,              y),
+    //     );
+    //     header_bottom -= line_height + TEXT_PADDING_Y;
+    // }
+
+    header_bottom -= 25;
 
     return header_bottom;
 }
