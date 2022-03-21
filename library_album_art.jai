@@ -57,15 +57,18 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
     total_width := cast(s32)display_width();
     columns := total_width / THUMBNAIL_SLOT_WIDTH - 1;
 
+    song_list_height := header_bottom - 3 * Y_MARGIN_SIZE - 3 * (TEXT_PADDING_Y + font.character_height) - TEXT_PADDING_Y;
+    album_songs_in_page := cast(int)(song_list_height - font.character_height) / (font.character_height + TEXT_PADDING_Y);
+
     OLD_SHOW_CURRENT_ALBUM := SHOW_CURRENT_ALBUM;
     if SHOW_CURRENT_ALBUM {
-        album_process_input(frame, library_album_art.albums[library_album_art_cursor.album_position]);
+        album_process_input(frame, header_bottom, album_songs_in_page, library_album_art.albums[library_album_art_cursor.album_position]);
     } else {
         library_album_art_process_input(frame, rows, columns);
     }
 
     if SHOW_CURRENT_ALBUM {
-        draw_album_frame(library_album_art.albums[library_album_art_cursor.album_position], !OLD_SHOW_CURRENT_ALBUM, header_bottom);
+        draw_album_frame(library_album_art.albums[library_album_art_cursor.album_position], !OLD_SHOW_CURRENT_ALBUM, header_bottom, album_songs_in_page);
     } else {
         library_album_art_draw_one_frame(header_bottom, rows, columns, total_width, total_height, Y_PADDING_BELOW_HEADER);
     }
@@ -208,6 +211,7 @@ library_album_art_process_input :: (frame: u64, rows: int, columns: int) {
     if key_held_passed_threshold(library_album_art_key_pressed_on_frame, last_library_album_art_key_pressed, frame, .CTRL_U)  library_album_art_move_cursor_one_page_up();
 }
 
+ELLIPSIS :: u8.[226, 128, 166];
 library_album_art_draw_one_frame :: (header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, Y_PADDING_BELOW_HEADER: s32) {
 
     Entry :: struct {
@@ -240,14 +244,12 @@ library_album_art_draw_one_frame :: (header_bottom: int, rows: int, columns: int
         while entries_to_draw.count < max_entries_to_draw {
             album := library_album_art.albums[album_index];
 
-            ellipsis :: u8.[226, 128, 166];
-
             entry: Entry;
 
             if album.artist_name.count > max_characters_in_column {
                 entry.artist_name = alloc_string(max_characters_in_column + 2, __temporary_allocator);
                 memcpy(entry.artist_name.data, album.artist_name.data, max_characters_in_column - 1);
-                memcpy(entry.artist_name.data + max_characters_in_column - 1, ellipsis.data, ellipsis.count);
+                memcpy(entry.artist_name.data + max_characters_in_column - 1, ELLIPSIS.data, ELLIPSIS.count);
             } else {
                 entry.artist_name = copy_temporary_string(slice(album.artist_name, 0, max_characters_in_column));
             }
@@ -255,7 +257,7 @@ library_album_art_draw_one_frame :: (header_bottom: int, rows: int, columns: int
             if album.name.count > max_characters_in_column {
                 entry.album_name = alloc_string(max_characters_in_column + 2, __temporary_allocator);
                 memcpy(entry.album_name.data, album.name.data, max_characters_in_column - 1);
-                memcpy(entry.album_name.data + max_characters_in_column - 1, ellipsis.data, ellipsis.count);
+                memcpy(entry.album_name.data + max_characters_in_column - 1, ELLIPSIS.data, ELLIPSIS.count);
             } else {
                 entry.album_name = copy_temporary_string(slice(album.name, 0, max_characters_in_column));
             }
