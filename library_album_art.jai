@@ -57,17 +57,15 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
     total_width := cast(s32)display_width();
     columns := total_width / THUMBNAIL_SLOT_WIDTH - 1;
 
-    items_in_page := (COVER_DISPLAY_WIDTH - font.character_height) / (font.character_height + TEXT_PADDING_Y);
-
     OLD_SHOW_CURRENT_ALBUM := SHOW_CURRENT_ALBUM;
     if SHOW_CURRENT_ALBUM {
-        album_process_input(frame, library_album_art.albums[library_album_art_cursor.album_position], items_in_page);
+        album_process_input(frame, library_album_art.albums[library_album_art_cursor.album_position]);
     } else {
         library_album_art_process_input(frame, rows, columns);
     }
 
     if SHOW_CURRENT_ALBUM {
-        draw_album_frame(library_album_art.albums[library_album_art_cursor.album_position], !OLD_SHOW_CURRENT_ALBUM, items_in_page, header_bottom);
+        draw_album_frame(library_album_art.albums[library_album_art_cursor.album_position], !OLD_SHOW_CURRENT_ALBUM, header_bottom);
     } else {
         library_album_art_draw_one_frame(header_bottom, rows, columns, total_width, total_height, Y_PADDING_BELOW_HEADER);
     }
@@ -482,7 +480,7 @@ start_album_art_creation_thread_group :: () -> int {
             if album.cover_path && file_exists(album.cover_path) {
                 album_hash := get_hash(tprint("%-%", album.artist_name, album.name));
                 thumbnail_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, THUMBNAIL_WIDTH);
-                display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, COVER_DISPLAY_WIDTH);
+                display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, MAX_COVER_DISPLAY_WIDTH);
 
                 work := New(Album_Art_Job_Info);
                 work.artist_name    = copy_string(album.artist_name);
@@ -496,7 +494,7 @@ start_album_art_creation_thread_group :: () -> int {
                 if !file_exists(display_art_path) {
                     work.create_display_art = true;
                     work.display_art_path   = copy_string(display_art_path);
-                    work.display_art_width  = COVER_DISPLAY_WIDTH;
+                    work.display_art_width  = MAX_COVER_DISPLAY_WIDTH;
                 }
                 array_add(*work_list, work);
             }
