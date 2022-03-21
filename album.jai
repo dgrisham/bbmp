@@ -11,6 +11,7 @@ album_init_repeatable_keys :: () {
 }
 
 album_process_input :: (frame: u64, album: *Album, items_in_page: int) {
+    print("items_in_page: %\n", items_in_page);
 
     clamp_album_cursor :: (number_of_songs_in_album: int) #expand {
         if `library_album_art_cursor.song_position < 0 {
@@ -232,9 +233,9 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, items_in_pag
     display_entries: [..]Display_Text;
     selected_song_index := library_album_art_cursor.song_position;
     {
-        index_start := max(0, min(album.songs.count - items_in_page + 1, selected_song_index - items_in_page / 2 + 1));
-        index_end   := min(index_start + items_in_page, album.songs.count - 1);
-        array_reserve(*display_entries, index_end - index_start + 1);
+        index_start := max(0, min(album.songs.count - items_in_page, selected_song_index - items_in_page / 2 + 1));
+        index_end   := min(index_start + items_in_page, album.songs.count) - 1;
+        array_reserve(*display_entries, index_end - index_start);
 
         for i: index_start..index_end {
             song := album.songs[i];

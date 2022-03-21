@@ -451,9 +451,9 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
 
         selected_artist_index := library_cursor.positions[0];
         {
-            index_start := max(0, min(library.artists.count - items_in_page + 1, selected_artist_index  - items_in_page/ 2 + 1));
-            index_end   := min(index_start + items_in_page, library.artists.count - 1);
-            array_reserve(*display_columns[0].entries, index_end - index_start + 1);
+            index_start := max(0, min(library.artists.count - items_in_page, selected_artist_index  - items_in_page/ 2 + 1));
+            index_end   := min(index_start + items_in_page, library.artists.count) - 1;
+            array_reserve(*display_columns[0].entries, index_end - index_start);
 
             max_characters_in_column := display_columns[0].rectangle_width / font.w_width - 2;
 
@@ -468,8 +468,8 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
         selected_album_index := library_cursor.positions[1];
         selected_artist      := table_find_pointer(library.artists, library.artist_names_sorted[selected_artist_index]);
         {
-            index_start := max(0, min(selected_artist.albums.count - items_in_page + 1, selected_album_index - items_in_page/ 2 + 1));
-            index_end   := min(index_start + items_in_page, selected_artist.albums.count - 1);
+            index_start := max(0, min(selected_artist.albums.count - items_in_page, selected_album_index - items_in_page/ 2 + 1));
+            index_end   := min(index_start + items_in_page, selected_artist.albums.count) - 1;
             array_reserve(*display_columns[1].entries, index_end - index_start + 1);
 
             max_characters_in_column := display_columns[1].rectangle_width / font.w_width - 2;
@@ -488,8 +488,8 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
         selected_song_index := library_cursor.positions[2];
         selected_album      := table_find_pointer(selected_artist.albums, selected_artist.album_names_sorted_by_date[selected_album_index]);
         {
-            index_start := max(0, min(selected_album.songs.count - items_in_page + 1, selected_song_index - items_in_page/ 2 + 1));
-            index_end   := min(index_start + items_in_page, selected_album.songs.count - 1);
+            index_start := max(0, min(selected_album.songs.count - items_in_page, selected_song_index - items_in_page/ 2 + 1));
+            index_end   := min(index_start + items_in_page, selected_album.songs.count) - 1;
             array_reserve(*display_columns[2].entries, index_end - index_start + 1);
 
             max_characters_in_column := display_columns[2].rectangle_width / font.w_width - 2;

@@ -292,8 +292,8 @@ draw_queue_frame :: (items_in_page: int, header_bottom: int) {
         display_columns[2].width = cast(s32)(5 / 20.0 * display_width());
         display_columns[3].width = cast(s32)display_width() - display_columns[0].width - display_columns[1].width - display_columns[2].width;
 
-        index_start := max(0, min(queue.songs.count - items_in_page + 1, queue_cursor.position - items_in_page/ 2 + 1));
-        index_end   := min(index_start + items_in_page, queue.songs.count - 1);
+        index_start := max(0, min(queue.songs.count - items_in_page, queue_cursor.position - items_in_page/ 2 + 1));
+        index_end   := min(index_start + items_in_page, queue.songs.count) - 1;
 
         array_reserve(*display_columns[0].entries, index_end - index_start + 1);
         array_reserve(*display_columns[1].entries, index_end - index_start + 1);
