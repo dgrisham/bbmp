@@ -346,8 +346,10 @@ main :: () {
                 if it.key_pressed {
                     if it.key_code == {
                       case KEY_Q;
-                        quit = true;
-                        break it;
+                        if it.shift_pressed {
+                            quit = true;
+                            break it;
+                        }
 
                       case .NUMBER_1;
                         current_screen = .QUEUE;
