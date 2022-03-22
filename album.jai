@@ -281,7 +281,7 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, header_botto
     text_y -= TEXT_PADDING_Y + font.character_height;
 
     {
-        width := Simp.prepare_text(font, to_string(album.date));
+        width := Simp.prepare_text(font, to_long_date_string(album.date));
         Simp.draw_prepared_text(font, x_center - width / 2, text_y, rgba(1,1,1,1));
     }
     text_y -= font.character_height;

@@ -77,6 +77,31 @@ to_string :: (date: Date) -> string {
     return tprint("%-%-%", date.year, month_str, day_str);
 }
 
+to_long_date_string :: (date: Date) -> string {
+    if !date.year  return "";
+    if !date.month return tprint("%", date.year);
+    month_name: string;
+    if date.month == {
+        case 1;  month_name = tprint("January");
+        case 2;  month_name = tprint("February");
+        case 3;  month_name = tprint("March");
+        case 4;  month_name = tprint("April");
+        case 5;  month_name = tprint("May");
+        case 6;  month_name = tprint("June");
+        case 7;  month_name = tprint("July");
+        case 8;  month_name = tprint("August");
+        case 9;  month_name = tprint("September");
+        case 10; month_name = tprint("October");
+        case 11; month_name = tprint("November");
+        case 12; month_name = tprint("December");
+        case;
+            log("Warning: '%' is not a valid month number", date.month, flags=.ERROR);
+            return tprint("%", date.year);
+    }
+    if !date.day   return tprint("% %", month_name, date.year);
+    return tprint("% % %", date.day, month_name, date.year);
+}
+
 library_cursor: struct {
     positions := int.[0, 0, 0];
     selected  := 0;
