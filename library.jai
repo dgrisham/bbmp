@@ -484,7 +484,7 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
 
             for i: index_start..index_end {
                 display_text: Display_Text;
-                display_text.text = copy_temporary_string(slice(library.artist_names_sorted[i], 0, max_characters_in_column));
+                display_text.text = create_temp_display_string_of_max_length(library.artist_names_sorted[i], max_characters_in_column);
                 display_text.selected = selected_artist_index == i;
                 array_add(*display_columns[0].entries, display_text);
             }
@@ -503,7 +503,7 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
                 display_text: Display_Text;
                 album := table_find_pointer(selected_artist.albums, selected_artist.album_names_sorted_by_date[i]);
                 assert(album != null);
-                display_text.text = copy_temporary_string(slice(tprint("(%) %", to_string(album.date), album.name), 0, max_characters_in_column));
+                display_text.text = create_temp_display_string_of_max_length(tprint("(%) %", to_string(album.date), album.name), max_characters_in_column);
 
                 display_text.selected = selected_album_index == i;
                 array_add(*display_columns[1].entries, display_text);
@@ -513,7 +513,7 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
         selected_song_index := library_cursor.positions[2];
         selected_album      := table_find_pointer(selected_artist.albums, selected_artist.album_names_sorted_by_date[selected_album_index]);
         {
-            index_start := max(0, min(selected_album.songs.count - items_in_page, selected_song_index - items_in_page/ 2 + 1));
+            index_start := max(0, min(selected_album.songs.count - items_in_page, selected_song_index - items_in_page / 2 + 1));
             index_end   := min(index_start + items_in_page, selected_album.songs.count) - 1;
             array_reserve(*display_columns[2].entries, index_end - index_start + 1);
 
@@ -527,7 +527,7 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
                 // the additional constant subtraction at the end is from:
                 // -    2 for the '. ' between the track and title
                 // -    3 for the 3 spaces added between track_and_title and duration
-                title := slice_unicode(song.name, 0, max_characters_in_column - padded_track.count - duration_time_string.count - 5);
+                title := create_temp_display_string_of_max_length(song.name, max_characters_in_column - padded_track.count - duration_time_string.count - 5);
 
                 track_and_title := tprint("%. %", padded_track, title);
                 // subtract 3 here, again for the 3 spaces added between track_and_title and duration
@@ -587,13 +587,40 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
     }
 }
 
+create_temp_display_string_of_max_length :: (s: string, max_character_count: int) -> string {
+
+    num_unicode_chars := get_unicode_length(s);
+    if num_unicode_chars <= max_character_count {
+        return copy_temporary_string(s);
+    }
+
+    // string is too long, trim and replace last char with an ellipses
+    max_number_of_bytes := 0;
+    num_bytes_in_last_unicode_char := 0;
+    {
+        bytes_total := 0;
+        num_unicode_chars := 0;
+        while num_unicode_chars < max_character_count && bytes_total < s.count {
+            num_bytes_in_last_unicode_char = 1 + trailingBytesForUTF8[s.data[bytes_total]];
+            bytes_total += num_bytes_in_last_unicode_char;
+            num_unicode_chars += 1;
+        }
+        max_number_of_bytes = bytes_total;
+    }
+
+    num_bytes_to_copy := max_number_of_bytes - num_bytes_in_last_unicode_char;
+    result := alloc_string(num_bytes_to_copy + ELLIPSIS.count, __temporary_allocator);
+    memcpy(result.data, s.data, num_bytes_to_copy);
+    memcpy(result.data + num_bytes_to_copy, ELLIPSIS.data, ELLIPSIS.count);
+    return result;
+}
+
 get_unicode_length :: (s: string) -> int {
     length := 0;
     i := 0;
     while i < s.count {
-        utf8_bytes := 1 + trailingBytesForUTF8[s.data[i]];
+        i += 1 + trailingBytesForUTF8[s.data[i]];
         length += 1;
-        i += utf8_bytes;
     }
     return length;
 }

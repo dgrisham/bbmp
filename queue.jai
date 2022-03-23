@@ -309,7 +309,7 @@ draw_queue_frame :: (items_in_page: int, header_bottom: int) {
             { // song name
                 max_characters_in_column := display_columns[0].width / font.w_width - 2;
                 display_text: Display_Text;
-                display_text.text = copy_temporary_string(slice(song.name, 0, max_characters_in_column));
+                display_text.text = create_temp_display_string_of_max_length(song.name, max_characters_in_column);
                 display_text.selected = selected;
                 array_add(*display_columns[0].entries, display_text);
             }
@@ -318,7 +318,7 @@ draw_queue_frame :: (items_in_page: int, header_bottom: int) {
                 max_characters_in_column := display_columns[1].width / font.w_width - 2;
                 display_text: Display_Text;
                 display_text.selected = selected;
-                display_text.text = copy_temporary_string(slice(song.album, 0, max_characters_in_column));
+                display_text.text = create_temp_display_string_of_max_length(song.album, max_characters_in_column);
                 array_add(*display_columns[1].entries, display_text);
             }
 
@@ -326,7 +326,7 @@ draw_queue_frame :: (items_in_page: int, header_bottom: int) {
                 max_characters_in_column := display_columns[2].width / font.w_width - 2;
                 display_text: Display_Text;
                 display_text.selected = selected;
-                display_text.text = copy_temporary_string(slice(song.artist, 0, max_characters_in_column));
+                display_text.text = create_temp_display_string_of_max_length(song.artist, max_characters_in_column);
                 array_add(*display_columns[2].entries, display_text);
             }
 
@@ -335,7 +335,7 @@ draw_queue_frame :: (items_in_page: int, header_bottom: int) {
                 duration_time_string := left_pad(seconds_to_time_string(song.duration), #char " ", max_characters_in_column);
                 display_text: Display_Text;
                 display_text.selected = selected;
-                display_text.text = copy_temporary_string(slice(duration_time_string, 0, max_characters_in_column));
+                display_text.text = create_temp_display_string_of_max_length(duration_time_string, max_characters_in_column);
                 array_add(*display_columns[3].entries, display_text);
             }
         }

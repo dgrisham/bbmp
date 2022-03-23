@@ -243,7 +243,7 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, header_botto
             // the additional constant subtraction at the end is from:
             // -    2 for the '. ' between the track and title
             // -    3 for the 3 spaces added between track_and_title and duration
-            title := slice_unicode(song.name, 0, max_characters_in_column - padded_track.count - duration_time_string.count - 5);
+            title := create_temp_display_string_of_max_length(song.name, max_characters_in_column - padded_track.count - duration_time_string.count - 5);
 
             track_and_title := tprint("%. %", padded_track, title);
             // subtract 3 here, again for the 3 spaces added between track_and_title and duration

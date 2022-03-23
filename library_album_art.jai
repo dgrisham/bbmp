@@ -245,22 +245,8 @@ library_album_art_draw_one_frame :: (header_bottom: int, rows: int, columns: int
             album := library_album_art.albums[album_index];
 
             entry: Entry;
-
-            if album.artist_name.count > max_characters_in_column {
-                entry.artist_name = alloc_string(max_characters_in_column + 2, __temporary_allocator);
-                memcpy(entry.artist_name.data, album.artist_name.data, max_characters_in_column - 1);
-                memcpy(entry.artist_name.data + max_characters_in_column - 1, ELLIPSIS.data, ELLIPSIS.count);
-            } else {
-                entry.artist_name = copy_temporary_string(slice(album.artist_name, 0, max_characters_in_column));
-            }
-
-            if album.name.count > max_characters_in_column {
-                entry.album_name = alloc_string(max_characters_in_column + 2, __temporary_allocator);
-                memcpy(entry.album_name.data, album.name.data, max_characters_in_column - 1);
-                memcpy(entry.album_name.data + max_characters_in_column - 1, ELLIPSIS.data, ELLIPSIS.count);
-            } else {
-                entry.album_name = copy_temporary_string(slice(album.name, 0, max_characters_in_column));
-            }
+            entry.artist_name = create_temp_display_string_of_max_length(album.artist_name, max_characters_in_column);
+            entry.album_name  = create_temp_display_string_of_max_length(album.name,        max_characters_in_column);
 
             if !album.thumbnail_texture {
                 album.thumbnail_texture = load_thumbnail_if_exists(album_index);
