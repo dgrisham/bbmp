@@ -268,14 +268,15 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, header_botto
     );
 
     x_center := (window_width - X_MARGIN_SIZE + text_x) / 2;
+
     {
-        width := Simp.prepare_text(font, album.artist_name);
+        width := Simp.prepare_text(font, album.name);
         Simp.draw_prepared_text(font, x_center - width / 2, text_y, rgba(1,1,1,1));
     }
     text_y -= TEXT_PADDING_Y + font.character_height;
 
     {
-        width := Simp.prepare_text(font, album.name);
+        width := Simp.prepare_text(font, album.artist_name);
         Simp.draw_prepared_text(font, x_center - width / 2, text_y, rgba(1,1,1,1));
     }
     text_y -= TEXT_PADDING_Y + font.character_height;
