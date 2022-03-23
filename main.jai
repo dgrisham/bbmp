@@ -550,20 +550,21 @@ draw_header :: () -> int {
         header_bottom = min(header_bottom, y - font.character_height);
     }
 
-    { // song + artist/album name
+    { // currently playing song + artist/album
         x := cast(int)window_width / 2;
         y := top;
 
-        // song name
         max_characters_in_column := (display_width() / 2) / font.w_width;
-        text_width := Simp.prepare_text(font, slice(status.song, 0, max_characters_in_column));
-        Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
-
+        if status.song {
+            text_width := Simp.prepare_text(font, slice(status.song, 0, max_characters_in_column));
+            Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
+        }
         y -= TEXT_PADDING_Y + font.character_height;
 
-        // artist - album
-        text_width = Simp.prepare_text(font, slice(tprint("% - %", status.artist, status.album), 0, max_characters_in_column));
-        Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
+        if status.artist || status.album {
+            text_width := Simp.prepare_text(font, slice(tprint("% - %", status.artist, status.album), 0, max_characters_in_column));
+            Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
+        }
 
         header_bottom = min(header_bottom, y - font.character_height);
     }
@@ -572,11 +573,12 @@ draw_header :: () -> int {
         x := display_width() + X_MARGIN_SIZE - font.w_width * 10;
         // y := top - TEXT_PADDING_Y;
         y := top - TEXT_PADDING_Y - font.character_height / 2;
+        display_volume := ifx status.volume >= 0 then tprint("%1%%", left_pad(status.volume, #char " ", 3)) else "N/A";
         Simp.draw_text(
             font,
             x,
             y,
-            tprint("Vol: %1%%", left_pad(status.volume, #char " ", 3)),
+            tprint("Vol: %", display_volume),
             rgba(1,1,1,1),
         );
         header_bottom = min(header_bottom, y - font.character_height);
