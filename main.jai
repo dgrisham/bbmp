@@ -4,6 +4,9 @@
 #import "Window_Creation";
 #import "POSIX";
 #import "Time";
+#import "Compiler";
+
+#run set_output_executable_name("grishcompoop");
 
 Process :: #import "Process";
 Simp    :: #import "Simp";
