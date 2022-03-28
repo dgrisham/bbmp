@@ -192,10 +192,6 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, header_botto
     }
 
     cover_display_width := cast(float)ALBUM_ART_DISPLAY_WIDTH;
-    remaining_width := (1 / 2.0 * (cast(float)window_width - X_MARGIN_SIZE));
-    if cover_display_width > remaining_width {
-        cover_display_width = remaining_width;
-    }
     cover_display_height := cover_display_width;
 
     cover_x := cast(float)X_MARGIN_SIZE;

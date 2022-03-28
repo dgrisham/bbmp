@@ -34,8 +34,8 @@ load_library_album_art :: () {
 
 SHOW_CURRENT_ALBUM := false;
 
-THUMBNAIL_SLOT_WIDTH  : s32 : 200;
-THUMBNAIL_SLOT_HEIGHT : s32 : THUMBNAIL_SLOT_WIDTH;
+THUMBNAIL_SLOT_WIDTH  : s32 = 200;
+THUMBNAIL_SLOT_HEIGHT : s32 = 200;
 
 library_album_art_event_loop :: (frame: u64, header_bottom: int) {
 
@@ -264,6 +264,7 @@ library_album_art_draw_one_frame :: (header_bottom: int, rows: int, columns: int
         TEXT_PADDING_Y :: 5;
         SELECTED_COVER_HIGHLIGHT_WIDTH :: 8;
         HORIZONTAL_PADDING := cast(s32) ((total_width  - columns * THUMBNAIL_SLOT_WIDTH) / (columns - 1));
+        EXTRA_PADDING_BETWEEN_ROWS :: 5;
         VERTICAL_PADDING   := cast(s32) ((total_height - rows * (THUMBNAIL_SLOT_HEIGHT + 2 * (font.character_height + TEXT_PADDING_Y + SELECTED_COVER_HIGHLIGHT_WIDTH))) / (rows - 1));
 
         x := X_MARGIN_SIZE;
@@ -304,13 +305,13 @@ library_album_art_draw_one_frame :: (header_bottom: int, rows: int, columns: int
             if entry.selected {
                 for i: 0..SELECTED_COVER_HIGHLIGHT_WIDTH {
                     c := 1.0 - i / cast(float)SELECTED_COVER_HIGHLIGHT_WIDTH;
-                    width := SELECTED_COVER_HIGHLIGHT_WIDTH - i + 4;
+                    highlight_width := SELECTED_COVER_HIGHLIGHT_WIDTH - i + 4;
                     Simp.set_shader_for_color();
                     Simp.immediate_quad(
-                        cast(float)x - width,
-                        cast(float)y + width,
-                        cast(float)x + THUMBNAIL_SLOT_WIDTH + width,
-                        cast(float)y - THUMBNAIL_SLOT_HEIGHT - width,
+                        cast(float)x - highlight_width,
+                        cast(float)y + highlight_width,
+                        cast(float)x + THUMBNAIL_SLOT_WIDTH  + highlight_width,
+                        cast(float)y - THUMBNAIL_SLOT_HEIGHT - highlight_width,
                         rgba(c,c,c,1)
                     );
                 }
@@ -333,7 +334,7 @@ library_album_art_draw_one_frame :: (header_bottom: int, rows: int, columns: int
 
             } else {
                 Simp.set_shader_for_color();
-                Simp.immediate_quad(cast(float)x, cast(float)y, cast(float)x + THUMBNAIL_SLOT_WIDTH, cast(float)y - THUMBNAIL_SLOT_WIDTH, rgba(0,0,0,1));
+                Simp.immediate_quad(cast(float)x, cast(float)y, cast(float)x + THUMBNAIL_SLOT_WIDTH, cast(float)y - THUMBNAIL_SLOT_HEIGHT, rgba(0,0,0,1));
             }
 
             column += 1;
@@ -341,7 +342,7 @@ library_album_art_draw_one_frame :: (header_bottom: int, rows: int, columns: int
                 row += 1;
                 column = 0;
                 x = X_MARGIN_SIZE;
-                y -= THUMBNAIL_SLOT_HEIGHT + SELECTED_COVER_HIGHLIGHT_WIDTH + 2 * (TEXT_PADDING_Y + font.character_height);
+                y -= THUMBNAIL_SLOT_HEIGHT + EXTRA_PADDING_BETWEEN_ROWS + 2 * (font.character_height + TEXT_PADDING_Y + SELECTED_COVER_HIGHLIGHT_WIDTH);
                 y -= VERTICAL_PADDING;
             } else {
                 x += THUMBNAIL_SLOT_WIDTH;

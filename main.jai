@@ -52,6 +52,8 @@ main :: () {
     Simp.set_render_target(window);
     X_MARGIN_SIZE = window_width / 30;
     Y_MARGIN_SIZE = window_height / 30;
+    THUMBNAIL_SLOT_WIDTH  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 10);
+    THUMBNAIL_SLOT_HEIGHT = THUMBNAIL_SLOT_WIDTH;
 
     mpd_connection = MPD.connection_new(null, 0, 15000);
     if mpd_connection == null {
@@ -103,7 +105,9 @@ main :: () {
                     window_height = it.height;
                     X_MARGIN_SIZE = window_width / 30;
                     Y_MARGIN_SIZE = window_height / 30;
-                    ALBUM_ART_DISPLAY_WIDTH = window_width / 3;
+                    ALBUM_ART_DISPLAY_WIDTH = max(MIN_ALBUM_ART_DISPLAY_WIDTH, window_width / 3);
+                    THUMBNAIL_SLOT_WIDTH  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 10);
+                    THUMBNAIL_SLOT_HEIGHT = THUMBNAIL_SLOT_WIDTH;
                     init_fonts();
                     break;
                 }
