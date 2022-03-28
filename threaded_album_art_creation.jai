@@ -2,8 +2,6 @@
 #import "Thread";
 #import "Pool";
 
-THUMBNAIL_WIDTH :: 200;
-
 album_art_creation_thread_group: Thread_Group;
 
 pool: Pool;
@@ -129,7 +127,7 @@ start_album_art_creation_thread_group :: () {
             if album.cover_path && file_exists(album.cover_path) {
                 album_hash := get_hash(tprint("%-%", album.artist_name, album.name));
                 thumbnail_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, THUMBNAIL_WIDTH);
-                display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, MAX_COVER_DISPLAY_WIDTH);
+                display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, LARGE_ALBUM_ART_WIDTH);
 
                 work := New(Album_Art_Job_Info);
                 work.artist_name    = copy_string(album.artist_name);
@@ -143,7 +141,7 @@ start_album_art_creation_thread_group :: () {
                 if !file_exists(display_art_path) {
                     work.create_display_art = true;
                     work.display_art_path   = copy_string(display_art_path);
-                    work.display_art_width  = MAX_COVER_DISPLAY_WIDTH;
+                    work.display_art_width  = LARGE_ALBUM_ART_WIDTH;
                 }
                 array_add(*work_list, work);
             }

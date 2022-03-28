@@ -3,9 +3,17 @@
 ************/
 
 THUMBNAIL_DIRECTORY :: "/home/grish/src/jai/jai-mpd/.thumbnails";
-// @Cleanup Maybe this should be split into two values, one for the target album art creation size
-// and one for the max display size
-MAX_COVER_DISPLAY_WIDTH :: 600;
+
+THUMBNAIL_WIDTH       :: 200;
+LARGE_ALBUM_ART_WIDTH :: 600;
+
+ALBUM_ART_DISPLAY_WIDTH := 600;
+
+KEY_HOLD_DELAY :: 20;
+
+X_MARGIN_SIZE  : s32;
+Y_MARGIN_SIZE  : s32;
+TEXT_PADDING_Y :: 5;
 
 /********
 * types *
@@ -28,6 +36,22 @@ Album :: struct {
     thumbnail_bitmap  : *Simp.Bitmap;
     mutex             : Mutex;
 };
+
+Song :: struct {
+    artist   : string;
+    album    : string;
+    name     : string;
+    track    : string;
+    uri      : string;
+    duration : u32;
+}
+free :: (using song: Song) {
+    free(artist);
+    free(album);
+    free(name);
+    free(track);
+    free(uri);
+}
 
 Date :: struct {
     year  : int;
@@ -98,6 +122,11 @@ to_long_date_string :: (date: Date) -> string {
     }
     if !date.day   return tprint("% %", month_name, date.year);
     return tprint("% % %", date.day, month_name, date.year);
+}
+
+Display_Text :: struct {
+    text     : string;
+    selected : bool;
 }
 
 /********************
@@ -267,6 +296,20 @@ get_unicode_length :: (s: string) -> int {
         length += 1;
     }
     return length;
+}
+
+seconds_to_time_string :: (seconds: u32, allocator := __temporary_allocator) -> string {
+    return aprint("%:%", seconds / 60, left_pad(seconds % 60, #char "0", 2), allocator=allocator);
+}
+
+aprint:: (format_string: string, args: .. Any, allocator: Allocator) -> string {
+    builder: String_Builder;
+    builder.allocator = allocator;
+    defer free_buffers(*builder);
+
+    print_to_builder(*builder, format_string, ..args);
+
+    return builder_to_string(*builder, allocator);
 }
 
 slice_unicode :: (s: string, index: s64, count: s64) -> string {

@@ -11,40 +11,6 @@ Simp    :: #import "Simp";
 Input   :: #import "Input";
 MPD     :: #import "libmpdclient";
 
-Song :: struct {
-    artist   : string;
-    album    : string;
-    name     : string;
-    track    : string;
-    uri      : string;
-    duration : u32;
-}
-free :: (using song: Song) {
-    free(artist);
-    free(album);
-    free(name);
-    free(track);
-    free(uri);
-}
-
-seconds_to_time_string :: (seconds: u32, allocator := __temporary_allocator) -> string {
-    return aprint("%:%", seconds / 60, left_pad(seconds % 60, #char "0", 2), allocator=allocator);
-}
-aprint:: (format_string: string, args: .. Any, allocator: Allocator) -> string {
-    builder: String_Builder;
-    builder.allocator = allocator;
-    defer free_buffers(*builder);
-
-    print_to_builder(*builder, format_string, ..args);
-
-    return builder_to_string(*builder, allocator);
-}
-
-Display_Text :: struct {
-    text     : string;
-    selected : bool;
-}
-
 #load "queue.jai";
 #load "library.jai";
 #load "library_album_art.jai";
@@ -66,14 +32,8 @@ TCP_NODELAY  : s32 : LONG + xx 121;
 
 mpd_connection: *MPD.connection;
 
-KEY_HOLD_DELAY :: 20;
-
 window_width  : s32 = 1920;
 window_height : s32 = 1080;
-
-X_MARGIN_SIZE  : s32;
-Y_MARGIN_SIZE  : s32;
-TEXT_PADDING_Y :: 5;
 
 display_width  :: () -> int #expand { return window_width  - 2 * X_MARGIN_SIZE; }
 // display_height :: () -> int #expand { return window_height - 2 * Y_MARGIN_SIZE; }
@@ -143,6 +103,7 @@ main :: () {
                     window_height = it.height;
                     X_MARGIN_SIZE = window_width / 30;
                     Y_MARGIN_SIZE = window_height / 30;
+                    ALBUM_ART_DISPLAY_WIDTH = window_width / 3;
                     init_fonts();
                     break;
                 }

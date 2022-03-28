@@ -178,7 +178,7 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, header_botto
 
     if load_current_album_cover {
         if album.cover_path != "" {
-            display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, get_hash(tprint("%-%", album.artist_name, album.name)), MAX_COVER_DISPLAY_WIDTH);
+            display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, get_hash(tprint("%-%", album.artist_name, album.name)), LARGE_ALBUM_ART_WIDTH);
             if file_exists(display_art_path) {
                 start := get_current_file_time();
                 if !Simp.texture_load_from_file(loaded_album.art_texture, display_art_path) {
@@ -191,7 +191,7 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, header_botto
         }
     }
 
-    cover_display_width := cast(float)MAX_COVER_DISPLAY_WIDTH;
+    cover_display_width := cast(float)ALBUM_ART_DISPLAY_WIDTH;
     remaining_width := (1 / 2.0 * (cast(float)window_width - X_MARGIN_SIZE));
     if cover_display_width > remaining_width {
         cover_display_width = remaining_width;
@@ -212,7 +212,6 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, header_botto
         Simp.set_shader_for_images(loaded_album.art_texture);
         Simp.immediate_begin();
 
-        v2 :: make_vector2;
         Simp.immediate_quad(
             xy(cover_x                      , cover_y),
             xy(cover_x + cover_display_width, cover_y),
