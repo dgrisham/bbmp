@@ -9,8 +9,6 @@ queue_cursor: struct {
 
 load_queue :: () {
 
-    handle_mpd_idle_events();
-
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
     if !status { print("Status is null, not refreshing queue\n"); return; }
@@ -53,8 +51,6 @@ load_queue :: () {
 }
 
 load_queue_changes :: () {
-
-    handle_mpd_idle_events();
 
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
@@ -158,7 +154,6 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
 
     queue_remove_selected_song :: () #expand {
         if queue_cursor.position >= 0 && queue_cursor.position <= queue.songs.count {
-            handle_mpd_idle_events();
             MPD.run_delete(mpd_connection, cast(u32)queue_cursor.position);
             handle_errors("Removing song from queue");
             load_queue_changes();
@@ -167,7 +162,6 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
     }
 
     queue_play_selected_song :: () #expand {
-        handle_mpd_idle_events();
         MPD.run_play_pos(mpd_connection, cast(u32)queue_cursor.position);
         handle_errors("Playing queue song");
         update_status(false);
@@ -232,7 +226,6 @@ queue_event_loop :: (frame: u64, header_bottom: int) {
                     break it;
 
                   case KEY_O; // move cursor to currently playing song
-                    handle_mpd_idle_events();
                     mpd_current_song := MPD.run_current_song(mpd_connection);
                     handle_errors("Getting current song");
                     if !mpd_current_song break;

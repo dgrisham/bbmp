@@ -2,11 +2,9 @@
 #import "Math";
 #import "String";
 #import "Window_Creation";
-#import "POSIX";
 #import "Time";
-#import "Compiler";
 
-#run set_output_executable_name("grishcompoop");
+#run (#import "Compiler").set_output_executable_name("grishcompoop");
 
 Process :: #import "Process";
 Simp    :: #import "Simp";
@@ -50,60 +48,10 @@ Display_Text :: struct {
 #load "queue.jai";
 #load "library.jai";
 #load "library_album_art.jai";
-
-KEY_B :: 66;
-KEY_C :: 67;
-KEY_D :: 68;
-KEY_F :: 70;
-KEY_G :: 71;
-KEY_H :: 72;
-KEY_I :: 73;
-KEY_J :: 74;
-KEY_K :: 75;
-KEY_L :: 76;
-KEY_O :: 79;
-KEY_P :: 80;
-KEY_Q :: 81;
-KEY_R :: 82;
-KEY_U :: 85;
-KEY_X :: 88;
-
-Key :: enum u8 {
-    ENTER;
-    SPACE;
-    LEFT_ANGLE_BRACKET;
-    RIGHT_ANGLE_BRACKET;
-    EQUALS_SIGN;
-    DASH;
-    B;
-    C;
-    D;
-    F;
-    G;
-    H;
-    J;
-    K;
-    L;
-    O;
-    P;
-    Q;
-    U;
-    X;
-    SHIFT_J;
-    SHIFT_K;
-    CTRL_U;
-    CTRL_D;
-}
+#load "threaded_album_art_creation.jai";
+#load "common.jai";
 
 window: Window_Type;
-
-copy_from_c_string :: inline (s: *u8) -> string {
-    return copy_string(to_string(s));
-}
-
-copy_temp_from_c_string :: inline (s: *u8) -> string {
-    return copy_temporary_string(to_string(s));
-}
 
 Screen :: enum {
     QUEUE;
@@ -117,63 +65,6 @@ LONG         : s32 : 0x200000;
 TCP_NODELAY  : s32 : LONG + xx 121;
 
 mpd_connection: *MPD.connection;
-mpd_fd: s32;
-idle := false;
-// mpd_poll_process_pid: pid_t;
-
-Status :: struct {
-    artist:       string;
-    album:        string;
-    song:         string;
-    elapsed_time: u32;
-    total_time:   u32;
-    volume:       s32;
-}
-
-status: Status;
-
-status_update_timer: u64 = 0;
-update_status :: (update_queue := true) {
-    status_update_timer = get_current_file_time();
-
-    mpd_status := MPD.run_status(mpd_connection);
-    handle_errors("Retrieving MPD status");
-    MPD.response_finish(mpd_connection);
-
-    if update_queue load_queue_changes();
-    queue_song_position := MPD.status_get_song_pos(mpd_status);
-    if queue_song_position >= 0 {
-        song := queue.songs[queue_song_position];
-        status.artist = copy_string(song.artist);
-        status.album  = copy_string(song.album);
-        status.song   = copy_string(song.name);
-    } else {
-        status.artist = "";
-        status.album  = "";
-        status.song   = "";
-    }
-    status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
-    status.total_time   = MPD.status_get_total_time(mpd_status);
-    status.volume       = MPD.status_get_volume(mpd_status);
-    MPD.status_free(mpd_status);
-}
-
-update_status_volume :: () {
-    mpd_status := MPD.run_status(mpd_connection);
-    handle_errors("Retrieving MPD status");
-    MPD.response_finish(mpd_connection);
-    status.volume       = MPD.status_get_volume(mpd_status);
-    MPD.status_free(mpd_status);
-}
-
-update_status_time :: () {
-    mpd_status := MPD.run_status(mpd_connection);
-    handle_errors("Retrieving MPD status");
-    MPD.response_finish(mpd_connection);
-    status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
-    status.total_time   = MPD.status_get_total_time(mpd_status);
-    MPD.status_free(mpd_status);
-}
 
 KEY_HOLD_DELAY :: 20;
 
@@ -209,23 +100,15 @@ main :: () {
     }
     handle_errors("Initializing MPD connection");
 
-    // mpd_fd = MPD.connection_get_fd(mpd_connection);
-    // handle_errors("Getting file descriptor for MPD connection");
-    // flag: int = 1;
-    // setsockopt(mpd_fd, IPPROTO_TCP, TCP_NODELAY, *flag, size_of(type_of(flag)));
-
-    // pid := fork_poll_process(mpd_fd);
-    // if pid > 0 {
-    //     mpd_poll_process_pid = pid;
-    // }
-
     load_library();
     load_queue();
     load_library_album_art();
-    remaining_cover_jobs := start_album_art_creation_thread_group();
+    start_album_art_creation_thread_group(); // this must be called AFTER load_library() and load_library_album_art()
 
     library_init_repeatable_keys();
     queue_init_repeatable_keys();
+    library_album_art_init_repeatable_keys();
+    album_init_repeatable_keys();
 
     quit := false;
     frame: u64 = 0;
@@ -249,49 +132,9 @@ main :: () {
         }
         frame_start := get_current_file_time();
 
-        // @Cleanup This lives outside of the library_album_art_event_loop() function so that we
-        // can clean up these threads regardless of whether the user switches to that screen.
-        if remaining_cover_jobs > 0 {
-            results := get_completed_work(*album_art_creation_thread_group);
-            if results.count > 0 {
-                create_thumbnail_successes,   create_thumbnail_failures   := 0;
-                create_display_art_successes, create_display_art_failures := 0;
-                load_thumbnail_successes,     load_thumbnail_failures     := 0;
-                for results {
-                    job_info := cast(*Album_Art_Job_Info) it;
-
-                    if job_info.create_thumbnail
-                        if job_info.create_thumbnail_success create_thumbnail_successes += 1;
-                        else                                 create_thumbnail_failures  += 1;
-
-                    if job_info.create_display_art
-                        if job_info.create_display_art_success create_display_art_successes += 1;
-                        else                                   create_display_art_failures  += 1;
-
-                    if job_info.load_thumbnail_success load_thumbnail_successes += 1;
-                    else                               load_thumbnail_failures  += 1;
-                }
-
-                remaining_cover_jobs -= results.count;
-                log("create thumbnail jobs finished: % successes, % failures\n", create_thumbnail_successes, create_thumbnail_failures);
-                log("create display art jobs finished: % successes, % failures\n", create_display_art_successes, create_display_art_failures);
-                log("load thumbnail jobs finished: % successes, % failures\n", load_thumbnail_successes, load_thumbnail_failures);
-                log("% remaining cover jobs\n", remaining_cover_jobs);
-                if remaining_cover_jobs == 0 {
-                    log("No more remaining thumbnail jobs, shutting down thread group");
-                    release(*pool);
-                    shutdown(*album_art_creation_thread_group);
-                }
-            }
-        }
-
-
-        // if !idle MPD.send_idle(mpd_connection);
-        // handle_errors("Putting MPD into idle mode");
-        // idle = true;
+        check_album_art_creation_jobs();
 
         Input.update_window_events();
-
         for Input.get_window_resizes() {
             Simp.update_window(it.window);
             if it.window == window {
@@ -307,7 +150,6 @@ main :: () {
         }
 
         seek :: ($seconds: float32) #expand {
-            handle_mpd_idle_events();
             MPD.run_seek_current(mpd_connection, seconds, true);
             handle_errors("Seeking");
             update_status_time();
@@ -318,20 +160,17 @@ main :: () {
 
         play_previous_song :: () #expand {
             last_global_key_pressed = .LEFT_ANGLE_BRACKET;
-            handle_mpd_idle_events();
             MPD.run_previous(mpd_connection);
             handle_errors("Playing previous song");
             update_status(false);
         }
         play_next_song :: () #expand {
-            handle_mpd_idle_events();
             MPD.run_next(mpd_connection);
             handle_errors("Playing next song");
             update_status(false);
         }
 
         change_volume :: ($amount: s32) #expand {
-            handle_mpd_idle_events();
             MPD.run_change_volume(mpd_connection, amount);
             handle_errors("Changing volume");
             update_status_volume();
@@ -366,7 +205,6 @@ main :: () {
                         break it;
 
                       case KEY_P;
-                        handle_mpd_idle_events();
                         MPD.run_toggle_pause(mpd_connection);
                         handle_errors("Toggling pause");
                         break it;
@@ -405,7 +243,6 @@ main :: () {
                         break it;
 
                       case KEY_C;
-                        handle_mpd_idle_events();
                         MPD.run_clear(mpd_connection);
                         handle_errors("Clearing queue");
                         load_queue_changes();
@@ -468,51 +305,65 @@ main :: () {
         }
     }
 
-    // print("Killing child process\n");
-    // if kill(mpd_poll_process_pid, SIGKILL) == -1
-    //     print("Failed to kill the child %: %\n", mpd_poll_process_pid, errno());
-
     MPD.connection_free(mpd_connection);
 }
 
-key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pressed: Key, frame: u64, $key: Key, threshold := KEY_HOLD_DELAY) -> bool #expand {
-    if last_key_pressed != key return false;
+/******************
+* status bar info *
+******************/
 
-    key_code: Input.Key_Code;
+Status :: struct {
+    artist:       string;
+    album:        string;
+    song:         string;
+    elapsed_time: u32;
+    total_time:   u32;
+    volume:       s32;
+}
 
-         #if key == .B                   key_code = KEY_B;
-    else #if key == .F                   key_code = KEY_F;
-    else #if key == .H                   key_code = KEY_H;
-    else #if key == .J                   key_code = KEY_J;
-    else #if key == .K                   key_code = KEY_K;
-    else #if key == .L                   key_code = KEY_L;
-    else #if key == .X                   key_code = KEY_X;
-    else #if key == .EQUALS_SIGN         key_code = .EQUALS_SIGN;
-    else #if key == .DASH                key_code = .DASH;
-    else #if key == .ENTER               key_code = .ENTER;
-    else #if key == .SPACE               key_code = .SPACEBAR;
-    else #if key == .LEFT_ANGLE_BRACKET  key_code = .LEFT_ANGLE_BRACKET;
-    else #if key == .RIGHT_ANGLE_BRACKET key_code = .RIGHT_ANGLE_BRACKET;
-    else #if key == .SHIFT_J {
-        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
-        key_code = KEY_J;
-    }
-    else #if key == .SHIFT_K {
-        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
-        key_code = KEY_K;
-    }
-    else #if key == .CTRL_D {
-        if !(Input.input_button_states[Input.Key_Code.CTRL] & .DOWN) return false;
-        key_code = KEY_D;
-    }
-    else #if key == .CTRL_U {
-        if !(Input.input_button_states[Input.Key_Code.CTRL] & .DOWN) return false;
-        key_code = KEY_U;
-    }
-    else #assert(false);
+status: Status;
 
-    if !(Input.input_button_states[key_code] & .DOWN) return false;
-    return frame > <<table_find_pointer(key_pressed_on_frame, key) + threshold;
+status_update_timer: u64 = 0;
+update_status :: (update_queue := true) {
+    status_update_timer = get_current_file_time();
+
+    mpd_status := MPD.run_status(mpd_connection);
+    handle_errors("Retrieving MPD status");
+    MPD.response_finish(mpd_connection);
+
+    if update_queue load_queue_changes();
+    queue_song_position := MPD.status_get_song_pos(mpd_status);
+    if queue_song_position >= 0 {
+        song := queue.songs[queue_song_position];
+        status.artist = copy_string(song.artist);
+        status.album  = copy_string(song.album);
+        status.song   = copy_string(song.name);
+    } else {
+        status.artist = "";
+        status.album  = "";
+        status.song   = "";
+    }
+    status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
+    status.total_time   = MPD.status_get_total_time(mpd_status);
+    status.volume       = MPD.status_get_volume(mpd_status);
+    MPD.status_free(mpd_status);
+}
+
+update_status_volume :: () {
+    mpd_status := MPD.run_status(mpd_connection);
+    handle_errors("Retrieving MPD status");
+    MPD.response_finish(mpd_connection);
+    status.volume       = MPD.status_get_volume(mpd_status);
+    MPD.status_free(mpd_status);
+}
+
+update_status_time :: () {
+    mpd_status := MPD.run_status(mpd_connection);
+    handle_errors("Retrieving MPD status");
+    MPD.response_finish(mpd_connection);
+    status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
+    status.total_time   = MPD.status_get_total_time(mpd_status);
+    MPD.status_free(mpd_status);
 }
 
 draw_header :: () -> int {
@@ -520,23 +371,9 @@ draw_header :: () -> int {
     top := cast(int)window_height - 2 * Y_MARGIN_SIZE;
 
     header_bottom := top;
-    // { // top line
-    //     y := cast(float) top + font.character_height + 3 * TEXT_PADDING_Y;
-    //     line_width := window_width - 2 * X_MARGIN_SIZE;
-    //     line_height := 2;
-    //     Simp.set_shader_for_color();
-    //     Simp.immediate_quad(
-    //         xy(cast(float) X_MARGIN_SIZE,              y - line_height),
-    //         xy(cast(float) X_MARGIN_SIZE + line_width, y - line_height),
-    //         xy(cast(float) X_MARGIN_SIZE + line_width, y),
-    //         xy(cast(float) X_MARGIN_SIZE,              y),
-    //     );
-    //     header_bottom -= line_height;
-    // }
 
     { // current track time
         x := X_MARGIN_SIZE;
-        // y := top - TEXT_PADDING_Y;
         y := top - TEXT_PADDING_Y - font.character_height / 2;
         Simp.draw_text(
             font,
@@ -574,7 +411,6 @@ draw_header :: () -> int {
 
     { // volume
         x := display_width() + X_MARGIN_SIZE - font.w_width * 10;
-        // y := top - TEXT_PADDING_Y;
         y := top - TEXT_PADDING_Y - font.character_height / 2;
         display_volume := ifx status.volume >= 0 then tprint("%1%%", left_pad(status.volume, #char " ", 3)) else "N/A";
         Simp.draw_text(
@@ -587,70 +423,11 @@ draw_header :: () -> int {
         header_bottom = min(header_bottom, y - font.character_height);
     }
 
-    // { // bottom line
-    //     y := cast(float) header_bottom - TEXT_PADDING_Y;
-    //     line_width := window_width - 2 * X_MARGIN_SIZE;
-    //     line_height := 2;
-    //     Simp.set_shader_for_color();
-    //     Simp.immediate_quad(
-    //         xy(cast(float) X_MARGIN_SIZE,              y - line_height),
-    //         xy(cast(float) X_MARGIN_SIZE + line_width, y - line_height),
-    //         xy(cast(float) X_MARGIN_SIZE + line_width, y),
-    //         xy(cast(float) X_MARGIN_SIZE,              y),
-    //     );
-    //     header_bottom -= line_height + TEXT_PADDING_Y;
-    // }
-
     header_bottom -= 25;
 
     return header_bottom;
 }
 
-// fork_poll_process :: (mpd_fd: s32) -> pid_t {
-//     pid := fork();
-
-//     if pid < 0 {
-//         log_error("Error forking MPD connection fd poll process: %\n", errno());
-//         return -1;
-//     }
-//     if pid == 0 {
-//         mpd_async := MPD.async_new(mpd_fd);
-//         if !mpd_async { print("Error creating async MPD connection\n"); exit(1); }
-
-//         while true {
-//             poll_fds: [1] pollfd;
-//             poll_fds[0].fd = mpd_fd;
-//             poll_fds[0].events = POLLIN;
-
-//             poll(poll_fds.data, cast(u32) poll_fds.count, -1);
-//             if poll_fds[0].revents & POLLIN {
-//                 print("FD ready for reading\n");
-//                 handle_mpd_idle_events();
-//             }
-//             sleep_milliseconds(5000);
-//         }
-//     }
-
-//     return pid;
-// }
-
-handle_mpd_idle_events :: () {
-    assert(mpd_connection != null);
-    // print("Checking MPD idle events\n");
-    if idle && MPD.send_noidle(mpd_connection) {
-        idle = false;
-        flags := MPD.recv_idle(mpd_connection, true);
-        print("flags: %\n", flags);
-        MPD.response_finish(mpd_connection);
-        handle_errors("Getting idle events");
-
-        // if flags & .QUEUE load_queue_changes();
-    }
-}
-
-// pixel_height := window_height / 48;
-
-// TODO: load/use font for asian/etc. characters (maybe one of the expanded inconsolata sets?)
 font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
     pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
@@ -708,18 +485,6 @@ handle_errors :: (message: string) -> bool {
                 print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", error.type, error.code, error.message, error.recovered);
             }
 
-            // if kill(mpd_poll_process_pid, SIGKILL) == -1
-            //     print("Failed to kill the child %: %\n", mpd_poll_process_pid, errno());
-            // mpd_fd = MPD.connection_get_fd(mpd_connection);
-            // handle_errors("Getting file descriptor for MPD connection");
-            // flag: int = 1;
-            // setsockopt(mpd_fd, IPPROTO_TCP, TCP_NODELAY, *flag, size_of(type_of(flag)));
-
-            // pid := fork_poll_process(mpd_fd);
-            // if pid > 0 {
-            //     mpd_poll_process_pid = pid;
-            // }
-
             print("Successfully reconnected to MPD\n");
             return true;
         }
@@ -748,26 +513,4 @@ check_connection_errors :: () -> *Error {
     }
 
     return null;
-}
-
-left_pad :: (t: $T, pad_char: u8, total_length: int, allocator := __temporary_allocator) -> string {
-    #if T == string str := t;
-    else            str := tprint("%", t);
-
-    if total_length <= 0 return str;
-    result := alloc_string(total_length, allocator);
-    pad_count := result.count - str.count;
-    for 0..(pad_count - 1) result[it] = pad_char;
-    memcpy(result.data + pad_count, str.data, str.count);
-    return result;
-}
-
-right_pad :: (t: $T, pad_char: u8, total_length: int, allocator := temporary_allocator) -> string {
-    #if T == string str := t;
-    else            str := tprint("%", t);
-
-    result := alloc_string(total_length, allocator);
-    memcpy(result.data, str.data, str.count);
-    for str.count..(result.count - 1) result[it] = pad_char;
-    return result;
 }

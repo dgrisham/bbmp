@@ -2,12 +2,14 @@ last_album_key_pressed: Key;
 album_key_pressed_on_frame: Table(Key, u64);
 
 album_init_repeatable_keys :: () {
-    table_set(*album_key_pressed_on_frame, .J,       0);
-    table_set(*album_key_pressed_on_frame, .K,       0);
-    table_set(*album_key_pressed_on_frame, .CTRL_D,  0);
-    table_set(*album_key_pressed_on_frame, .CTRL_U,  0);
-    table_set(*album_key_pressed_on_frame, .SPACE,   0);
-    table_set(*album_key_pressed_on_frame, .ENTER,   0);
+    table_set(*album_key_pressed_on_frame, .J,      0);
+    table_set(*album_key_pressed_on_frame, .K,      0);
+    table_set(*album_key_pressed_on_frame, .H,      0);
+    table_set(*album_key_pressed_on_frame, .L,      0);
+    table_set(*album_key_pressed_on_frame, .CTRL_D, 0);
+    table_set(*album_key_pressed_on_frame, .CTRL_U, 0);
+    table_set(*album_key_pressed_on_frame, .SPACE,  0);
+    table_set(*album_key_pressed_on_frame, .ENTER,  0);
 }
 
 album_process_input :: (frame: u64, header_bottom: int, items_in_page: int, album: *Album) {
@@ -112,8 +114,6 @@ album_process_input :: (frame: u64, header_bottom: int, items_in_page: int, albu
                     break it;
 
                   case KEY_O;
-                    handle_mpd_idle_events();
-
                     mpd_current_song := MPD.run_current_song(mpd_connection);
                     handle_errors("Getting current song");
                     if !mpd_current_song break;
@@ -289,7 +289,6 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, header_botto
 
     text_y -= Y_MARGIN_SIZE;
 
-    // text_y := cast(s64)(y - 2 * font.character_height - TEXT_PADDING_Y);
     for display_text: display_entries {
         if display_text.selected {
             Simp.set_shader_for_color();
@@ -301,5 +300,3 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, header_botto
         text_y -= TEXT_PADDING_Y + font.character_height;
     }
 }
-
-MAX_COVER_DISPLAY_WIDTH :: 600;

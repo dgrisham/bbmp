@@ -1,12 +1,43 @@
-- [ ] josiah resizing a lot resulted in core dump
-- [ ] scrolling one row above the last page of album covers fucks up
-- [ ] some album covers can be saved as thumbnails at 300x but not 200x
-    -   calculation issue on the height? try printing stb error
 - [ ] ask about proper way of getting font width (font.em_width vs. my font.w_width hack)
     -   expected width may stil sometimes be wrong
 - [ ] `<`/`>` might kill the application sometimes??
-- [ ] add track length to song list
 - [ ] '/' search
 - [ ] 'y' for setting single-mode
-- [ ] consider what to do with strings that cut off (trailing '...'?)
-- [ ] consider putting into idle mode if key hasn't been pressed for X frames
+
+'memory leak' measurements
+--------------------------
+
+loading texture from file:   RES:  93 MB (VIRT: 161 MB)
+loading texture from bitmap: RES: 289 MB (VIRT: 297 MB)
+loading texture from memory: RES: 477 MB (VIRT: 817 MB)
+
+load texture from file on main thread
+    -   before loading textures: 94 MB
+    -   after loading textures: 355 MB, 424 MB
+load bitmap on worker -> load texture from bitmap, free bitmap
+    -   before loading textures: RES: 289 MB (VIRT: 497 MB)
+    -   after loading textures:  RES: 330 MB (VIRT: 727 MB)
+load bitmap on worker -> load texture from file, free bitmap
+    -   before loading textures: RES: 293 MB (VIRT: 497 MB)
+    -   after loading textures:  RES: 352 MB (VIRT: 749 MB)
+load bitmap on worker -> free bitmap
+    -   before freeing bitmaps: RES: 292 MB (VIRT: 497 MB)
+    -   after freeing bitmaps:  RES: 108 MB (VIRT: 505 MB)
+
+### from another set of runs
+
+no work
+ 0 threads -- RES: 123 MB (VIRT: 169 MB)
+ 5 threads -- RES: 122 MB (VIRT: 192 MB)
+
+resizing 200x:
+ 2 threads -- RES: 255 MB (VIRT: 382 MB)
+ 5 threads -- RES: 379 MB (VIRT: 590 MB)
+ 7 threads -- RES: 490 MB (VIRT: 718 MB)
+10 threads -- RES: 676 MB (VIRT: 910 MB)
+
+without resizing (just loading):
+ 5 threads -- RES: 318 MB (VIRT: 590 MB)
+
+resizing 600x:
+ 5 threads -- RES: 369 MB (VIRT: 580 MB)

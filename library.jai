@@ -1,6 +1,3 @@
-#import "Hash_Table";
-#import "Unicode";
-
 library: Library;
 
 Library :: struct {
@@ -11,95 +8,6 @@ Library :: struct {
         number_of_albums  : int = 0;
         number_of_songs   : int = 0;
     }
-}
-
-Artist  :: struct {
-    name                       : string;
-    albums                     : Table(string, Album);
-    album_names_sorted_by_date : [..] string;
-}
-
-Album :: struct {
-    name              : string;
-    artist_name       : string;
-    date              : Date;
-    songs             : [..] Song;
-    directory         : string;
-    cover_path        : string;
-    thumbnail_texture : *Simp.Texture;
-    thumbnail_bitmap  : *Simp.Bitmap;
-    mutex             : Mutex;
-};
-
-Date :: struct {
-    year  : int;
-    month : int;
-    day   : int;
-}
-
-operator < :: (a: Date, b: Date) -> bool {
-    if a.year  < b.year  return true;
-    if a.year  > b.year  return false;
-    if a.month < b.month return true;
-    if a.month > b.month return false;
-    if a.day   < b.day   return true;
-    if a.day   > b.day   return false;
-    return false;
-}
-
-parse_date :: (date_str: string) -> Date {
-    date: Date;
-    success: bool;
-    remainder := date_str;
-
-    date.year, success, remainder = to_integer(remainder);
-    if !success return date;
-
-    if remainder.count == 0 || remainder[0] != #char "-" return date;
-    advance(*remainder, 1);
-    date.month, success, remainder = to_integer(remainder);
-    if !success return date;
-
-    if remainder.count == 0 || remainder[0] != #char "-" return date;
-    advance(*remainder, 1);
-    date.day, success, remainder = to_integer(remainder);
-    if !success return date;
-
-    return date;
-}
-
-to_string :: (date: Date) -> string {
-    if !date.year  return "";
-    if !date.month return tprint("%", date.year);
-    month_str := left_pad(date.month, #char "0", 2);
-    if !date.day   return tprint("%-%", date.year, month_str);
-    day_str := left_pad(date.day, #char "0", 2);
-    return tprint("%-%-%", date.year, month_str, day_str);
-}
-
-to_long_date_string :: (date: Date) -> string {
-    if !date.year  return "";
-    if !date.month return tprint("%", date.year);
-    month_name: string;
-    if date.month == {
-        case 1;  month_name = tprint("January");
-        case 2;  month_name = tprint("February");
-        case 3;  month_name = tprint("March");
-        case 4;  month_name = tprint("April");
-        case 5;  month_name = tprint("May");
-        case 6;  month_name = tprint("June");
-        case 7;  month_name = tprint("July");
-        case 8;  month_name = tprint("August");
-        case 9;  month_name = tprint("September");
-        case 10; month_name = tprint("October");
-        case 11; month_name = tprint("November");
-        case 12; month_name = tprint("December");
-        case;
-            log("Warning: '%' is not a valid month number", date.month, flags=.ERROR);
-            return tprint("%", date.year);
-    }
-    if !date.day   return tprint("% %", month_name, date.year);
-    return tprint("% % %", date.day, month_name, date.year);
 }
 
 library_cursor: struct {
@@ -160,6 +68,7 @@ load_library :: () {
 
                     for cover_name: string.["cover.jpg", "cover.png"] {
                         // TODO: get library path from mpd and pass into this thread UPDATE: unless libmpdclient doesn't provide that??
+                        MPD_LIBRARY_DIRECTORY :: "/home/grish/media/music/library";
                         path := tprint("%/%2%3", MPD_LIBRARY_DIRECTORY, album.directory, cover_name);
                         if file_exists(path) {
                             album.cover_path = copy_string(path);
@@ -196,41 +105,6 @@ load_library :: () {
     }
 }
 
-add_album_to_queue :: (artist_name: string, album_name: string) -> s32 {
-    first_id_added: s32;
-    artist := table_find_pointer(library.artists, artist_name);
-    if !artist return -1;
-    album := table_find_pointer(artist.albums, album_name);
-    if !album return -1;
-
-    for song, song_index: album.songs {
-        id := MPD.run_add_id(mpd_connection, temp_c_string(song.uri));
-        if song_index == 0 {
-            first_id_added = id;
-        }
-    }
-    handle_errors("Adding album's songs to queue");
-    return first_id_added;
-}
-
-add_artist_to_queue :: (artist_name: string) -> s32 {
-    first_id_added: s32;
-    artist := table_find_pointer(library.artists, artist_name);
-    if !artist return -1;
-    for album_name, album_index: artist.album_names_sorted_by_date {
-        album := table_find_pointer(artist.albums, album_name);
-
-        for song, song_index: album.songs {
-            id := MPD.run_add_id(mpd_connection, temp_c_string(song.uri));
-            if album_index == 0 && song_index == 0 {
-                first_id_added = id;
-            }
-        }
-    }
-    handle_errors("Adding artist's songs to queue");
-    return first_id_added;
-}
-
 last_library_key_pressed: Key;
 library_key_pressed_on_frame: Table(Key, u64);
 
@@ -264,7 +138,6 @@ library_event_loop :: (frame: u64, header_bottom: int) {
     add_selection_to_queue :: () -> s32 #expand {
         first_song_id_added: s32;
 
-        handle_mpd_idle_events();
         if library_cursor.selected == {
           case 0;
             first_song_id_added = add_artist_to_queue(library.artist_names_sorted[library_cursor.positions[0]]);
@@ -366,8 +239,6 @@ library_event_loop :: (frame: u64, header_bottom: int) {
                     break it;
 
                   case KEY_O;
-                    handle_mpd_idle_events();
-
                     mpd_current_song := MPD.run_current_song(mpd_connection);
                     handle_errors("Getting current song");
                     if !mpd_current_song break;
@@ -555,16 +426,6 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
                     color := ifx library_cursor.selected == column_index then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
                     Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + rectangle_width, cast(float)y + font.character_height, color);
 
-                    // text_width := Simp.prepare_text(font, display_text.text);
-                    // Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
-                    // if column_index == 2 { // @Debug: remove this once font width problem is better understood/definitely fixed
-                    //     expected_text_width := display_text.text.count * font.w_width;
-                    //     if expected_text_width != text_width {
-                    //         print("\nexpected_text_width: %\n", expected_text_width);
-                    //         print("actual text width  : %\n", text_width);
-                    //     }
-                    // }
-
                     Simp.draw_text(font, x, y, display_text.text, rgba(0,0,0,1));
                 } else {
                     // text_width := Simp.prepare_text(font, display_text.text);
@@ -585,74 +446,4 @@ draw_library_frame :: (items_in_page: int, header_bottom: int) {
             x += column_width;
         }
     }
-}
-
-create_temp_display_string_of_max_length :: (s: string, max_character_count: int) -> string {
-
-    num_unicode_chars := get_unicode_length(s);
-    if num_unicode_chars <= max_character_count {
-        return copy_temporary_string(s);
-    }
-
-    // string is too long, trim and replace last char with an ellipses
-    max_number_of_bytes := 0;
-    num_bytes_in_last_unicode_char := 0;
-    {
-        bytes_total := 0;
-        num_unicode_chars := 0;
-        while num_unicode_chars < max_character_count && bytes_total < s.count {
-            num_bytes_in_last_unicode_char = 1 + trailingBytesForUTF8[s.data[bytes_total]];
-            bytes_total += num_bytes_in_last_unicode_char;
-            num_unicode_chars += 1;
-        }
-        max_number_of_bytes = bytes_total;
-    }
-
-    num_bytes_to_copy := max_number_of_bytes - num_bytes_in_last_unicode_char;
-    result := alloc_string(num_bytes_to_copy + ELLIPSIS.count, __temporary_allocator);
-    memcpy(result.data, s.data, num_bytes_to_copy);
-    memcpy(result.data + num_bytes_to_copy, ELLIPSIS.data, ELLIPSIS.count);
-    return result;
-}
-
-get_unicode_length :: (s: string) -> int {
-    length := 0;
-    i := 0;
-    while i < s.count {
-        i += 1 + trailingBytesForUTF8[s.data[i]];
-        length += 1;
-    }
-    return length;
-}
-
-slice_unicode :: (s: string, index: s64, count: s64) -> string {
-    assert(index >= 0, "index = %", index);
-    assert(count >= 0, "count = %", count);
-    unicode_length := get_unicode_length(s);
-    if index >= unicode_length  return "";
-
-    unicode_index := 0;
-    length := 0;
-    while length < index {
-        utf8_bytes := 1 + trailingBytesForUTF8[s.data[length]];
-        length += 1;
-        unicode_index += utf8_bytes;
-    }
-
-    if index + count > unicode_length {
-        count = unicode_length - unicode_index;
-    }
-
-    unicode_count := unicode_index;
-    length = 0;
-    while length < count {
-        utf8_bytes := 1 + trailingBytesForUTF8[s.data[unicode_count]];
-        length += 1;
-        unicode_count += utf8_bytes;
-    }
-
-    c: string = ---;
-    c.data    = s.data + index;
-    c.count   = unicode_count;
-    return c;
 }
