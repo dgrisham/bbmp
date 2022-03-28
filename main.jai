@@ -395,7 +395,6 @@ init_fonts :: () {
     // streaming
     // pixel_height := window_height / 56;
 
-    if (font != null) free(font);
     font = Simp.get_font_at_size(".", "Inconsolata-Regular.ttf", pixel_height);
     assert(font != null);
 
