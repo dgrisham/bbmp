@@ -5,7 +5,7 @@
 THUMBNAIL_DIRECTORY :: "/home/grish/src/jai/jai-mpd/.thumbnails";
 
 THUMBNAIL_WIDTH       :: 200;
-LARGE_ALBUM_ART_WIDTH :: 600;
+LARGE_ALBUM_ART_WIDTH :: 800;
 
 MIN_THUMBNAIL_DISPLAY_WIDTH :: 200;
 

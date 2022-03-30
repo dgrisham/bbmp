@@ -120,8 +120,8 @@ main :: () {
             update_status_time();
         }
         SEEK_SECONDS :: 0.5;
-        seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(seconds);  }
-        seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(-seconds); }
+        seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) + seconds);  }
+        seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) - seconds); }
 
         play_previous_song :: () #expand {
             last_global_key_pressed = .LEFT_ANGLE_BRACKET;
@@ -399,7 +399,7 @@ init_fonts :: () {
     font_data: [] u8 = ---;
     load_font_data :: (filename: string) -> []u8 {
         s, success := read_entire_file(filename);
-        assert(success);
+        assert(success, "Failed to load font file at %", filename);
         return cast([]u8) s;
     }
     font_data = #run load_font_data("./fonts/Inconsolata-Regular.ttf"); // load font at compile time
