@@ -395,15 +395,24 @@ draw_header :: () -> int {
 
 font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
+
+    font_data: [] u8 = ---;
+    load_font_data :: (filename: string) -> []u8 {
+        s, success := read_entire_file(filename);
+        assert(success);
+        return cast([]u8) s;
+    }
+    font_data = #run load_font_data("./Inconsolata-Regular.ttf"); // load font at compile time
+
     pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
-    // streaming
+    // better size for streaming
     // pixel_height := window_height / 56;
 
-    font = Simp.get_font_at_size(".", "Inconsolata-Regular.ttf", pixel_height);
+    font = Simp.get_font_at_size(font_data, pixel_height);
     assert(font != null);
 
     // if (font_bold != null) free(font_bold);
-    // font_bold = Simp.get_font_at_size(".", "Inconsolata-SemiBold.ttf", pixel_height);
+    // font_bold = Simp.get_font_at_size("/home/grish/src/jai/jai-mpd", "Inconsolata-SemiBold.ttf", pixel_height);
     // assert(font_bold != null);
 }
 
