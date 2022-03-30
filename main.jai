@@ -402,7 +402,7 @@ init_fonts :: () {
         assert(success);
         return cast([]u8) s;
     }
-    font_data = #run load_font_data("./Inconsolata-Regular.ttf"); // load font at compile time
+    font_data = #run load_font_data("./fonts/Inconsolata-Regular.ttf"); // load font at compile time
 
     pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
     // better size for streaming
