@@ -14,7 +14,7 @@ MPD     :: #import "libmpdclient";
 #load "queue_view.jai";
 #load "library_view.jai";
 #load "album_art_view.jai";
-#load "threaded_album_art_creation.jai";
+#load "album_art_creation_and_loading.jai";
 #load "common.jai";
 
 window: Window_Type;
