@@ -456,6 +456,7 @@ handle_errors :: (message: string) -> bool {
                 mpd_connection = MPD.connection_new(null, 0, 0);
                 new_connection_error = check_connection_errors();
                 print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", error.type, error.code, error.message, error.recovered);
+                sleep_milliseconds(3000);
             }
 
             print("Successfully reconnected to MPD\n");
