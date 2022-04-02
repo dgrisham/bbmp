@@ -4,13 +4,6 @@
 #import "Hash";
 #import "File";
 
-Album_Art_View :: enum {
-    LIBRARY;
-    ALBUM;
-}
-
-current_album_art_view := Album_Art_View.LIBRARY;
-
 library_album_art: struct {
     albums : [..] *Album;
 }
@@ -34,44 +27,6 @@ load_library_album_art :: () {
             library_album_art.albums[i] = album_ptr;
             i += 1;
         }
-    }
-}
-
-#load "album.jai";
-
-SHOW_CURRENT_ALBUM := false;
-
-THUMBNAIL_SLOT_WIDTH  : s32 = 200;
-THUMBNAIL_SLOT_HEIGHT : s32 = 200;
-
-library_album_art_event_loop :: (frame: u64, header_bottom: int) {
-
-    Y_PADDING_BELOW_HEADER := Y_MARGIN_SIZE;
-
-    total_height := header_bottom - Y_PADDING_BELOW_HEADER - 2 * Y_MARGIN_SIZE;
-    rows := total_height / THUMBNAIL_SLOT_HEIGHT - 1;
-
-    total_width := cast(s32)display_width();
-    columns := total_width / THUMBNAIL_SLOT_WIDTH - 1;
-
-    song_list_height := header_bottom - 3 * Y_MARGIN_SIZE - 3 * (TEXT_PADDING_Y + font.character_height) - TEXT_PADDING_Y;
-    album_songs_in_page := cast(int)(song_list_height - font.character_height) / (font.character_height + TEXT_PADDING_Y);
-
-    original_view := current_album_art_view;
-
-    if current_album_art_view == {
-        case .LIBRARY;
-            library_album_art_process_input(frame, rows, columns);
-        case .ALBUM;
-            album_process_input(frame, header_bottom, album_songs_in_page, library_album_art.albums[library_album_art_cursor.album_position]);
-    }
-
-    if current_album_art_view == {
-        case .LIBRARY;
-            library_album_art_draw_one_frame(header_bottom, rows, columns, total_width, total_height, Y_PADDING_BELOW_HEADER);
-        case .ALBUM;
-            just_switched_to_album_view := original_view != .ALBUM;
-            draw_album_frame(library_album_art.albums[library_album_art_cursor.album_position], just_switched_to_album_view, header_bottom, album_songs_in_page);
     }
 }
 
@@ -202,7 +157,7 @@ library_album_art_process_input :: (frame: u64, rows: int, columns: int) {
                     break it;
 
                   case KEY_I;
-                    current_album_art_view = .ALBUM;
+                    current_album_art_subview = .ALBUM;
                     break it;
 
                 }
@@ -220,6 +175,10 @@ library_album_art_process_input :: (frame: u64, rows: int, columns: int) {
 }
 
 ELLIPSIS :: u8.[226, 128, 166];
+
+THUMBNAIL_SLOT_WIDTH  : s32 = 200;
+THUMBNAIL_SLOT_HEIGHT : s32 = 200;
+
 library_album_art_draw_one_frame :: (header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, Y_PADDING_BELOW_HEADER: s32) {
 
     Entry :: struct {

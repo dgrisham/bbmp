@@ -11,21 +11,21 @@ Simp    :: #import "Simp";
 Input   :: #import "Input";
 MPD     :: #import "libmpdclient";
 
-#load "queue.jai";
-#load "library.jai";
-#load "library_album_art.jai";
+#load "queue_view.jai";
+#load "library_view.jai";
+#load "album_art_view.jai";
 #load "threaded_album_art_creation.jai";
 #load "common.jai";
 
 window: Window_Type;
 
-Screen :: enum {
+View :: enum {
     QUEUE;
     LIBRARY;
-    LIBRARY_ALBUM_ART;
+    ALBUM_ART;
 }
 
-current_screen := Screen.LIBRARY;
+current_view := View.LIBRARY;
 
 LONG         : s32 : 0x200000;
 TCP_NODELAY  : s32 : LONG + xx 121;
@@ -159,14 +159,14 @@ main :: () {
                         }
 
                       case .NUMBER_1;
-                        current_screen = .QUEUE;
+                        current_view = .QUEUE;
                         load_queue_changes();
                         break it;
                       case .NUMBER_2;
-                        current_screen = .LIBRARY;
+                        current_view = .LIBRARY;
                         break it;
                       case .NUMBER_3;
-                        current_screen = .LIBRARY_ALBUM_ART;
+                        current_view = .ALBUM_ART;
                         break it;
 
                       case KEY_P;
@@ -241,13 +241,13 @@ main :: () {
 
         Simp.clear_render_target(0,0,0,1);
         header_bottom := draw_header();
-        if current_screen == {
+        if current_view == {
           case .QUEUE;
             queue_event_loop(frame, header_bottom);
           case .LIBRARY;
             library_event_loop(frame, header_bottom);
-          case .LIBRARY_ALBUM_ART;
-            library_album_art_event_loop(frame, header_bottom);
+          case .ALBUM_ART;
+            album_art_event_loop(frame, header_bottom);
         }
         reset_temporary_storage();
         Simp.swap_buffers(window);
