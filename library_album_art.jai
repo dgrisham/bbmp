@@ -4,6 +4,13 @@
 #import "Hash";
 #import "File";
 
+Album_Art_View :: enum {
+    LIBRARY;
+    ALBUM;
+}
+
+current_album_art_view := Album_Art_View.LIBRARY;
+
 library_album_art: struct {
     albums : [..] *Album;
 }
@@ -50,17 +57,21 @@ library_album_art_event_loop :: (frame: u64, header_bottom: int) {
     song_list_height := header_bottom - 3 * Y_MARGIN_SIZE - 3 * (TEXT_PADDING_Y + font.character_height) - TEXT_PADDING_Y;
     album_songs_in_page := cast(int)(song_list_height - font.character_height) / (font.character_height + TEXT_PADDING_Y);
 
-    OLD_SHOW_CURRENT_ALBUM := SHOW_CURRENT_ALBUM;
-    if SHOW_CURRENT_ALBUM {
-        album_process_input(frame, header_bottom, album_songs_in_page, library_album_art.albums[library_album_art_cursor.album_position]);
-    } else {
-        library_album_art_process_input(frame, rows, columns);
+    original_view := current_album_art_view;
+
+    if current_album_art_view == {
+        case .LIBRARY;
+            library_album_art_process_input(frame, rows, columns);
+        case .ALBUM;
+            album_process_input(frame, header_bottom, album_songs_in_page, library_album_art.albums[library_album_art_cursor.album_position]);
     }
 
-    if SHOW_CURRENT_ALBUM {
-        draw_album_frame(library_album_art.albums[library_album_art_cursor.album_position], !OLD_SHOW_CURRENT_ALBUM, header_bottom, album_songs_in_page);
-    } else {
-        library_album_art_draw_one_frame(header_bottom, rows, columns, total_width, total_height, Y_PADDING_BELOW_HEADER);
+    if current_album_art_view == {
+        case .LIBRARY;
+            library_album_art_draw_one_frame(header_bottom, rows, columns, total_width, total_height, Y_PADDING_BELOW_HEADER);
+        case .ALBUM;
+            just_switched_to_album_view := original_view != .ALBUM;
+            draw_album_frame(library_album_art.albums[library_album_art_cursor.album_position], just_switched_to_album_view, header_bottom, album_songs_in_page);
     }
 }
 
@@ -191,7 +202,7 @@ library_album_art_process_input :: (frame: u64, rows: int, columns: int) {
                     break it;
 
                   case KEY_I;
-                    SHOW_CURRENT_ALBUM = true;
+                    current_album_art_view = .ALBUM;
                     break it;
 
                 }

@@ -64,7 +64,7 @@ album_process_input :: (frame: u64, header_bottom: int, items_in_page: int, albu
                 if it.key_code == {
 
                   case KEY_I;
-                    SHOW_CURRENT_ALBUM = false;
+                    current_album_art_view = .LIBRARY;
                     library_album_art_cursor.song_position = 0;
                     break it;
 
