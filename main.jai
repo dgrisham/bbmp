@@ -146,11 +146,11 @@ main :: () {
         decrement_volume :: () #expand { change_volume(-VOLUME_CHANGE_AMOUNT); }
 
         for Input.events_this_frame {
-            if it.type == {
-              case .QUIT;
+            if it.type == .QUIT {
                 quit = true;
                 break;
-              case .KEYBOARD;
+            }
+            if it.type == .KEYBOARD && !INPUTTING_SEARCH_QUERY {
                 if it.key_pressed {
                     if it.key_code == {
                       case KEY_Q;

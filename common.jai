@@ -347,10 +347,12 @@ KEY_I :: 73;
 KEY_J :: 74;
 KEY_K :: 75;
 KEY_L :: 76;
+KEY_N :: 78;
 KEY_O :: 79;
 KEY_P :: 80;
 KEY_Q :: 81;
 KEY_R :: 82;
+KEY_S :: 83;
 KEY_U :: 85;
 KEY_X :: 88;
 
@@ -370,6 +372,7 @@ Key :: enum u8 {
     J;
     K;
     L;
+    N;
     O;
     P;
     Q;
@@ -377,6 +380,7 @@ Key :: enum u8 {
     X;
     SHIFT_J;
     SHIFT_K;
+    SHIFT_N;
     CTRL_U;
     CTRL_D;
 }
@@ -392,6 +396,7 @@ key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pr
     else #if key == .J                   key_code = KEY_J;
     else #if key == .K                   key_code = KEY_K;
     else #if key == .L                   key_code = KEY_L;
+    else #if key == .N                   key_code = KEY_N;
     else #if key == .X                   key_code = KEY_X;
     else #if key == .EQUALS_SIGN         key_code = .EQUALS_SIGN;
     else #if key == .DASH                key_code = .DASH;
@@ -406,6 +411,10 @@ key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pr
     else #if key == .SHIFT_K {
         if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
         key_code = KEY_K;
+    }
+    else #if key == .SHIFT_N {
+        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
+        key_code = KEY_N;
     }
     else #if key == .CTRL_D {
         if !(Input.input_button_states[Input.Key_Code.CTRL] & .DOWN) return false;
