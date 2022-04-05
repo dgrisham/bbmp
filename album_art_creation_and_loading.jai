@@ -1,14 +1,18 @@
+#import "File_Utilities";
+#import "Hash";
+#import "Hash_Table";
+#import "Pool";
 #import "System";
 #import "Thread";
-#import "Pool";
 
 album_art_creation_thread_group: Thread_Group;
 
 pool: Pool;
 
 Album_Art_Job_Info :: struct {
-    cover_path     : string;
-    thumbnail_path : string;
+    cover_path        : string;
+    thumbnail_path    : string;
+    library_album_ptr : *Album;
 
     create_thumbnail         : bool = false;
     thumbnail_width          : s32;
@@ -26,8 +30,7 @@ Album_Art_Job_Info :: struct {
 
 REMAINING_ALBUM_ART_JOBS := 0;
 
-// NOTE: this relies on both the library and library_album_art maps should be loaded before this is called!
-start_album_art_creation_thread_group :: () {
+start_album_art_creation_thread_group :: (albums: [..] *Album) {
 
     init_thread_group :: (num_jobs: s32) {
         num_cpus := get_number_of_processors();
@@ -46,6 +49,10 @@ start_album_art_creation_thread_group :: () {
 
     thread_proc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
         job_info := cast(*Album_Art_Job_Info) work;
+
+        /************************************************************
+        * create missing thumbnail and/or large display art bitmaps *
+        ************************************************************/
 
         if job_info.create_thumbnail || job_info.create_display_art {
             log("Attempting to load cover at path %\n", job_info.cover_path);
@@ -93,18 +100,17 @@ start_album_art_creation_thread_group :: () {
             }
         }
 
-        if file_exists(job_info.thumbnail_path) {
-            artist_ptr := table_find_pointer(library.artists, job_info.artist_name);
-            assert(artist_ptr != null);
-            album_ptr := table_find_pointer(artist_ptr.albums, job_info.album_name);
-            assert(album_ptr != null);
+        /*****************
+        * load thumbnail *
+        *****************/
 
-            lock(*album_ptr.mutex);
-            defer unlock(*album_ptr.mutex);
-            album_ptr.thumbnail_bitmap = New(Simp.Bitmap);
-            if !Simp.bitmap_load(album_ptr.thumbnail_bitmap, job_info.thumbnail_path) {
+        if file_exists(job_info.thumbnail_path) {
+            lock(*job_info.library_album_ptr.mutex);
+            defer unlock(*job_info.library_album_ptr.mutex);
+            job_info.library_album_ptr.thumbnail_bitmap = New(Simp.Bitmap);
+            if !Simp.bitmap_load(job_info.library_album_ptr.thumbnail_bitmap, job_info.thumbnail_path) {
                 log("Failed to load thumbnail for % - %", job_info.artist_name, job_info.album_name, flags=.ERROR);
-                free(album_ptr.thumbnail_bitmap);
+                free(job_info.library_album_ptr.thumbnail_bitmap);
                 job_info.load_thumbnail_success = false;
             } else {
                 job_info.load_thumbnail_success = true;
@@ -123,17 +129,19 @@ start_album_art_creation_thread_group :: () {
 
     num_thumbnails_attempting_to_create := 0;
     push_context thread_proc_context {
-        for album: library_album_art.albums { // find all albums that don't have a thumbnail but do have a cover we can use to create one
+         // find all albums that don't have a thumbnail but do have a cover we can use to create one
+        for album: albums {
             if album.cover_path && file_exists(album.cover_path) {
-                album_hash := get_hash(tprint("%-%", album.artist_name, album.name));
-                thumbnail_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, THUMBNAIL_WIDTH);
+                album_hash       := get_hash(tprint("%-%", album.artist_name, album.name));
+                thumbnail_path   := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, THUMBNAIL_WIDTH);
                 display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, LARGE_ALBUM_ART_WIDTH);
 
                 work := New(Album_Art_Job_Info);
-                work.artist_name    = copy_string(album.artist_name);
-                work.album_name     = copy_string(album.name);
-                work.cover_path     = copy_string(album.cover_path);
-                work.thumbnail_path = copy_string(thumbnail_path);
+                work.artist_name       = copy_string(album.artist_name);
+                work.album_name        = copy_string(album.name);
+                work.cover_path        = copy_string(album.cover_path);
+                work.thumbnail_path    = copy_string(thumbnail_path);
+                work.library_album_ptr = album;
                 if !file_exists(thumbnail_path) {
                     work.create_thumbnail = true;
                     work.thumbnail_width  = THUMBNAIL_WIDTH;

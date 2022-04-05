@@ -1,38 +1,37 @@
+#scope_file
+
+#import "Time";
+
+#import "common";
+
+Input :: #import "Input";
+
 last_album_key_pressed: Key;
 album_key_pressed_on_frame: Table(Key, u64);
 
-album_init_repeatable_keys :: () {
-    table_set(*album_key_pressed_on_frame, .J,      0);
-    table_set(*album_key_pressed_on_frame, .K,      0);
-    table_set(*album_key_pressed_on_frame, .H,      0);
-    table_set(*album_key_pressed_on_frame, .L,      0);
-    table_set(*album_key_pressed_on_frame, .CTRL_D, 0);
-    table_set(*album_key_pressed_on_frame, .CTRL_U, 0);
-    table_set(*album_key_pressed_on_frame, .SPACE,  0);
-    table_set(*album_key_pressed_on_frame, .ENTER,  0);
-}
+#scope_module
 
-album_process_input :: (frame: u64, header_bottom: int, items_in_page: int, album: *Album) {
+album_process_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, albums: [..] *Album, frame: u64, header_bottom: int, items_in_page: int, album: *Album) {
     clamp_album_cursor :: (number_of_songs_in_album: int) #expand {
-        if `library_album_art_cursor.song_position < 0 {
-            `library_album_art_cursor.song_position = 0;
-        } else if `library_album_art_cursor.song_position > number_of_songs_in_album - 1 {
-            `library_album_art_cursor.song_position = number_of_songs_in_album - 1;
+        if `cursor.song_position < 0 {
+            `cursor.song_position = 0;
+        } else if `cursor.song_position > number_of_songs_in_album - 1 {
+            `cursor.song_position = number_of_songs_in_album - 1;
         }
     }
 
-    album_move_cursor :: (amount: int, number_of_songs_in_album: int) #expand {
-        `library_album_art_cursor.song_position += amount;
+    album_move_cursor :: (number_of_songs_in_album: int, amount: int) #expand {
+        `cursor.song_position += amount;
         clamp_album_cursor(number_of_songs_in_album);
     }
-    album_move_cursor_up            :: () #expand { album_move_cursor(-1,             `album.songs.count); }
-    album_move_cursor_down          :: () #expand { album_move_cursor(1,              `album.songs.count); }
-    album_move_cursor_one_page_up   :: () #expand { album_move_cursor(-items_in_page, `album.songs.count); }
-    album_move_cursor_one_page_down :: () #expand { album_move_cursor(items_in_page,  `album.songs.count); }
+    album_move_cursor_up            :: () #expand { album_move_cursor(`album.songs.count,             -1); }
+    album_move_cursor_down          :: () #expand { album_move_cursor(`album.songs.count,              1); }
+    album_move_cursor_one_page_up   :: () #expand { album_move_cursor(`album.songs.count, -items_in_page); }
+    album_move_cursor_one_page_down :: () #expand { album_move_cursor(`album.songs.count,  items_in_page); }
 
     album_add_selected_song_to_queue :: () -> int #expand {
         assert(mpd_connection != null);
-        id := MPD.run_add_id(mpd_connection, to_c_string(`album.songs[`library_album_art_cursor.song_position].uri));
+        id := MPD.run_add_id(mpd_connection, to_c_string(`album.songs[`cursor.song_position].uri));
         handle_errors("Adding song to queue from album view");
         album_move_cursor_down();
         return id;
@@ -43,18 +42,19 @@ album_process_input :: (frame: u64, header_bottom: int, items_in_page: int, albu
             assert(mpd_connection != null);
             MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
             handle_errors("Playing first song in group added to queue");
-            update_status();
+            Queue.update(`mpd_connection, `queue);
+            update_status(Queue.get_current_song(`mpd_connection, `queue));
         }
     }
 
     move_cursor_to_next_album :: () #expand {
         library_album_art_move_cursor_right();
-        library_album_art_cursor.song_position = 0;
+        cursor.song_position = 0;
     }
 
     move_cursor_to_prev_album :: () #expand {
         library_album_art_move_cursor_left();
-        library_album_art_cursor.song_position = 0;
+        cursor.song_position = 0;
     }
 
     for Input.events_this_frame {
@@ -65,7 +65,7 @@ album_process_input :: (frame: u64, header_bottom: int, items_in_page: int, albu
 
                   case KEY_I;
                     current_album_art_subview = .LIBRARY;
-                    library_album_art_cursor.song_position = 0;
+                    cursor.song_position = 0;
                     break it;
 
                   case KEY_J;
@@ -107,9 +107,9 @@ album_process_input :: (frame: u64, header_bottom: int, items_in_page: int, albu
 
                   case KEY_G;
                     if it.shift_pressed {
-                        library_album_art_cursor.song_position = album.songs.count - 1;
+                        cursor.song_position = album.songs.count - 1;
                     } else {
-                        library_album_art_cursor.song_position = 0;
+                        cursor.song_position = 0;
                     }
                     break it;
 
@@ -118,12 +118,12 @@ album_process_input :: (frame: u64, header_bottom: int, items_in_page: int, albu
                     handle_errors("Getting current song");
                     if !mpd_current_song break;
                     uri := to_string(MPD.song_get_uri(mpd_current_song));
-                    for album, album_index: library_album_art.albums {
+                    for album, album_index: albums {
                         for song, song_index: album.songs {
                             if song.uri == uri {
                                 // @Cleanup This is the first time we're updating cursor for another 'view'.
-                                library_album_art_cursor.album_position = album_index;
-                                library_album_art_cursor.song_position  = song_index;
+                                cursor.album_position = album_index;
+                                cursor.song_position  = song_index;
                                 break;
                             }
                         }
@@ -163,7 +163,7 @@ loaded_album: struct {
     art_loaded  : bool = false;
 }
 
-draw_album_frame :: (album: *Album, load_current_album_cover: bool, header_bottom: int, items_in_page: int) {
+draw_album_frame :: (album: *Album, load_current_album_cover: bool, font: *Simp.Dynamic_Font, total_width: s32, header_bottom: int, items_in_page: int) {
 
     if loaded_album.art_texture == null loaded_album.art_texture = New(Simp.Texture); // should only happen on the first album view frame
     if album.artist_name != loaded_album.artist_name || album.name != loaded_album.album_name {
@@ -220,11 +220,12 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, header_botto
 
     text_x := cast(s64)(cover_x + cover_display_width + X_MARGIN_SIZE);
 
-    rectangle_width := window_width - X_MARGIN_SIZE - text_x;
+    // TODO/NOTE: this was using window_width before, now it's display_width
+    rectangle_width := total_width - X_MARGIN_SIZE - text_x;
     max_characters_in_column := rectangle_width / font.w_width - 2;
 
     display_entries: [..]Display_Text;
-    selected_song_index := library_album_art_cursor.song_position;
+    selected_song_index := cursor.song_position;
     {
         index_start := max(0, min(album.songs.count - items_in_page, selected_song_index - items_in_page / 2 + 1));
         index_end   := min(index_start + items_in_page, album.songs.count) - 1;
@@ -262,7 +263,8 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, header_botto
         header_bottom - Y_MARGIN_SIZE,
     );
 
-    x_center := (window_width - X_MARGIN_SIZE + text_x) / 2;
+    // TODO/NOTE: this was using window_width before, now it's display_width
+    x_center := (total_width - X_MARGIN_SIZE + text_x) / 2;
 
     {
         width := Simp.prepare_text(font, album.name);
