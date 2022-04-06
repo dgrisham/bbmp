@@ -127,10 +127,10 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
         if cursor.selected == 0 { `cursor.positions[1], `cursor.positions[2] = 0; }
         if cursor.selected == 1 `cursor.positions[2] = 0;
     }
-    move_selected_cursor_down          :: () #expand { move_selected_cursor(1);              }
     move_selected_cursor_up            :: () #expand { move_selected_cursor(-1);             }
-    move_selected_cursor_one_page_down :: () #expand { move_selected_cursor( items_in_page); }
+    move_selected_cursor_down          :: () #expand { move_selected_cursor(+1);             }
     move_selected_cursor_one_page_up   :: () #expand { move_selected_cursor(-items_in_page); }
+    move_selected_cursor_one_page_down :: () #expand { move_selected_cursor(+items_in_page); }
 
     move_selected_cursor_left  :: () #expand { `cursor.selected -= 1; }
     move_selected_cursor_right :: () #expand { `cursor.selected += 1; }

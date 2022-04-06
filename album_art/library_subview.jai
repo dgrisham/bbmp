@@ -15,28 +15,13 @@ library_key_pressed_on_frame: Table(Key, u64);
 
 #scope_module
 
-library_album_art_move_cursor :: (number_of_albums: int, amount: int) #expand {
-    `cursor.album_position += amount;
-    if cursor.album_position < 0 {
-        cursor.album_position = 0;
-    } else if `cursor.album_position > number_of_albums - 1 {
-        `cursor.album_position = number_of_albums - 1;
-    }
-}
+process_library_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, rows: int, columns: int) {
 
-library_album_art_move_cursor_left  :: () #expand { library_album_art_move_cursor(`albums.count, -1); }
-library_album_art_move_cursor_right :: () #expand { library_album_art_move_cursor(`albums.count, 1);  }
+    move_cursor_one_row_up   :: () #expand { move_cursor_by_n_albums(`albums.count, -columns); }
+    move_cursor_one_row_down :: () #expand { move_cursor_by_n_albums(`albums.count, +columns); }
 
-library_album_art_process_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, rows: int, columns: int) {
-
-    library_album_art_move_cursor_up   :: () #expand { library_album_art_move_cursor(`albums.count, -columns); }
-    library_album_art_move_cursor_down :: () #expand { library_album_art_move_cursor(`albums.count, columns);  }
-
-    library_album_art_move_cursor_left  :: () #expand { library_album_art_move_cursor(`albums.count, -1); }
-    library_album_art_move_cursor_right :: () #expand { library_album_art_move_cursor(`albums.count, 1);  }
-
-    library_album_art_move_cursor_one_page_up   :: () #expand { library_album_art_move_cursor(`albums.count, -rows * columns); }
-    library_album_art_move_cursor_one_page_down :: () #expand { library_album_art_move_cursor(`albums.count, rows * columns);  }
+    move_cursor_one_page_up   :: () #expand { move_cursor_by_n_albums(`albums.count, -rows * columns); }
+    move_cursor_one_page_down :: () #expand { move_cursor_by_n_albums(`albums.count, +rows * columns); }
 
     for Input.events_this_frame {
         if it.type == {
@@ -47,23 +32,23 @@ library_album_art_process_input :: (mpd_connection: *MPD.connection, albums: [..
                   case KEY_J;
                     table_set(*library_key_pressed_on_frame, .J, frame);
                     last_library_key_pressed = .J;
-                    library_album_art_move_cursor_down();
+                    move_cursor_one_row_down();
                     break it;
                   case KEY_K;
                     table_set(*library_key_pressed_on_frame, .K, frame);
                     last_library_key_pressed = .K;
-                    library_album_art_move_cursor_up();
+                    move_cursor_one_row_up();
                     break it;
 
                   case KEY_H;
                     table_set(*library_key_pressed_on_frame, .H, frame);
                     last_library_key_pressed = .H;
-                    library_album_art_move_cursor_left();
+                    move_cursor_to_prev_album();
                     break it;
                   case KEY_L;
                     table_set(*library_key_pressed_on_frame, .L, frame);
                     last_library_key_pressed = .L;
-                    library_album_art_move_cursor_right();
+                    move_cursor_to_next_album();
                     break it;
 
                   case KEY_G;
@@ -78,14 +63,14 @@ library_album_art_process_input :: (mpd_connection: *MPD.connection, albums: [..
                     if it.ctrl_pressed {
                         table_set(*library_key_pressed_on_frame, .CTRL_D, frame);
                         last_library_key_pressed = .CTRL_D;
-                        library_album_art_move_cursor_one_page_down();
+                        move_cursor_one_page_down();
                     }
                     break it;
                   case KEY_U;
                     if it.ctrl_pressed {
                         table_set(*library_key_pressed_on_frame, .CTRL_U, frame);
                         last_library_key_pressed = .CTRL_U;
-                        library_album_art_move_cursor_one_page_up();
+                        move_cursor_one_page_up();
                     }
                     break it;
 
@@ -140,15 +125,15 @@ library_album_art_process_input :: (mpd_connection: *MPD.connection, albums: [..
         }
     }
 
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .J)       library_album_art_move_cursor_down();
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .K)       library_album_art_move_cursor_up();
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .H)       library_album_art_move_cursor_left();
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .L)       library_album_art_move_cursor_right();
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .CTRL_D)  library_album_art_move_cursor_one_page_down();
-    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .CTRL_U)  library_album_art_move_cursor_one_page_up();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .J)       move_cursor_one_row_down();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .K)       move_cursor_one_row_up();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .H)       move_cursor_to_prev_album();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .L)       move_cursor_to_next_album();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .CTRL_D)  move_cursor_one_page_down();
+    if key_held_passed_threshold(library_key_pressed_on_frame, last_library_key_pressed, frame, .CTRL_U)  move_cursor_one_page_up();
 }
 
-library_album_art_draw_one_frame :: (albums: [..] *Album, font: *Simp.Dynamic_Font, header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32, Y_PADDING_BELOW_HEADER: s32) {
+draw_library_frame :: (albums: [..] *Album, font: *Simp.Dynamic_Font, header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32, Y_PADDING_BELOW_HEADER: s32) {
 
     Entry :: struct {
         artist_name : string;

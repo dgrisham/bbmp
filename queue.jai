@@ -139,7 +139,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
 
     items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
-    queue_shift_selected_item_down :: () #expand {
+    shift_selected_item_down :: () #expand {
         if cursor.position < `queue.songs.count - 1 {
             MPD.run_swap(`mpd_connection, cast(u32)cursor.position, cast(u32)cursor.position + 1);
             handle_errors("Moving song down in queue");
@@ -147,11 +147,11 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
             `cursor.position += 1;
         }
     }
-    queue_move_cursor_down :: () #expand {
+    move_cursor_down :: () #expand {
         `cursor.position += 1;
     }
 
-    queue_shift_selected_item_up :: () #expand {
+    shift_selected_item_up :: () #expand {
         if cursor.position > 0 {
             MPD.run_swap(mpd_connection, cast(u32)cursor.position, cast(u32)cursor.position - 1);
             handle_errors("Moving song up in queue");
@@ -159,18 +159,18 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
             `cursor.position -= 1;
         }
     }
-    queue_move_cursor_up :: () #expand {
+    move_cursor_up :: () #expand {
         `cursor.position -= 1;
     }
 
-    queue_move_cursor_one_page_down :: () #expand {
+    move_cursor_one_page_down :: () #expand {
         `cursor.position += items_in_page;
     }
-    queue_move_cursor_one_page_up :: () #expand {
+    move_cursor_one_page_up :: () #expand {
         `cursor.position -= items_in_page;
     }
 
-    queue_remove_selected_song :: () #expand {
+    remove_selected_song :: () #expand {
         if cursor.position >= 0 && cursor.position <= queue.songs.count {
             MPD.run_delete(mpd_connection, cast(u32)cursor.position);
             handle_errors("Removing song from queue");
@@ -179,7 +179,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
         }
     }
 
-    queue_play_selected_song :: () #expand {
+    play_selected_song :: () #expand {
         MPD.run_play_pos(mpd_connection, cast(u32)cursor.position);
         handle_errors("Playing queue song");
             update_status(get_current_song(`mpd_connection, `queue));
@@ -195,22 +195,22 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
                     if it.shift_pressed {
                         table_set(*key_pressed_on_frame, .SHIFT_J, frame);
                         last_key_pressed = .SHIFT_J;
-                        queue_shift_selected_item_down();
+                        shift_selected_item_down();
                     } else {
                         table_set(*key_pressed_on_frame, .J, frame);
                         last_key_pressed = .J;
-                        queue_move_cursor_down();
+                        move_cursor_down();
                     }
                     break it;
                   case KEY_K;
                     if it.shift_pressed {
                         table_set(*key_pressed_on_frame, .SHIFT_K, frame);
                         last_key_pressed = .SHIFT_K;
-                        queue_shift_selected_item_up();
+                        shift_selected_item_up();
                     } else {
                         table_set(*key_pressed_on_frame, .K, frame);
                         last_key_pressed = .K;
-                        queue_move_cursor_up();
+                        move_cursor_up();
                     }
                     break it;
 
@@ -218,14 +218,14 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
                     if it.ctrl_pressed {
                         table_set(*key_pressed_on_frame, .CTRL_D, frame);
                         last_key_pressed = .CTRL_D;
-                        queue_move_cursor_one_page_down();
+                        move_cursor_one_page_down();
                     }
                     break it;
                   case KEY_U;
                     if it.ctrl_pressed {
                         table_set(*key_pressed_on_frame, .CTRL_U, frame);
                         last_key_pressed = .CTRL_U;
-                        queue_move_cursor_one_page_up();
+                        move_cursor_one_page_up();
                     }
                     break it;
 
@@ -240,7 +240,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
                   case KEY_X;
                     table_set(*key_pressed_on_frame, .X, frame);
                     last_key_pressed = .X;
-                    queue_remove_selected_song();
+                    remove_selected_song();
                     break it;
 
                   case KEY_O; // move cursor to currently playing song
@@ -259,7 +259,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
                   case .ENTER; // play selected song
                     table_set(*key_pressed_on_frame, .ENTER, frame);
                     last_key_pressed = .ENTER;
-                    queue_play_selected_song();
+                    play_selected_song();
                     break it;
                 }
             }
@@ -267,13 +267,13 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
         }
     }
 
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .J)       queue_move_cursor_down();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .K)       queue_move_cursor_up();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_J) queue_shift_selected_item_down();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_K) queue_shift_selected_item_up();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D)  queue_move_cursor_one_page_down();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U)  queue_move_cursor_one_page_up();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .X)       queue_remove_selected_song();
+    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .J)       move_cursor_down();
+    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .K)       move_cursor_up();
+    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_J) shift_selected_item_down();
+    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_K) shift_selected_item_up();
+    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D)  move_cursor_one_page_down();
+    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U)  move_cursor_one_page_up();
+    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .X)       remove_selected_song();
 
     if cursor.position < 0 {
         cursor.position = 0;

@@ -14,6 +14,18 @@ cursor: struct {
     song_position  : int = 0;
 }
 
+move_cursor_by_n_albums :: (number_of_albums: int, amount: int) #expand {
+    `cursor.album_position += amount;
+    if cursor.album_position < 0 {
+        cursor.album_position = 0;
+    } else if `cursor.album_position > number_of_albums - 1 {
+        `cursor.album_position = number_of_albums - 1;
+    }
+}
+
+move_cursor_to_prev_album :: () #expand { move_cursor_by_n_albums(`albums.count, -1); }
+move_cursor_to_next_album :: () #expand { move_cursor_by_n_albums(`albums.count, +1); }
+
 #scope_export
 
 Subview :: enum {
@@ -61,19 +73,19 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Li
 
     if current_album_art_subview == {
         case .LIBRARY;
-            library_album_art_process_input(mpd_connection, albums, library, queue, frame, rows, columns);
+            process_library_input(mpd_connection, albums, library, queue, frame, rows, columns);
         case .ALBUM;
-            album_process_input(mpd_connection, queue, albums, frame, header_bottom, album_songs_in_page, albums[cursor.album_position]);
+            process_album_input(mpd_connection, queue, albums, frame, header_bottom, album_songs_in_page, albums[cursor.album_position]);
     }
 
     if current_album_art_subview == {
         case .LIBRARY;
-            library_album_art_draw_one_frame(albums, font, header_bottom, rows, columns, total_width, total_height, thumbnail_slot_width, thumbnail_slot_height, Y_PADDING_BELOW_HEADER);
+            draw_library_frame(albums, font, header_bottom, rows, columns, total_width, total_height, thumbnail_slot_width, thumbnail_slot_height, Y_PADDING_BELOW_HEADER);
         case .ALBUM;
             just_switched_to_album_subview := original_subview != .ALBUM;
             draw_album_frame(albums[cursor.album_position], just_switched_to_album_subview, font, total_width, header_bottom, album_songs_in_page);
     }
 }
 
-#load "album_art_view_library.jai";
-#load "album_art_view_album.jai";
+#load "library_subview.jai";
+#load "album_subview.jai";
