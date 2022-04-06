@@ -1,21 +1,24 @@
+#run (#import "Compiler").set_output_executable_name("grishcompoop");
+
 #import "Basic"()(MEMORY_DEBUGGER=false);
+#import "File";
 #import "Math";
 #import "String";
-#import "Window_Creation";
 #import "Time";
-
-#run (#import "Compiler").set_output_executable_name("grishcompoop");
+#import "Window_Creation";
 
 Process :: #import "Process";
 Simp    :: #import "Simp";
 Input   :: #import "Input";
 MPD     :: #import "libmpdclient";
 
-#load "queue_view.jai";
-#load "library_view.jai";
-#load "album_art_view.jai";
+Library   :: #import "library";
+Queue     :: #import "queue";
+Album_Art :: #import "album_art";
+
+#import "common";
+
 #load "album_art_creation_and_loading.jai";
-#load "common.jai";
 
 window: Window_Type;
 
@@ -30,13 +33,13 @@ current_view := View.LIBRARY;
 LONG         : s32 : 0x200000;
 TCP_NODELAY  : s32 : LONG + xx 121;
 
-mpd_connection: *MPD.connection;
+thumbnail_slot_width  : s32 = 200;
+thumbnail_slot_height : s32 = 200;
 
 window_width  : s32 = 1920;
 window_height : s32 = 1080;
 
-display_width  :: () -> int #expand { return window_width  - 2 * X_MARGIN_SIZE; }
-// display_height :: () -> int #expand { return window_height - 2 * Y_MARGIN_SIZE; }
+display_width :: () -> int #expand { return window_width  - 2 * X_MARGIN_SIZE; }
 
 frame: u64 = 0;
 frame_rate: float64;
@@ -52,8 +55,8 @@ main :: () {
     Simp.set_render_target(window);
     X_MARGIN_SIZE = window_width / 30;
     Y_MARGIN_SIZE = window_height / 30;
-    THUMBNAIL_SLOT_WIDTH  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 10);
-    THUMBNAIL_SLOT_HEIGHT = THUMBNAIL_SLOT_WIDTH;
+    thumbnail_slot_width  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 10);
+    thumbnail_slot_height = thumbnail_slot_width;
 
     mpd_connection = MPD.connection_new(null, 0, 15000);
     if mpd_connection == null {
@@ -62,15 +65,11 @@ main :: () {
     }
     handle_errors("Initializing MPD connection");
 
-    load_library();
-    load_queue();
-    load_library_album_art();
-    start_album_art_creation_thread_group(); // this must be called AFTER load_library() and load_library_album_art()
+    library := Library.load(mpd_connection);
+    queue := Queue.load(mpd_connection);
+    albums_sorted_by_artist_and_year := Album_Art.load(library);
 
-    library_init_repeatable_keys();
-    queue_init_repeatable_keys();
-    library_album_art_init_repeatable_keys();
-    album_init_repeatable_keys();
+    start_album_art_creation_thread_group(albums_sorted_by_artist_and_year);
 
     quit := false;
     frame: u64 = 0;
@@ -90,7 +89,8 @@ main :: () {
 
     while !quit {
         if get_current_file_time() > status_update_timer + 10000000 {
-            update_status();
+            Queue.update(mpd_connection, queue);
+            update_status(Queue.get_current_song(mpd_connection, queue));
         }
         frame_start := get_current_file_time();
 
@@ -106,8 +106,8 @@ main :: () {
                     X_MARGIN_SIZE = window_width / 30;
                     Y_MARGIN_SIZE = window_height / 30;
                     ALBUM_ART_DISPLAY_WIDTH = max(MIN_ALBUM_ART_DISPLAY_WIDTH, window_width / 3);
-                    THUMBNAIL_SLOT_WIDTH  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 10);
-                    THUMBNAIL_SLOT_HEIGHT = THUMBNAIL_SLOT_WIDTH;
+                    thumbnail_slot_width  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 10);
+                    thumbnail_slot_height = thumbnail_slot_width;
                     init_fonts();
                     break;
                 }
@@ -117,6 +117,7 @@ main :: () {
         seek :: ($seconds: float32) #expand {
             MPD.run_seek_current(mpd_connection, seconds, true);
             handle_errors("Seeking");
+            Queue.update(mpd_connection, queue);
             update_status_time();
         }
         SEEK_SECONDS :: 0.5;
@@ -127,18 +128,18 @@ main :: () {
             last_global_key_pressed = .LEFT_ANGLE_BRACKET;
             MPD.run_previous(mpd_connection);
             handle_errors("Playing previous song");
-            update_status(false);
+            update_status(Queue.get_current_song(mpd_connection, queue));
         }
         play_next_song :: () #expand {
             MPD.run_next(mpd_connection);
             handle_errors("Playing next song");
-            update_status(false);
+            update_status(Queue.get_current_song(mpd_connection, queue));
         }
 
         change_volume :: ($amount: s32) #expand {
             MPD.run_change_volume(mpd_connection, amount);
             handle_errors("Changing volume");
-            update_status_volume();
+            update_status(Queue.get_current_song(mpd_connection, queue));
         }
         VOLUME_CHANGE_AMOUNT :: 2;
         increment_volume :: () #expand { change_volume( VOLUME_CHANGE_AMOUNT); }
@@ -160,7 +161,7 @@ main :: () {
 
                       case .NUMBER_1;
                         current_view = .QUEUE;
-                        load_queue_changes();
+                        Queue.update(mpd_connection, queue);
                         break it;
                       case .NUMBER_2;
                         current_view = .LIBRARY;
@@ -210,8 +211,8 @@ main :: () {
                       case KEY_C;
                         MPD.run_clear(mpd_connection);
                         handle_errors("Clearing queue");
-                        load_queue_changes();
-                        update_status();
+                        Queue.update(mpd_connection, queue);
+                        update_status(Queue.get_current_song(mpd_connection, queue));
                         break it;
                     }
                 }
@@ -243,11 +244,11 @@ main :: () {
         header_bottom := draw_header();
         if current_view == {
           case .QUEUE;
-            queue_event_loop(frame, header_bottom);
+            Queue.event_loop(mpd_connection, queue, frame, font, cast(s32)display_width(), header_bottom);
           case .LIBRARY;
-            library_event_loop(frame, header_bottom);
+            Library.event_loop(library, mpd_connection, queue, frame, font, cast(s32)display_width(), header_bottom);
           case .ALBUM_ART;
-            album_art_event_loop(frame, header_bottom);
+            Album_Art.event_loop(mpd_connection, albums_sorted_by_artist_and_year, library, queue, frame, font, cast(s32)display_width(), header_bottom, thumbnail_slot_width, thumbnail_slot_height);
         }
         reset_temporary_storage();
         Simp.swap_buffers(window);
@@ -271,64 +272,6 @@ main :: () {
     }
 
     MPD.connection_free(mpd_connection);
-}
-
-/******************
-* status bar info *
-******************/
-
-Status :: struct {
-    artist:       string;
-    album:        string;
-    song:         string;
-    elapsed_time: u32;
-    total_time:   u32;
-    volume:       s32;
-}
-
-status: Status;
-
-status_update_timer: u64 = 0;
-update_status :: (update_queue := true) {
-    status_update_timer = get_current_file_time();
-
-    mpd_status := MPD.run_status(mpd_connection);
-    handle_errors("Retrieving MPD status");
-    MPD.response_finish(mpd_connection);
-
-    if update_queue load_queue_changes();
-    queue_song_position := MPD.status_get_song_pos(mpd_status);
-    if queue_song_position >= 0 {
-        song := queue.songs[queue_song_position];
-        status.artist = copy_string(song.artist);
-        status.album  = copy_string(song.album);
-        status.song   = copy_string(song.name);
-    } else {
-        status.artist = "";
-        status.album  = "";
-        status.song   = "";
-    }
-    status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
-    status.total_time   = MPD.status_get_total_time(mpd_status);
-    status.volume       = MPD.status_get_volume(mpd_status);
-    MPD.status_free(mpd_status);
-}
-
-update_status_volume :: () {
-    mpd_status := MPD.run_status(mpd_connection);
-    handle_errors("Retrieving MPD status");
-    MPD.response_finish(mpd_connection);
-    status.volume       = MPD.status_get_volume(mpd_status);
-    MPD.status_free(mpd_status);
-}
-
-update_status_time :: () {
-    mpd_status := MPD.run_status(mpd_connection);
-    handle_errors("Retrieving MPD status");
-    MPD.response_finish(mpd_connection);
-    status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
-    status.total_time   = MPD.status_get_total_time(mpd_status);
-    MPD.status_free(mpd_status);
 }
 
 draw_header :: () -> int {
@@ -396,13 +339,13 @@ draw_header :: () -> int {
 font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
 
-    font_data: [] u8 = ---;
+    font_data : [] u8 = #run load_font_data("./fonts/Inconsolata-Regular.ttf"); // load font at compile time
+
     load_font_data :: (filename: string) -> []u8 {
         s, success := read_entire_file(filename);
         assert(success, "Failed to load font file at %", filename);
         return cast([]u8) s;
     }
-    font_data = #run load_font_data("./fonts/Inconsolata-Regular.ttf"); // load font at compile time
 
     pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
     // better size for streaming
@@ -414,77 +357,4 @@ init_fonts :: () {
     // if (font_bold != null) free(font_bold);
     // font_bold = Simp.get_font_at_size("/home/grish/src/jai/jai-mpd", "Inconsolata-SemiBold.ttf", pixel_height);
     // assert(font_bold != null);
-}
-
-Error :: struct {
-    code: MPD.server_error;
-    message: string;
-    recovered: bool;
-    type: enum { SERVER; CLIENT; };
-}
-
-Server_Error :: struct {
-    using _error: Error;
-    type = .SERVER;
-}
-
-Client_Error :: struct {
-    using _error: Error;
-    type = .CLIENT;
-}
-
-// returns true if a reconnect happened, false otherwise
-handle_errors :: (message: string) -> bool {
-
-    error := check_connection_errors();
-    if error {
-        print("%: % error, code=%, message='%', recovered=%\n", message, error.type, error.code, error.message, error.recovered);
-        if !error.recovered {
-            print("Failed to recover from error, attempting to reconnect to MPD\n");
-
-            MPD.run_clear(mpd_connection);
-            mpd_connection = MPD.connection_new(null, 0, 15000);
-            if mpd_connection == null {
-                print("MPD reconnect failed, might be out of memory. Exiting\n");
-                exit(1);
-            }
-
-            // TODO: if we get 'connection refused', wait a second before restarting (goes wayy to fast for my laptop)
-            new_connection_error := check_connection_errors();
-            while new_connection_error {
-                MPD.run_clear(mpd_connection);
-                mpd_connection = MPD.connection_new(null, 0, 0);
-                new_connection_error = check_connection_errors();
-                print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", error.type, error.code, error.message, error.recovered);
-                sleep_milliseconds(3000);
-            }
-
-            print("Successfully reconnected to MPD\n");
-            return true;
-        }
-        print("Recovered from error\n");
-    }
-    return false;
-}
-
-check_connection_errors :: () -> *Error {
-    error_code := MPD.connection_get_error(mpd_connection);
-    if (error_code != .SUCCESS) {
-        msg := copy_temp_from_c_string(MPD.connection_get_error_message(mpd_connection));
-
-        if error_code == .SERVER {
-            error := New(Server_Error, allocator=__temporary_allocator);
-            error.code      = MPD.connection_get_server_error(mpd_connection);
-            error.message   = msg;
-            error.recovered = MPD.connection_clear_error(mpd_connection);
-            return error;
-        } else {
-            error := New(Client_Error, allocator=__temporary_allocator);
-            error.message   = msg;
-            error.recovered = MPD.connection_clear_error(mpd_connection);
-            return error;
-        }
-    }
-
-    return null;
 }

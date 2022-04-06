@@ -1,3 +1,21 @@
+#scope_file
+
+#import "Basic";
+#import "Hash_Table";
+#import "Unicode";
+#import "Thread";
+#import "Time";
+
+#import "queue";
+
+Input :: #import "Input";
+MPD   :: #import "libmpdclient";
+Simp  :: #import "Simp";
+
+#scope_export
+
+mpd_connection: *MPD.connection;
+
 /************
 * constants *
 ************/
@@ -18,9 +36,21 @@ X_MARGIN_SIZE  : s32;
 Y_MARGIN_SIZE  : s32;
 TEXT_PADDING_Y :: 5;
 
+ELLIPSIS :: u8.[226, 128, 166];
+
 /********
 * types *
 ********/
+
+Library_Data :: struct {
+    artists             : Table(string, Artist);
+    artist_names_sorted : [..] string;
+    stats: struct {
+        number_of_artists : int = 0;
+        number_of_albums  : int = 0;
+        number_of_songs   : int = 0;
+    }
+}
 
 Artist  :: struct {
     name                       : string;
@@ -123,7 +153,7 @@ to_long_date_string :: (date: Date) -> string {
             log("Warning: '%' is not a valid month number", date.month, flags=.ERROR);
             return tprint("%", date.year);
     }
-    if !date.day   return tprint("% %", month_name, date.year);
+    if !date.day return tprint("% %", month_name, date.year);
     return tprint("% % %", date.day, month_name, date.year);
 }
 
@@ -132,11 +162,143 @@ Display_Text :: struct {
     selected : bool;
 }
 
+/********************************
+* MPD connection/error handling *
+********************************/
+
+Error :: struct {
+    code: MPD.server_error;
+    message: string;
+    recovered: bool;
+    type: enum { SERVER; CLIENT; };
+}
+
+Server_Error :: struct {
+    using _error: Error;
+    type = .SERVER;
+}
+
+Client_Error :: struct {
+    using _error: Error;
+    type = .CLIENT;
+}
+
+// returns true if a reconnect happened, false otherwise
+handle_errors :: (message: string) -> bool {
+
+    check_connection_errors :: () -> *Error {
+        error_code := MPD.connection_get_error(mpd_connection);
+        if (error_code != .SUCCESS) {
+            msg := copy_temp_from_c_string(MPD.connection_get_error_message(mpd_connection));
+
+            if error_code == .SERVER {
+                error := New(Server_Error, allocator=__temporary_allocator);
+                error.code      = MPD.connection_get_server_error(mpd_connection);
+                error.message   = msg;
+                error.recovered = MPD.connection_clear_error(mpd_connection);
+                return error;
+            } else {
+                error := New(Client_Error, allocator=__temporary_allocator);
+                error.message   = msg;
+                error.recovered = MPD.connection_clear_error(mpd_connection);
+                return error;
+            }
+        }
+
+        return null;
+    }
+
+    error := check_connection_errors();
+    if error {
+        print("%: % error, code=%, message='%', recovered=%\n", message, error.type, error.code, error.message, error.recovered);
+        if !error.recovered {
+            print("Failed to recover from error, attempting to reconnect to MPD\n");
+
+            MPD.run_clear(mpd_connection);
+            mpd_connection = MPD.connection_new(null, 0, 15000);
+            if mpd_connection == null {
+                print("MPD reconnect failed, might be out of memory. Exiting\n");
+                exit(1);
+            }
+
+            // TODO: if we get 'connection refused', wait a second before restarting (goes wayy to fast for my laptop)
+            new_connection_error := check_connection_errors();
+            while new_connection_error {
+                MPD.run_clear(mpd_connection);
+                mpd_connection = MPD.connection_new(null, 0, 0);
+                new_connection_error = check_connection_errors();
+                print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", error.type, error.code, error.message, error.recovered);
+                sleep_milliseconds(3000);
+            }
+
+            print("Successfully reconnected to MPD\n");
+            return true;
+        }
+        print("Recovered from error\n");
+    }
+    return false;
+}
+
+/******************
+* status bar info *
+******************/
+
+Status :: struct {
+    artist:       string;
+    album:        string;
+    song:         string;
+    elapsed_time: u32;
+    total_time:   u32;
+    volume:       s32;
+}
+
+status: Status;
+
+status_update_timer: u64 = 0;
+update_status :: (current_song: *Song) {
+    status_update_timer = get_current_file_time();
+
+    if current_song {
+        status.artist = copy_string(current_song.artist);
+        status.album  = copy_string(current_song.album);
+        status.song   = copy_string(current_song.name);
+    } else {
+        status.artist = "";
+        status.album  = "";
+        status.song   = "";
+    }
+
+    mpd_status := MPD.run_status(mpd_connection);
+    handle_errors("Retrieving MPD status");
+    MPD.response_finish(mpd_connection);
+    status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
+    status.total_time   = MPD.status_get_total_time(mpd_status);
+    status.volume       = MPD.status_get_volume(mpd_status);
+    MPD.status_free(mpd_status);
+}
+
+update_status_volume :: () {
+    mpd_status := MPD.run_status(mpd_connection);
+    handle_errors("Retrieving MPD status");
+    MPD.response_finish(mpd_connection);
+    status.volume       = MPD.status_get_volume(mpd_status);
+    MPD.status_free(mpd_status);
+}
+
+update_status_time :: () {
+    mpd_status := MPD.run_status(mpd_connection);
+    handle_errors("Retrieving MPD status");
+    MPD.response_finish(mpd_connection);
+    status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
+    status.total_time   = MPD.status_get_total_time(mpd_status);
+    MPD.status_free(mpd_status);
+}
+
 /********************
 * bulk add to queue *
 ********************/
 
-add_artist_to_queue :: (artist_name: string) -> s32 {
+add_artist_to_queue :: (library: Library_Data, artist_name: string) -> s32 {
     first_id_added: s32;
     artist := table_find_pointer(library.artists, artist_name);
     if !artist return -1;
@@ -154,7 +316,7 @@ add_artist_to_queue :: (artist_name: string) -> s32 {
     return first_id_added;
 }
 
-add_album_to_queue :: (artist_name: string, album_name: string) -> s32 {
+add_album_to_queue :: (library: Library_Data, artist_name: string, album_name: string) -> s32 {
     first_id_added: s32;
     artist := table_find_pointer(library.artists, artist_name);
     if !artist return -1;
