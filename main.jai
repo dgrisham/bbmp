@@ -45,10 +45,6 @@ frame: u64 = 0;
 frame_rate: float64;
 TARGET_FPS :: 30;
 
-// library                          : *Library_Data = ---;
-// queue                            : *Queue.Data   = ---;
-// albums_sorted_by_artist_and_year : [..] *Album   = ---;
-
 main :: () {
 
     init_fonts();
@@ -343,13 +339,13 @@ draw_header :: () -> int {
 font, font_bold : *Simp.Dynamic_Font;
 init_fonts :: () {
 
-    font_data: [] u8 = ---;
+    font_data : [] u8 = #run load_font_data("./fonts/Inconsolata-Regular.ttf"); // load font at compile time
+
     load_font_data :: (filename: string) -> []u8 {
         s, success := read_entire_file(filename);
         assert(success, "Failed to load font file at %", filename);
         return cast([]u8) s;
     }
-    font_data = #run load_font_data("./fonts/Inconsolata-Regular.ttf"); // load font at compile time
 
     pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
     // better size for streaming
