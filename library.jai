@@ -106,7 +106,7 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
 
                 library.stats.number_of_songs += 1;
             } else {
-                // print("skipping: '%', '%', '%'\n", mpd_artist, to_string(mpd_album), to_string(mpd_title));
+                // print("skipping: '%' ('%'), '%', '%'\n", to_string(mpd_artist), to_string(mpd_album_artist), to_string(mpd_album), to_string(mpd_title));
             }
         }
 
@@ -329,6 +329,10 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
     // draw_frame :: (items_in_page: int, header_bottom: int) {
     {
 
+        /*********************************************
+        * determine the artists/albums/songs to show *
+        *********************************************/
+
         display_columns: [3] struct {
             width           : s32;
             rectangle_width : s32;
@@ -414,6 +418,10 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
                 }
             }
         }
+
+        /******************
+        * draw everything *
+        ******************/
 
         {
             top := header_bottom - 25;

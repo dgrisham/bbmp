@@ -26,6 +26,15 @@ process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, alb
     move_cursor_one_page_up   :: () #expand { move_cursor_by_n_songs(`album.songs.count, -items_in_page); }
     move_cursor_one_page_down :: () #expand { move_cursor_by_n_songs(`album.songs.count, +items_in_page); }
 
+    move_cursor_to_next_album_and_reset_song_position :: () #expand {
+        move_cursor_to_next_album();
+        `cursor.song_position = 0;
+    }
+    move_cursor_to_prev_album_and_reset_song_position :: () #expand {
+        move_cursor_to_prev_album();
+        `cursor.song_position = 0;
+    }
+
     add_selected_song_to_queue :: () -> int #expand {
         assert(mpd_connection != null);
         id := MPD.run_add_id(mpd_connection, to_c_string(`album.songs[`cursor.song_position].uri));
@@ -42,15 +51,6 @@ process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, alb
             Queue.update(`mpd_connection, `queue);
             update_status(Queue.get_current_song(`mpd_connection, `queue));
         }
-    }
-
-    move_cursor_to_next_album_and_reset_song_position :: () #expand {
-        move_cursor_to_next_album();
-        `cursor.song_position = 0;
-    }
-    move_cursor_to_prev_album_and_reset_song_position :: () #expand {
-        move_cursor_to_prev_album();
-        `cursor.song_position = 0;
     }
 
     for Input.events_this_frame {
@@ -159,20 +159,21 @@ loaded_album: struct {
     art_loaded  : bool = false;
 }
 
-draw_album_frame :: (album: *Album, load_current_album_cover: bool, font: *Simp.Dynamic_Font, total_width: s32, header_bottom: int, items_in_page: int) {
+draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dynamic_Font, total_width: s32, header_bottom: int, items_in_page: int) {
 
-    if loaded_album.art_texture == null loaded_album.art_texture = New(Simp.Texture); // should only happen on the first album view frame
-    if album.artist_name != loaded_album.artist_name || album.name != loaded_album.album_name {
+    if loaded_album.art_texture == null loaded_album.art_texture = New(Simp.Texture); // initialize loaded art texture, should only happen on the first album view frame
+
+    if album.artist_name != loaded_album.artist_name || album.name != loaded_album.album_name { // album changed, reset loaded album
         free(loaded_album.artist_name);
         free(loaded_album.album_name);
         loaded_album.artist_name    = copy_string(album.artist_name);
         loaded_album.album_name     = copy_string(album.name);
         loaded_album.art_loaded     = false;
 
-        load_current_album_cover = true;
+        load_current_album_art = true;
     }
 
-    if load_current_album_cover {
+    if load_current_album_art { // load thumbnail from disk
         if album.cover_path != "" {
             display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, get_hash(tprint("%-%", album.artist_name, album.name)), LARGE_ALBUM_ART_WIDTH);
             if file_exists(display_art_path) {
@@ -186,6 +187,10 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, font: *Simp.
             }
         }
     }
+
+    /***********************
+    * draw the album cover *
+    ***********************/
 
     cover_display_width  := cast(float)ALBUM_ART_DISPLAY_WIDTH;
     cover_display_height := cover_display_width;
@@ -214,9 +219,12 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, font: *Simp.
         Simp.immediate_flush();
     }
 
+    /**********************************************************
+    * determine the list of songs + positions to draw them in *
+    **********************************************************/
+
     text_x := cast(s64)(cover_x + cover_display_width + X_MARGIN_SIZE);
 
-    // TODO/NOTE: this was using window_width before, now it's display_width
     rectangle_width := total_width - X_MARGIN_SIZE - text_x;
     max_characters_in_column := rectangle_width / font.w_width - 2;
 
@@ -248,6 +256,10 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, font: *Simp.
         }
     }
 
+    /*************************************************
+    * draw the album metadata header + list of songs *
+    *************************************************/
+
     text_y := min(
         // this roughly vertically centers the song list with the album cover
         cast(s64)(
@@ -259,9 +271,7 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, font: *Simp.
         header_bottom - Y_MARGIN_SIZE,
     );
 
-    // TODO/NOTE: this was using window_width before, now it's display_width
     x_center := (total_width - X_MARGIN_SIZE + text_x) / 2;
-
     {
         width := Simp.prepare_text(font, album.name);
         Simp.draw_prepared_text(font, x_center - width / 2, text_y, rgba(1,1,1,1));

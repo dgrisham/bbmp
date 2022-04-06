@@ -135,6 +135,10 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, 
 
 draw_library_frame :: (albums: [..] *Album, font: *Simp.Dynamic_Font, header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32, Y_PADDING_BELOW_HEADER: s32) {
 
+    /************************************************
+    * determine the set of album thumbnails to draw *
+    ************************************************/
+
     Entry :: struct {
         artist_name : string;
         album_name  : string;
@@ -183,6 +187,10 @@ draw_library_frame :: (albums: [..] *Album, font: *Simp.Dynamic_Font, header_bot
             }
         }
     }
+
+    /****************
+    * draw the page *
+    ****************/
 
     {
         TEXT_PADDING_Y :: 5;
