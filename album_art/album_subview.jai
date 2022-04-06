@@ -26,15 +26,15 @@ process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, alb
     move_cursor_one_page_up   :: () #expand { move_cursor_by_n_songs(`album.songs.count, -items_in_page); }
     move_cursor_one_page_down :: () #expand { move_cursor_by_n_songs(`album.songs.count, +items_in_page); }
 
-    album_add_selected_song_to_queue :: () -> int #expand {
+    add_selected_song_to_queue :: () -> int #expand {
         assert(mpd_connection != null);
         id := MPD.run_add_id(mpd_connection, to_c_string(`album.songs[`cursor.song_position].uri));
         handle_errors("Adding song to queue from album view");
         move_cursor_to_next_song();
         return id;
     }
-    album_add_selected_song_to_queue_and_play :: () #expand {
-        song_id_to_play := album_add_selected_song_to_queue();
+    add_selected_song_to_queue_and_play :: () #expand {
+        song_id_to_play := add_selected_song_to_queue();
         if song_id_to_play >= 0 {
             assert(mpd_connection != null);
             MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
@@ -129,13 +129,13 @@ process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, alb
                   case .SPACEBAR;
                     table_set(*album_key_pressed_on_frame, .SPACE, frame);
                     last_album_key_pressed = .SPACE;
-                    album_add_selected_song_to_queue();
+                    add_selected_song_to_queue();
                     break it;
 
                   case .ENTER;
                     table_set(*album_key_pressed_on_frame, .ENTER, frame);
                     last_album_key_pressed = .ENTER;
-                    album_add_selected_song_to_queue_and_play();
+                    add_selected_song_to_queue_and_play();
                     break it;
                 }
             }
@@ -148,8 +148,8 @@ process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, alb
     if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .L)       move_cursor_to_next_album_and_reset_song_position();
     if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .CTRL_D)  move_cursor_one_page_down();
     if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .CTRL_U)  move_cursor_one_page_up();
-    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .SPACE)   album_add_selected_song_to_queue();
-    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .ENTER)   album_add_selected_song_to_queue_and_play();
+    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .SPACE)   add_selected_song_to_queue();
+    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .ENTER)   add_selected_song_to_queue_and_play();
 }
 
 loaded_album: struct {
@@ -187,7 +187,7 @@ draw_album_frame :: (album: *Album, load_current_album_cover: bool, font: *Simp.
         }
     }
 
-    cover_display_width := cast(float)ALBUM_ART_DISPLAY_WIDTH;
+    cover_display_width  := cast(float)ALBUM_ART_DISPLAY_WIDTH;
     cover_display_height := cover_display_width;
 
     cover_x := cast(float)X_MARGIN_SIZE;
