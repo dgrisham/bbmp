@@ -48,11 +48,12 @@ load :: (library: *Library_Data) -> [..] *Album {
         for album_name: artist_ptr.album_names_sorted_by_date {
             album_ptr := table_find_pointer(artist_ptr.albums, album_name);
             assert(album_ptr != null, "Failed to find album '%' - '%' in table when loading library album art data", artist_name, album_name);
-
             albums[i] = album_ptr;
             i += 1;
         }
     }
+
+    initialize_library_search_query();
 
     return albums;
 }

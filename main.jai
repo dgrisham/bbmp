@@ -150,7 +150,7 @@ main :: () {
                 quit = true;
                 break;
             }
-            if it.type == .KEYBOARD && !INPUTTING_SEARCH_QUERY {
+            if it.type == .KEYBOARD && !Album_Art.inputting_search_query {
                 if it.key_pressed {
                     if it.key_code == {
                       case KEY_Q;
