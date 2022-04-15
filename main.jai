@@ -1,4 +1,5 @@
-#run (#import "Compiler").set_output_executable_name("grishcompoop");
+APPLICATION_NAME :: "grishcompoop";
+#run (#import "Compiler").set_output_executable_name(APPLICATION_NAME);
 
 #import "Basic"()(MEMORY_DEBUGGER=false);
 #import "File";
@@ -49,7 +50,7 @@ main :: () {
 
     init_fonts();
 
-    window = create_window(window_width, window_height, "ncmpjai");
+    window = create_window(window_width, window_height, APPLICATION_NAME);
     window_width, window_height = Simp.get_render_dimensions(window);
 
     Simp.set_render_target(window);
