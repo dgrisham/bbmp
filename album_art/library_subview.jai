@@ -395,6 +395,7 @@ draw_library_frame :: (albums: [..] *Album, font: *Simp.Dynamic_Font, header_bot
     }
 
     if inputting_search_query {
+        y -= TEXT_PADDING_Y * 4;
         Simp.draw_text(font, X_MARGIN_SIZE, y, tprint("Search: %", search_query.str), rgba(1,1,1,1));
     }
 }

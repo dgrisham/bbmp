@@ -67,8 +67,7 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Li
 
     columns := total_width / thumbnail_slot_width - 1;
 
-    song_list_height := header_bottom - 3 * Y_MARGIN_SIZE - 3 * (TEXT_PADDING_Y + font.character_height) - TEXT_PADDING_Y;
-    album_songs_in_page := cast(int)(song_list_height - font.character_height) / (font.character_height + TEXT_PADDING_Y);
+    album_songs_in_page := cast(int)(ALBUM_ART_DISPLAY_WIDTH - font.character_height) / (font.character_height + TEXT_PADDING_Y);
 
     original_subview := current_album_art_subview;
 

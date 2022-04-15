@@ -265,7 +265,7 @@ draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dy
         cast(s64)(
             cover_y + cover_display_height * 1 / 2                                                              // album cover center
             + Y_MARGIN_SIZE                                                                                     // gap between album metadata and tracklist
-            + (3 + display_entries.count / 2.0) * (font.character_height + TEXT_PADDING_Y) - 2 * TEXT_PADDING_Y // total height of text that we draw (the subtraction at the end is to adjust from double counting)
+            + (3 + (display_entries.count - 1) / 2.0) * (font.character_height + TEXT_PADDING_Y) - 2 * TEXT_PADDING_Y // total height of text that we draw (the subtraction at the end is to adjust from double counting)
         ),
         // height limit based on the remaining screen size
         header_bottom - Y_MARGIN_SIZE,
