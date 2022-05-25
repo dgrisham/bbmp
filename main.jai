@@ -1,5 +1,5 @@
 APPLICATION_NAME :: "grishcompoop";
-#run (#import "Compiler").set_output_executable_name(APPLICATION_NAME);
+#run (#import "Compiler").set_build_options_dc(.{output_executable_name = APPLICATION_NAME});
 
 #import "Basic"()(MEMORY_DEBUGGER=false);
 #import "File";
@@ -46,6 +46,8 @@ frame: u64 = 0;
 frame_rate: float64;
 TARGET_FPS :: 30;
 
+user_input_active := false;
+
 main :: () {
 
     init_fonts();
@@ -77,6 +79,8 @@ main :: () {
 
     last_global_key_pressed: Key;
 
+    reset_temporary_storage();
+
     // only keys that repeat when held go in this table
     global_key_pressed_on_frame: Table(Key, u64);
     table_add(*global_key_pressed_on_frame, .B,                   0);
@@ -85,8 +89,6 @@ main :: () {
     table_add(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, 0);
     table_add(*global_key_pressed_on_frame, .EQUALS_SIGN,         0);
     table_add(*global_key_pressed_on_frame, .DASH,                0);
-
-    reset_temporary_storage();
 
     while !quit {
         if get_current_file_time() > status_update_timer + 10000000 {
@@ -122,8 +124,8 @@ main :: () {
             update_status_time();
         }
         SEEK_SECONDS :: 0.5;
-        seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) + seconds);  }
-        seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) - seconds); }
+        seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) + 5 * seconds);  }
+        seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) - 5 * seconds); }
 
         play_previous_song :: () #expand {
             last_global_key_pressed = .LEFT_ANGLE_BRACKET;
@@ -151,96 +153,94 @@ main :: () {
                 quit = true;
                 break;
             }
-            if !Album_Art.inputting_search_query {
-                if it.type == .KEYBOARD {
-                    if it.key_pressed {
-                        if it.key_code == {
-                          case KEY_Q;
-                            if it.shift_pressed {
-                                quit = true;
-                                break it;
-                            }
-
-                          case .NUMBER_1;
-                            current_view = .QUEUE;
-                            Queue.update(mpd_connection, queue);
-                            break it;
-                          case .NUMBER_2;
-                            current_view = .LIBRARY;
-                            break it;
-                          case .NUMBER_3;
-                            current_view = .ALBUM_ART;
-                            break it;
-
-                          case KEY_P;
-                            MPD.run_toggle_pause(mpd_connection);
-                            handle_errors("Toggling pause");
-                            break it;
-
-                          case KEY_B;
-                            last_global_key_pressed = .B;
-                            table_set(*global_key_pressed_on_frame, .B, frame);
-                            seek_backward();
-                            break it;
-                          case KEY_F;
-                            last_global_key_pressed = .F;
-                            table_set(*global_key_pressed_on_frame, .F, frame);
-                            seek_forward();
-                            break it;
-
-                          case .LEFT_ANGLE_BRACKET;
-                            last_global_key_pressed = .LEFT_ANGLE_BRACKET;
-                            table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
-                            play_previous_song();
-                            break it;
-                          case .RIGHT_ANGLE_BRACKET;
-                            last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
-                            table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
-                            play_next_song();
-                            break it;
-
-                          case .EQUALS_SIGN;
-                            last_global_key_pressed = .EQUALS_SIGN;
-                            table_set(*global_key_pressed_on_frame, .EQUALS_SIGN, frame);
-                            increment_volume();
-                            break it;
-                          case .DASH;
-                            last_global_key_pressed = .DASH;
-                            table_set(*global_key_pressed_on_frame, .DASH, frame);
-                            decrement_volume();
-                            break it;
-
-                          case KEY_C;
-                            MPD.run_clear(mpd_connection);
-                            handle_errors("Clearing queue");
-                            Queue.update(mpd_connection, queue);
-                            update_status(Queue.get_current_song(mpd_connection, queue));
-                            break it;
-                        }
+            if !user_input_active && it.type == .KEYBOARD && it.key_pressed {
+                if it.key_code == {
+                  case KEY_Q;
+                    if it.shift_pressed {
+                        quit = true;
+                        break it;
                     }
+
+                  case .NUMBER_1;
+                    current_view = .QUEUE;
+                    Queue.update(mpd_connection, queue);
+                    break it;
+                  case .NUMBER_2;
+                    current_view = .LIBRARY;
+                    break it;
+                  case .NUMBER_3;
+                    current_view = .ALBUM_ART;
+                    break it;
+
+                  case KEY_P;
+                    MPD.run_toggle_pause(mpd_connection);
+                    handle_errors("Toggling pause");
+                    break it;
+
+                  case KEY_B;
+                    last_global_key_pressed = .B;
+                    table_set(*global_key_pressed_on_frame, .B, frame);
+                    seek_backward();
+                    break it;
+                  case KEY_F;
+                    last_global_key_pressed = .F;
+                    table_set(*global_key_pressed_on_frame, .F, frame);
+                    seek_forward();
+                    break it;
+
+                  case .LEFT_ANGLE_BRACKET;
+                    last_global_key_pressed = .LEFT_ANGLE_BRACKET;
+                    table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
+                    play_previous_song();
+                    break it;
+                  case .RIGHT_ANGLE_BRACKET;
+                    last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
+                    table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
+                    play_next_song();
+                    break it;
+
+                  case .EQUALS_SIGN;
+                    last_global_key_pressed = .EQUALS_SIGN;
+                    table_set(*global_key_pressed_on_frame, .EQUALS_SIGN, frame);
+                    increment_volume();
+                    break it;
+                  case .DASH;
+                    last_global_key_pressed = .DASH;
+                    table_set(*global_key_pressed_on_frame, .DASH, frame);
+                    decrement_volume();
+                    break it;
+
+                  case KEY_C;
+                    MPD.run_clear(mpd_connection);
+                    handle_errors("Clearing queue");
+                    Queue.update(mpd_connection, queue);
+                    update_status(Queue.get_current_song(mpd_connection, queue));
+                    break it;
                 }
-
-                if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B, threshold=8*KEY_HOLD_DELAY) seek_backward(6*SEEK_SECONDS);
-                else
-                if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B, threshold=6*KEY_HOLD_DELAY) seek_backward(4*SEEK_SECONDS);
-                else
-                if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B, threshold=4*KEY_HOLD_DELAY) seek_backward(2*SEEK_SECONDS);
-                else
-                if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B)                             seek_backward();
-
-                if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F, threshold=8*KEY_HOLD_DELAY) seek_forward(6*SEEK_SECONDS);
-                else
-                if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F, threshold=6*KEY_HOLD_DELAY) seek_forward(4*SEEK_SECONDS);
-                else
-                if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F, threshold=4*KEY_HOLD_DELAY) seek_forward(2*SEEK_SECONDS);
-                else
-                if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F)                             seek_forward();
-
-                if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .LEFT_ANGLE_BRACKET)  play_previous_song();
-                if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .RIGHT_ANGLE_BRACKET) play_next_song();
-                if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .EQUALS_SIGN)         increment_volume();
-                if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .DASH)                decrement_volume();
             }
+        }
+
+        if !user_input_active {
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B, threshold=8*KEY_HOLD_DELAY) seek_backward(6*SEEK_SECONDS);
+            else
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B, threshold=6*KEY_HOLD_DELAY) seek_backward(4*SEEK_SECONDS);
+            else
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B, threshold=4*KEY_HOLD_DELAY) seek_backward(2*SEEK_SECONDS);
+            else
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B)                             seek_backward();
+
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F, threshold=8*KEY_HOLD_DELAY) seek_forward(6*SEEK_SECONDS);
+            else
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F, threshold=6*KEY_HOLD_DELAY) seek_forward(4*SEEK_SECONDS);
+            else
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F, threshold=4*KEY_HOLD_DELAY) seek_forward(2*SEEK_SECONDS);
+            else
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F)                             seek_forward();
+
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .LEFT_ANGLE_BRACKET)  play_previous_song();
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .RIGHT_ANGLE_BRACKET) play_next_song();
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .EQUALS_SIGN)         increment_volume();
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .DASH)                decrement_volume();
         }
 
         Simp.clear_render_target(0,0,0,1);
@@ -251,7 +251,7 @@ main :: () {
           case .LIBRARY;
             Library.event_loop(library, mpd_connection, queue, frame, font, cast(s32)display_width(), header_bottom);
           case .ALBUM_ART;
-            Album_Art.event_loop(mpd_connection, albums_sorted_by_artist_and_year, library, queue, frame, font, cast(s32)display_width(), header_bottom, thumbnail_slot_width, thumbnail_slot_height);
+            user_input_active = Album_Art.event_loop(mpd_connection, albums_sorted_by_artist_and_year, library, queue, frame, font, cast(s32)display_width(), header_bottom, thumbnail_slot_width, thumbnail_slot_height);
         }
         reset_temporary_storage();
         Simp.swap_buffers(window);

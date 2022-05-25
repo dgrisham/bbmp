@@ -129,8 +129,8 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
     }
     move_selected_cursor_up            :: () #expand { move_selected_cursor(-1);             }
     move_selected_cursor_down          :: () #expand { move_selected_cursor(+1);             }
-    move_selected_cursor_one_page_up   :: () #expand { move_selected_cursor(-items_in_page); }
-    move_selected_cursor_one_page_down :: () #expand { move_selected_cursor(+items_in_page); }
+    move_selected_cursor_half_page_up   :: () #expand { move_selected_cursor(-items_in_page / 2); }
+    move_selected_cursor_half_page_down :: () #expand { move_selected_cursor(+items_in_page / 2); }
 
     move_selected_cursor_left  :: () #expand { `cursor.selected -= 1; }
     move_selected_cursor_right :: () #expand { `cursor.selected += 1; }
@@ -197,14 +197,14 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
                     if it.ctrl_pressed {
                         last_key_pressed = .CTRL_D;
                         table_set(*key_pressed_on_frame, .CTRL_D, frame);
-                        move_selected_cursor_one_page_down();
+                        move_selected_cursor_half_page_down();
                         break it;
                     }
                   case KEY_U;
                     if it.ctrl_pressed {
                         last_key_pressed = .CTRL_U;
                         table_set(*key_pressed_on_frame, .CTRL_U, frame);
-                        move_selected_cursor_one_page_up();
+                        move_selected_cursor_half_page_up();
                         break it;
                     }
 
@@ -283,8 +283,8 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
     if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .K)      move_selected_cursor_up();
     if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .H)      move_selected_cursor_left();
     if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .L)      move_selected_cursor_right();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D) move_selected_cursor_one_page_down();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U) move_selected_cursor_one_page_up();
+    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D) move_selected_cursor_half_page_down();
+    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U) move_selected_cursor_half_page_up();
     if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)  add_selection_to_queue(library);
 
     if cursor.selected < 0 {
@@ -348,9 +348,9 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
             display_columns[1].rectangle_width = display_columns[1].width - 50;
             display_columns[2].rectangle_width = display_columns[2].width;
 
-            display_columns[0].entries.allocator = __temporary_allocator;
-            display_columns[1].entries.allocator = __temporary_allocator;
-            display_columns[2].entries.allocator = __temporary_allocator;
+            display_columns[0].entries.allocator = temp;
+            display_columns[1].entries.allocator = temp;
+            display_columns[2].entries.allocator = temp;
 
             selected_artist_index := cursor.positions[0];
             {

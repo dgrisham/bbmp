@@ -36,6 +36,7 @@ X_MARGIN_SIZE  : s32;
 Y_MARGIN_SIZE  : s32;
 TEXT_PADDING_Y :: 5;
 
+SPACE: u8 = 32;
 ELLIPSIS :: u8.[226, 128, 166];
 
 /********
@@ -192,13 +193,13 @@ handle_errors :: (message: string) -> bool {
             msg := copy_temp_from_c_string(MPD.connection_get_error_message(mpd_connection));
 
             if error_code == .SERVER {
-                error := New(Server_Error, allocator=__temporary_allocator);
+                error := New(Server_Error, allocator=temp);
                 error.code      = MPD.connection_get_server_error(mpd_connection);
                 error.message   = msg;
                 error.recovered = MPD.connection_clear_error(mpd_connection);
                 return error;
             } else {
-                error := New(Client_Error, allocator=__temporary_allocator);
+                error := New(Client_Error, allocator=temp);
                 error.message   = msg;
                 error.recovered = MPD.connection_clear_error(mpd_connection);
                 return error;
@@ -357,8 +358,10 @@ KEY_U :: 85;
 KEY_X :: 88;
 
 Key :: enum u8 {
+    ESCAPE;
     ENTER;
     SPACE;
+    BACKSPACE;
     LEFT_ANGLE_BRACKET;
     RIGHT_ANGLE_BRACKET;
     EQUALS_SIGN;
@@ -402,6 +405,7 @@ key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pr
     else #if key == .DASH                key_code = .DASH;
     else #if key == .ENTER               key_code = .ENTER;
     else #if key == .SPACE               key_code = .SPACEBAR;
+    else #if key == .BACKSPACE           key_code = .BACKSPACE;
     else #if key == .LEFT_ANGLE_BRACKET  key_code = .LEFT_ANGLE_BRACKET;
     else #if key == .RIGHT_ANGLE_BRACKET key_code = .RIGHT_ANGLE_BRACKET;
     else #if key == .SHIFT_J {
@@ -456,7 +460,7 @@ create_temp_display_string_of_max_length :: (s: string, max_character_count: int
     }
 
     num_bytes_to_copy := max_number_of_bytes - num_bytes_in_last_unicode_char;
-    result := alloc_string(num_bytes_to_copy + ELLIPSIS.count, __temporary_allocator);
+    result := alloc_string(num_bytes_to_copy + ELLIPSIS.count, temp);
     memcpy(result.data, s.data, num_bytes_to_copy);
     memcpy(result.data + num_bytes_to_copy, ELLIPSIS.data, ELLIPSIS.count);
     return result;
@@ -472,7 +476,7 @@ get_unicode_length :: (s: string) -> int {
     return length;
 }
 
-seconds_to_time_string :: (seconds: u32, allocator := __temporary_allocator) -> string {
+seconds_to_time_string :: (seconds: u32, allocator := temp) -> string {
     return aprint("%:%", seconds / 60, left_pad(seconds % 60, #char "0", 2), allocator=allocator);
 }
 
@@ -526,7 +530,7 @@ copy_temp_from_c_string :: inline (s: *u8) -> string {
     return copy_temporary_string(to_string(s));
 }
 
-left_pad :: (t: $T, pad_char: u8, total_length: int, allocator := __temporary_allocator) -> string {
+left_pad :: (t: $T, pad_char: u8, total_length: int, allocator := temp) -> string {
     #if T == string str := t;
     else            str := tprint("%", t);
 
@@ -538,7 +542,7 @@ left_pad :: (t: $T, pad_char: u8, total_length: int, allocator := __temporary_al
     return result;
 }
 
-right_pad :: (t: $T, pad_char: u8, total_length: int, allocator := temporary_allocator) -> string {
+right_pad :: (t: $T, pad_char: u8, total_length: int, allocator := temp) -> string {
     #if T == string str := t;
     else            str := tprint("%", t);
 

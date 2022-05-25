@@ -54,11 +54,12 @@ load :: (library: *Library_Data) -> [..] *Album {
     }
 
     initialize_library_search_query();
+    initialize_album_search_query();
 
     return albums;
 }
 
-event_loop :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, font: *Simp.Dynamic_Font, total_width: s32, header_bottom: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32) {
+event_loop :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, font: *Simp.Dynamic_Font, total_width: s32, header_bottom: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32) -> bool {
 
     Y_PADDING_BELOW_HEADER := Y_MARGIN_SIZE;
 
@@ -71,11 +72,12 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Li
 
     original_subview := current_album_art_subview;
 
+    user_input_active: bool;
     if current_album_art_subview == {
         case .LIBRARY;
-            process_library_input(mpd_connection, albums, library, queue, frame, rows, columns);
+            user_input_active = process_library_input(mpd_connection, albums, library, queue, frame, rows, columns);
         case .ALBUM;
-            process_album_input(mpd_connection, queue, albums, frame, header_bottom, album_songs_in_page, albums[cursor.album_position]);
+            user_input_active = process_album_input(mpd_connection, queue, albums, frame, header_bottom, album_songs_in_page, albums[cursor.album_position]);
     }
 
     if current_album_art_subview == {
@@ -85,6 +87,8 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Li
             just_switched_to_album_subview := original_subview != .ALBUM;
             draw_album_frame(albums[cursor.album_position], just_switched_to_album_subview, font, total_width, header_bottom, album_songs_in_page);
     }
+
+    return user_input_active;
 }
 
 #load "library_subview.jai";

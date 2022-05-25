@@ -6,12 +6,30 @@
 
 Input :: #import "Input";
 
-last_album_key_pressed: Key;
-album_key_pressed_on_frame: Table(Key, u64);
+last_key_pressed: Key;
+key_pressed_on_frame: Table(Key, u64);
+
+last_search_query_key_pressed: Key;
+search_query_key_pressed_on_frame: Table(Key, u64);
+
+#scope_file
+
+search_query: struct {
+    str: string;
+    max_characters: int = 100;
+}
+
+inputting_search_query := false;
 
 #scope_module
 
-process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, albums: [..] *Album, frame: u64, header_bottom: int, items_in_page: int, album: *Album) {
+initialize_album_search_query :: () {
+    // the 4x is for big unicode chars
+    search_query.str.data = alloc(4 * search_query.max_characters);
+    search_query.str.count = 0;
+}
+
+process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, albums: [..] *Album, frame: u64, header_bottom: int, items_in_page: int, album: *Album) -> bool {
 
     move_cursor_by_n_songs :: (number_of_songs_in_album: int, amount: int) #expand {
         `cursor.song_position += amount;
@@ -53,103 +71,249 @@ process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, alb
         }
     }
 
-    for Input.events_this_frame {
-        if it.type == {
-          case .KEYBOARD;
-            if it.key_pressed {
-                if it.key_code == {
+    move_cursor_to_next_search_result :: () #expand {
+        if search_query.str == "" return;
 
-                  case KEY_I;
-                    current_album_art_subview = .LIBRARY;
-                    cursor.song_position = 0;
-                    break it;
-
-                  case KEY_J;
-                    table_set(*album_key_pressed_on_frame, .J, frame);
-                    last_album_key_pressed = .J;
-                    move_cursor_to_next_song();
-                    break it;
-                  case KEY_K;
-                    table_set(*album_key_pressed_on_frame, .K, frame);
-                    last_album_key_pressed = .K;
-                    move_cursor_to_prev_song();
-                    break it;
-
-                  case KEY_H;
-                    table_set(*album_key_pressed_on_frame, .H, frame);
-                    last_album_key_pressed = .H;
-                    move_cursor_to_prev_album_and_reset_song_position();
-                    break it;
-                  case KEY_L;
-                    table_set(*album_key_pressed_on_frame, .L, frame);
-                    last_album_key_pressed = .L;
-                    move_cursor_to_next_album_and_reset_song_position();
-                    break it;
-
-                  case KEY_D;
-                    if it.ctrl_pressed {
-                        table_set(*album_key_pressed_on_frame, .CTRL_D, frame);
-                        last_album_key_pressed = .CTRL_D;
-                        move_cursor_one_page_down();
-                    }
-                    break it;
-                  case KEY_U;
-                    if it.ctrl_pressed {
-                        table_set(*album_key_pressed_on_frame, .CTRL_U, frame);
-                        last_album_key_pressed = .CTRL_U;
-                        move_cursor_one_page_up();
-                    }
-                    break it;
-
-                  case KEY_G;
-                    if it.shift_pressed {
-                        cursor.song_position = album.songs.count - 1;
-                    } else {
-                        cursor.song_position = 0;
-                    }
-                    break it;
-
-                  case KEY_O;
-                    mpd_current_song := MPD.run_current_song(mpd_connection);
-                    handle_errors("Getting current song");
-                    if !mpd_current_song break;
-                    uri := to_string(MPD.song_get_uri(mpd_current_song));
-                    for album, album_index: albums {
-                        for song, song_index: album.songs {
-                            if song.uri == uri {
-                                // @Cleanup This is the first time we're updating cursor for another 'view'.
-                                cursor.album_position = album_index;
-                                cursor.song_position  = song_index;
-                                break;
-                            }
-                        }
-                    }
-                    break it;
-
-                  case .SPACEBAR;
-                    table_set(*album_key_pressed_on_frame, .SPACE, frame);
-                    last_album_key_pressed = .SPACE;
-                    add_selected_song_to_queue();
-                    break it;
-
-                  case .ENTER;
-                    table_set(*album_key_pressed_on_frame, .ENTER, frame);
-                    last_album_key_pressed = .ENTER;
-                    add_selected_song_to_queue_and_play();
-                    break it;
+        for i: 0..(`album.songs.count - 1) {
+            song_index := (i + cursor.song_position + 1) % `album.songs.count;
+            song := `album.songs[song_index];
+            match := true;
+            for s: split(search_query.str, SPACE) {
+                if s.count == 0 continue;
+                if !contains_nocase(song.name, s) {
+                    match = false;
+                    break;
                 }
+            }
+            if match {
+                `cursor.song_position = song_index;
+                break;
+            }
+        }
+    }
+    move_cursor_to_prev_search_result :: () #expand {
+        if search_query.str == "" return;
+
+        for < i: (`album.songs.count - 1)..0 {
+            song_index := (i + cursor.song_position) % `album.songs.count;
+            song := `album.songs[song_index];
+            match := true;
+            for s: split(search_query.str, SPACE) {
+                if s.count == 0 continue;
+                if !contains_nocase(song.name, s) {
+                    match = false;
+                    break;
+                }
+            }
+            if match {
+                `cursor.song_position = song_index;
+                break;
             }
         }
     }
 
-    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .J)       move_cursor_to_next_song();
-    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .K)       move_cursor_to_prev_song();
-    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .H)       move_cursor_to_prev_album_and_reset_song_position();
-    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .L)       move_cursor_to_next_album_and_reset_song_position();
-    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .CTRL_D)  move_cursor_one_page_down();
-    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .CTRL_U)  move_cursor_one_page_up();
-    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .SPACE)   add_selected_song_to_queue();
-    if key_held_passed_threshold(album_key_pressed_on_frame, last_album_key_pressed, frame, .ENTER)   add_selected_song_to_queue_and_play();
+    if !inputting_search_query {
+        for Input.events_this_frame {
+            if it.type == {
+              case .KEYBOARD;
+                if it.key_pressed {
+                    if it.key_code == {
+
+                      case KEY_I;
+                        current_album_art_subview = .LIBRARY;
+                        cursor.song_position = 0;
+                        break it;
+
+                      case KEY_J;
+                        table_set(*key_pressed_on_frame, .J, frame);
+                        last_key_pressed = .J;
+                        move_cursor_to_next_song();
+                        break it;
+                      case KEY_K;
+                        table_set(*key_pressed_on_frame, .K, frame);
+                        last_key_pressed = .K;
+                        move_cursor_to_prev_song();
+                        break it;
+
+                      case KEY_H;
+                        table_set(*key_pressed_on_frame, .H, frame);
+                        last_key_pressed = .H;
+                        move_cursor_to_prev_album_and_reset_song_position();
+                        break it;
+                      case KEY_L;
+                        table_set(*key_pressed_on_frame, .L, frame);
+                        last_key_pressed = .L;
+                        move_cursor_to_next_album_and_reset_song_position();
+                        break it;
+
+                      case KEY_D;
+                        if it.ctrl_pressed {
+                            table_set(*key_pressed_on_frame, .CTRL_D, frame);
+                            last_key_pressed = .CTRL_D;
+                            move_cursor_one_page_down();
+                        }
+                        break it;
+                      case KEY_U;
+                        if it.ctrl_pressed {
+                            table_set(*key_pressed_on_frame, .CTRL_U, frame);
+                            last_key_pressed = .CTRL_U;
+                            move_cursor_one_page_up();
+                        }
+                        break it;
+
+                      case KEY_G;
+                        if it.shift_pressed {
+                            cursor.song_position = album.songs.count - 1;
+                        } else {
+                            cursor.song_position = 0;
+                        }
+                        break it;
+
+                      case KEY_O;
+                        mpd_current_song := MPD.run_current_song(mpd_connection);
+                        handle_errors("Getting current song");
+                        if !mpd_current_song break;
+                        uri := to_string(MPD.song_get_uri(mpd_current_song));
+                        for album, album_index: albums {
+                            for song, song_index: album.songs {
+                                if song.uri == uri {
+                                    // @Cleanup This is the first time we're updating cursor for another 'view'.
+                                    cursor.album_position = album_index;
+                                    cursor.song_position  = song_index;
+                                    break;
+                                }
+                            }
+                        }
+                        break it;
+
+                      case .SPACEBAR;
+                        table_set(*key_pressed_on_frame, .SPACE, frame);
+                        last_key_pressed = .SPACE;
+                        add_selected_song_to_queue();
+                        break it;
+
+                      case .ENTER;
+                        table_set(*key_pressed_on_frame, .ENTER, frame);
+                        last_key_pressed = .ENTER;
+                        add_selected_song_to_queue_and_play();
+                        break it;
+
+                      case .FORWARD_SLASH;
+                        inputting_search_query = true;
+                        search_query.str.count = 0;
+                        break it;
+
+                      case KEY_N;
+                        if it.shift_pressed {
+                            last_key_pressed = .SHIFT_N;
+                            table_set(*key_pressed_on_frame, .SHIFT_N, frame);
+                            move_cursor_to_prev_search_result();
+                        } else {
+                            last_key_pressed = .N;
+                            table_set(*key_pressed_on_frame, .N, frame);
+                            move_cursor_to_next_search_result();
+                        }
+                        break it;
+                    }
+                }
+            }
+        }
+
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .J)       move_cursor_to_next_song();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .K)       move_cursor_to_prev_song();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .H)       move_cursor_to_prev_album_and_reset_song_position();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .L)       move_cursor_to_next_album_and_reset_song_position();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D)  move_cursor_one_page_down();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U)  move_cursor_one_page_up();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)   add_selected_song_to_queue();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .ENTER)   add_selected_song_to_queue_and_play();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .N)       move_cursor_to_next_search_result();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_N) move_cursor_to_prev_search_result();
+    } else {
+        move_cursor_to_first_search_result :: () #expand {
+            if search_query.str == "" return;
+
+            for song_index: 0..(album.songs.count - 1) {
+                song := `album.songs[song_index];
+                match := true;
+                for s: split(search_query.str, SPACE) {
+                    if s.count == 0 continue;
+                    if !contains_nocase(song.name, s) {
+                        match = false;
+                        break;
+                    }
+                }
+                if match {
+                    `cursor.song_position = song_index;
+                    break;
+                }
+            }
+        }
+
+        backspace_one_character :: () #expand {
+            if search_query.str == "" return;
+
+            i := 0;
+            bytes_in_last_utf8 := 0;
+            is_space := false;
+            while i < search_query.str.count {
+                bytes_in_last_utf8 = 1 + trailingBytesForUTF8[search_query.str.data[i]];
+                i += bytes_in_last_utf8;
+            }
+            is_space = bytes_in_last_utf8 == 1 && search_query.str[search_query.str.count - 1] == SPACE;
+            search_query.str.count -= bytes_in_last_utf8;
+
+            move_cursor_to_first_search_result();
+        }
+
+        for Input.events_this_frame {
+            if it.type == {
+
+              case .TEXT_INPUT;
+                input_utf8: string = ---;
+                {
+                    push_allocator(temp);
+                    input_utf8 = character_utf32_to_utf8(it.utf32);
+                }
+                num_characters := get_unicode_length(search_query.str);
+                if num_characters == search_query.max_characters continue;
+                memcpy(search_query.str.data + search_query.str.count, input_utf8.data, input_utf8.count);
+                search_query.str.count += 1;
+
+                move_cursor_to_first_search_result();
+                break it;
+
+              case .KEYBOARD;
+                if it.key_pressed {
+                    if it.key_code == {
+
+                      case .BACKSPACE;
+                        last_search_query_key_pressed = .BACKSPACE;
+                        table_set(*search_query_key_pressed_on_frame, .BACKSPACE, frame);
+                        backspace_one_character();
+                        break it;
+
+                      case KEY_U;
+                        if it.ctrl_pressed {
+                            last_search_query_key_pressed = .CTRL_U;
+                            search_query.str.count = 0;
+                            break it;
+                        }
+
+                      case .ENTER; #through;
+                      case .ESCAPE;
+                        last_search_query_key_pressed = .ESCAPE;
+                        inputting_search_query = false;
+                        break it;
+                    }
+                }
+            }
+        }
+
+        if key_held_passed_threshold(search_query_key_pressed_on_frame, last_search_query_key_pressed, frame, .BACKSPACE) backspace_one_character();
+    }
+
+    return inputting_search_query;
 }
 
 loaded_album: struct {
@@ -301,5 +465,9 @@ draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dy
             Simp.draw_text(font, text_x, text_y, display_text.text, rgba(1,1,1,1));
         }
         text_y -= TEXT_PADDING_Y + font.character_height;
+    }
+
+    if inputting_search_query {
+        Simp.draw_text(font, X_MARGIN_SIZE, Y_MARGIN_SIZE, tprint("Search: %", search_query.str), rgba(1,1,1,1));
     }
 }
