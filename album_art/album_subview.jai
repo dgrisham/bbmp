@@ -12,8 +12,6 @@ key_pressed_on_frame: Table(Key, u64);
 last_search_query_key_pressed: Key;
 search_query_key_pressed_on_frame: Table(Key, u64);
 
-#scope_file
-
 search_query: struct {
     str: string;
     max_characters: int = 100;
@@ -233,8 +231,7 @@ process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, alb
         move_cursor_to_first_search_result :: () #expand {
             if search_query.str == "" return;
 
-            for song_index: 0..(album.songs.count - 1) {
-                song := `album.songs[song_index];
+            for song, song_index: album.songs {
                 match := true;
                 for s: split(search_query.str, SPACE) {
                     if s.count == 0 continue;
@@ -468,6 +465,7 @@ draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dy
     }
 
     if inputting_search_query {
+        // TODO: need to ensure the x/y here won't overlap with anything else
         Simp.draw_text(font, X_MARGIN_SIZE, Y_MARGIN_SIZE, tprint("Search: %", search_query.str), rgba(1,1,1,1));
     }
 }

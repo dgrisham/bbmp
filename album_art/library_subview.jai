@@ -11,8 +11,6 @@
 
 Input :: #import "Input";
 
-#scope_file
-
 last_key_pressed: Key;
 key_pressed_on_frame: Table(Key, u64);
 
@@ -211,8 +209,7 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, 
         move_cursor_to_first_search_result :: () #expand {
             if search_query.str == "" return;
 
-            for album_index: 0..(albums.count - 1) {
-                album := `albums[album_index];
+            for album, album_index: albums {
                 match := true;
                 for s: split(search_query.str, SPACE) {
                     if s.count == 0 continue;
@@ -447,9 +444,8 @@ draw_library_frame :: (albums: [..] *Album, font: *Simp.Dynamic_Font, header_bot
     }
 
     if inputting_search_query {
-        // y -= TEXT_PADDING_Y * 4; // TODO: this may not be a good way to set this if there's only e.g. one or two rows of albums on the screen
-        y = Y_MARGIN_SIZE;
-        Simp.draw_text(font, X_MARGIN_SIZE, y, tprint("Search: %", search_query.str), rgba(1,1,1,1));
+        // TODO: need to ensure the x/y here won't overlap with anything else
+        Simp.draw_text(font, X_MARGIN_SIZE, Y_MARGIN_SIZE, tprint("Search: %", search_query.str), rgba(1,1,1,1));
     }
 }
 
