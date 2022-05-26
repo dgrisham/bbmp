@@ -247,9 +247,9 @@ main :: () {
         header_bottom := draw_header();
         if current_view == {
           case .QUEUE;
-            Queue.event_loop(mpd_connection, queue, frame, font, cast(s32)display_width(), header_bottom);
+            user_input_active = Queue.event_loop(mpd_connection, queue, frame, font, cast(s32)display_width(), header_bottom);
           case .LIBRARY;
-            Library.event_loop(library, mpd_connection, queue, frame, font, cast(s32)display_width(), header_bottom);
+            user_input_active = Library.event_loop(library, mpd_connection, queue, frame, font, cast(s32)display_width(), header_bottom);
           case .ALBUM_ART;
             user_input_active = Album_Art.event_loop(mpd_connection, albums_sorted_by_artist_and_year, library, queue, frame, font, cast(s32)display_width(), header_bottom, thumbnail_slot_width, thumbnail_slot_height);
         }

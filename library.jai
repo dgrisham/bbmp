@@ -5,6 +5,7 @@
 #import "Hash_Table";
 #import "Math";
 #import "String";
+#import "Unicode";
 
 #import "common";
 
@@ -16,6 +17,16 @@ Queue :: #import "queue";
 
 last_key_pressed: Key;
 key_pressed_on_frame: Table(Key, u64);
+
+last_search_query_key_pressed: Key;
+search_query_key_pressed_on_frame: Table(Key, u64);
+
+search_query: struct {
+    str: string;
+    max_characters: int = 100;
+}
+
+inputting_search_query := false;
 
 cursor: struct {
     positions := int.[0, 0, 0];
@@ -115,10 +126,14 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
         handle_errors("Receiving entity");
     }
 
+    // the 4x is for big unicode chars
+    search_query.str.data = alloc(4 * search_query.max_characters);
+    search_query.str.count = 0;
+
     return library;
 }
 
-event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Queue.Data, frame: u64, font: *Simp.Dynamic_Font, display_width: s32, header_bottom: int) {
+event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Queue.Data, frame: u64, font: *Simp.Dynamic_Font, display_width: s32, header_bottom: int) -> bool {
 
     items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
@@ -165,127 +180,400 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
         }
     }
 
-    for Input.events_this_frame {
-        if it.type == {
-          case .KEYBOARD;
-            if it.key_pressed {
-                if it.key_code == {
+    move_cursor_to_next_search_result :: () #expand {
+        if search_query.str == "" return;
 
-                  case KEY_H;
-                    last_key_pressed = .H;
-                    table_set(*key_pressed_on_frame, .H, frame);
-                    move_selected_cursor_left();
-                    break it;
-                  case KEY_L;
-                    last_key_pressed = .L;
-                    table_set(*key_pressed_on_frame, .L, frame);
-                    move_selected_cursor_right();
-                    break it;
-
-                  case KEY_J;
-                    last_key_pressed = .J;
-                    table_set(*key_pressed_on_frame, .J, frame);
-                    move_selected_cursor_down();
-                    break it;
-                  case KEY_K;
-                    last_key_pressed = .K;
-                    table_set(*key_pressed_on_frame, .K, frame);
-                    move_selected_cursor_up();
-                    break it;
-
-                  case KEY_D;
-                    if it.ctrl_pressed {
-                        last_key_pressed = .CTRL_D;
-                        table_set(*key_pressed_on_frame, .CTRL_D, frame);
-                        move_selected_cursor_half_page_down();
-                        break it;
+        if cursor.selected == {
+          case 0;
+            for i: 0..(library.artist_names_sorted.count - 1) {
+                artist_index := (i + cursor.positions[0] + 1) % library.artist_names_sorted.count;
+                artist := library.artist_names_sorted[artist_index];
+                match := true;
+                for s: split(search_query.str, SPACE) {
+                    if !contains_nocase(artist, s) {
+                        match = false;
+                        break;
                     }
-                  case KEY_U;
-                    if it.ctrl_pressed {
-                        last_key_pressed = .CTRL_U;
-                        table_set(*key_pressed_on_frame, .CTRL_U, frame);
-                        move_selected_cursor_half_page_up();
-                        break it;
+                }
+                if match {
+                    `cursor.positions[0] = artist_index;
+                    `cursor.positions[1] = 0;
+                    `cursor.positions[2] = 0;
+                    break;
+                }
+            }
+          case 1;
+            artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            assert(artist_ptr != null);
+            for i: 0..(artist_ptr.album_names_sorted_by_date.count - 1) {
+                album_index := (i + cursor.positions[1] + 1) % artist_ptr.album_names_sorted_by_date.count;
+                album := artist_ptr.album_names_sorted_by_date[album_index];
+                match := true;
+                for s: split(search_query.str, SPACE) {
+                    if !contains_nocase(album, s) {
+                        match = false;
+                        break;
                     }
-
-                  case KEY_G;
-                    if cursor.selected == {
-                        case 0;
-                          if it.shift_pressed {
-                              cursor.positions[0] = library.artists.count - 1;
-                          } else {
-                              cursor.positions[0] = 0;
-                          }
-                          cursor.positions[1] = 0;
-                          cursor.positions[2] = 0;
-                        case 1;
-                          if it.shift_pressed {
-                              artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
-                              assert(artist_ptr != null);
-                              cursor.positions[1] = artist_ptr.albums.count - 1;
-                          } else {
-                            cursor.positions[1] = 0;
-                          }
-                          cursor.positions[2] = 0;
-                        case 2;
-                          if it.shift_pressed {
-                              artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
-                              assert(artist_ptr != null);
-                              album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
-                              cursor.positions[2] = album_ptr.songs.count - 1;
-                          } else {
-                              cursor.positions[2] = 0;
-                          }
+                }
+                if match {
+                    `cursor.positions[1] = album_index;
+                    `cursor.positions[2] = 0;
+                    break;
+                }
+            }
+          case 2;
+            artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            assert(artist_ptr != null);
+            album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
+            assert(album_ptr != null);
+            for i: 0..(album_ptr.songs.count - 1) {
+                song_index := (i + cursor.positions[2] + 1) % album_ptr.songs.count;
+                song := album_ptr.songs[song_index];
+                match := true;
+                for s: split(search_query.str, SPACE) {
+                    if !contains_nocase(song.name, s) {
+                        match = false;
+                        break;
                     }
-                    break it;
+                }
+                if match {
+                    `cursor.positions[2] = song_index;
+                    break;
+                }
+            }
+        }
+    }
+    move_cursor_to_prev_search_result :: () #expand {
+        if search_query.str == "" return;
 
-                  case KEY_O;
-                    mpd_current_song := MPD.run_current_song(mpd_connection);
-                    handle_errors("Getting current song");
-                    if !mpd_current_song break;
-                    uri := to_string(MPD.song_get_uri(mpd_current_song));
-                    for artist, artist_name: library.artists {
-                        for album, album_name: artist.albums {
-                            for song, song_index: album.songs {
-                                if song.uri == uri {
-                                    artist_found, artist_index := array_find(library.artist_names_sorted, artist_name);
-                                    if !artist_found break artist;
-                                    artist_ptr := table_find_pointer(library.artists, artist_name);
-                                    album_found, album_index := array_find(artist_ptr.album_names_sorted_by_date, album_name);
-                                    if !album_found break artist;
-                                    cursor.positions[0] = artist_index;
-                                    cursor.positions[1] = album_index;
-                                    cursor.positions[2] = song_index;
-                                    cursor.selected     = 2;
-                                }
-                            }
-                        }
+        if cursor.selected == {
+          case 0;
+            for < i: (library.artist_names_sorted.count - 1)..0 {
+                artist_index := (i + cursor.positions[0]) % library.artist_names_sorted.count;
+                artist := library.artist_names_sorted[artist_index];
+                match := true;
+                for s: split(search_query.str, SPACE) {
+                    if !contains_nocase(artist, s) {
+                        match = false;
+                        break;
                     }
-                    break it;
-
-                  case .SPACEBAR;
-                    last_key_pressed = .SPACE;
-                    table_set(*key_pressed_on_frame, .SPACE, frame);
-                    add_selection_to_queue(library);
-                    break it;
-
-                  case .ENTER;
-                    last_key_pressed = .ENTER;
-                    table_set(*key_pressed_on_frame, .ENTER, frame);
-                    add_selection_to_queue_and_play(library);
-                    break it;
+                }
+                if match {
+                    `cursor.positions[0] = artist_index;
+                    `cursor.positions[1] = 0;
+                    `cursor.positions[2] = 0;
+                    break;
+                }
+            }
+          case 1;
+            artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            assert(artist_ptr != null);
+            for < i: (artist_ptr.album_names_sorted_by_date.count - 1)..0 {
+                album_index := (i + cursor.positions[1]) % artist_ptr.album_names_sorted_by_date.count;
+                album := artist_ptr.album_names_sorted_by_date[album_index];
+                match := true;
+                for s: split(search_query.str, SPACE) {
+                    if !contains_nocase(album, s) {
+                        match = false;
+                        break;
+                    }
+                }
+                if match {
+                    `cursor.positions[1] = album_index;
+                    `cursor.positions[2] = 0;
+                    break;
+                }
+            }
+          case 2;
+            artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            assert(artist_ptr != null);
+            album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
+            assert(album_ptr != null);
+            for < i: (album_ptr.songs.count - 1)..0 {
+                song_index := (i + cursor.positions[2]) % album_ptr.songs.count;
+                song := album_ptr.songs[song_index];
+                match := true;
+                for s: split(search_query.str, SPACE) {
+                    if !contains_nocase(song.name, s) {
+                        match = false;
+                        break;
+                    }
+                }
+                if match {
+                    `cursor.positions[2] = song_index;
+                    break;
                 }
             }
         }
     }
 
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .J)      move_selected_cursor_down();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .K)      move_selected_cursor_up();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .H)      move_selected_cursor_left();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .L)      move_selected_cursor_right();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D) move_selected_cursor_half_page_down();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U) move_selected_cursor_half_page_up();
-    if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)  add_selection_to_queue(library);
+    if !inputting_search_query {
+        for Input.events_this_frame {
+            if it.type == {
+              case .KEYBOARD;
+                if it.key_pressed {
+                    if it.key_code == {
+
+                      case KEY_H;
+                        last_key_pressed = .H;
+                        table_set(*key_pressed_on_frame, .H, frame);
+                        move_selected_cursor_left();
+                        break it;
+                      case KEY_L;
+                        last_key_pressed = .L;
+                        table_set(*key_pressed_on_frame, .L, frame);
+                        move_selected_cursor_right();
+                        break it;
+
+                      case KEY_J;
+                        last_key_pressed = .J;
+                        table_set(*key_pressed_on_frame, .J, frame);
+                        move_selected_cursor_down();
+                        break it;
+                      case KEY_K;
+                        last_key_pressed = .K;
+                        table_set(*key_pressed_on_frame, .K, frame);
+                        move_selected_cursor_up();
+                        break it;
+
+                      case KEY_D;
+                        if it.ctrl_pressed {
+                            last_key_pressed = .CTRL_D;
+                            table_set(*key_pressed_on_frame, .CTRL_D, frame);
+                            move_selected_cursor_half_page_down();
+                            break it;
+                        }
+                      case KEY_U;
+                        if it.ctrl_pressed {
+                            last_key_pressed = .CTRL_U;
+                            table_set(*key_pressed_on_frame, .CTRL_U, frame);
+                            move_selected_cursor_half_page_up();
+                            break it;
+                        }
+
+                      case KEY_G;
+                        if cursor.selected == {
+                            case 0;
+                              if it.shift_pressed {
+                                  cursor.positions[0] = library.artists.count - 1;
+                              } else {
+                                  cursor.positions[0] = 0;
+                              }
+                              cursor.positions[1] = 0;
+                              cursor.positions[2] = 0;
+                            case 1;
+                              if it.shift_pressed {
+                                  artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+                                  assert(artist_ptr != null);
+                                  cursor.positions[1] = artist_ptr.albums.count - 1;
+                              } else {
+                                cursor.positions[1] = 0;
+                              }
+                              cursor.positions[2] = 0;
+                            case 2;
+                              if it.shift_pressed {
+                                  artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+                                  assert(artist_ptr != null);
+                                  album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
+                                  cursor.positions[2] = album_ptr.songs.count - 1;
+                              } else {
+                                  cursor.positions[2] = 0;
+                              }
+                        }
+                        break it;
+
+                      case KEY_O;
+                        mpd_current_song := MPD.run_current_song(mpd_connection);
+                        handle_errors("Getting current song");
+                        if !mpd_current_song break;
+                        uri := to_string(MPD.song_get_uri(mpd_current_song));
+                        for artist, artist_name: library.artists {
+                            for album, album_name: artist.albums {
+                                for song, song_index: album.songs {
+                                    if song.uri == uri {
+                                        artist_found, artist_index := array_find(library.artist_names_sorted, artist_name);
+                                        if !artist_found break artist;
+                                        artist_ptr := table_find_pointer(library.artists, artist_name);
+                                        album_found, album_index := array_find(artist_ptr.album_names_sorted_by_date, album_name);
+                                        if !album_found break artist;
+                                        cursor.positions[0] = artist_index;
+                                        cursor.positions[1] = album_index;
+                                        cursor.positions[2] = song_index;
+                                        cursor.selected     = 2;
+                                    }
+                                }
+                            }
+                        }
+                        break it;
+
+                      case .SPACEBAR;
+                        last_key_pressed = .SPACE;
+                        table_set(*key_pressed_on_frame, .SPACE, frame);
+                        add_selection_to_queue(library);
+                        break it;
+
+                      case .ENTER;
+                        last_key_pressed = .ENTER;
+                        table_set(*key_pressed_on_frame, .ENTER, frame);
+                        add_selection_to_queue_and_play(library);
+                        break it;
+
+                      case .FORWARD_SLASH;
+                        inputting_search_query = true;
+                        search_query.str.count = 0;
+                        break it;
+
+                      case KEY_N;
+                        if it.shift_pressed {
+                            last_key_pressed = .SHIFT_N;
+                            table_set(*key_pressed_on_frame, .SHIFT_N, frame);
+                            move_cursor_to_prev_search_result();
+                        } else {
+                            last_key_pressed = .N;
+                            table_set(*key_pressed_on_frame, .N, frame);
+                            move_cursor_to_next_search_result();
+                        }
+                        break it;
+                    }
+                }
+            }
+        }
+
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .J)      move_selected_cursor_down();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .K)      move_selected_cursor_up();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .H)      move_selected_cursor_left();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .L)      move_selected_cursor_right();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D) move_selected_cursor_half_page_down();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U) move_selected_cursor_half_page_up();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)  add_selection_to_queue(library);
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .N)       move_cursor_to_next_search_result();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_N) move_cursor_to_prev_search_result();
+    } else {
+
+        /*****************************
+        * user entering search query *
+        *****************************/
+
+        move_cursor_to_first_search_result :: () #expand {
+            if search_query.str == "" return;
+
+            if cursor.selected == {
+              case 0;
+                for artist, artist_index: library.artist_names_sorted {
+                    match := true;
+                    for s: split(search_query.str, SPACE) {
+                        if !contains_nocase(artist, s) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if match {
+                        `cursor.positions[0] = artist_index;
+                        `cursor.positions[1] = 0;
+                        `cursor.positions[2] = 0;
+                        break;
+                    }
+                }
+              case 1;
+                artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+                assert(artist_ptr != null);
+                for album, album_index: artist_ptr.album_names_sorted_by_date {
+                    match := true;
+                    for s: split(search_query.str, SPACE) {
+                        if !contains_nocase(album, s) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if match {
+                        `cursor.positions[1] = album_index;
+                        `cursor.positions[2] = 0;
+                        break;
+                    }
+                }
+              case 2;
+                artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+                assert(artist_ptr != null);
+                album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
+                assert(album_ptr != null);
+                for song, song_index: album_ptr.songs {
+                    match := true;
+                    for s: split(search_query.str, SPACE) {
+                        if !contains_nocase(song.name, s) {
+                            match = false;
+                            break;
+                        }
+                    }
+                    if match {
+                        `cursor.positions[2] = song_index;
+                        break;
+                    }
+                }
+            }
+        }
+
+        backspace_one_character :: () #expand {
+            if search_query.str == "" return;
+
+            i := 0;
+            bytes_in_last_utf8 := 0;
+            is_space := false;
+            while i < search_query.str.count {
+                bytes_in_last_utf8 = 1 + trailingBytesForUTF8[search_query.str.data[i]];
+                i += bytes_in_last_utf8;
+            }
+            is_space = bytes_in_last_utf8 == 1 && search_query.str[search_query.str.count - 1] == SPACE;
+            search_query.str.count -= bytes_in_last_utf8;
+
+            move_cursor_to_first_search_result();
+        }
+
+        for Input.events_this_frame {
+            if it.type == {
+
+              case .TEXT_INPUT;
+                input_utf8: string = ---;
+                {
+                    push_allocator(temp);
+                    input_utf8 = character_utf32_to_utf8(it.utf32);
+                }
+                num_characters := get_unicode_length(search_query.str);
+                if num_characters == search_query.max_characters continue;
+                memcpy(search_query.str.data + search_query.str.count, input_utf8.data, input_utf8.count);
+                search_query.str.count += 1;
+
+                move_cursor_to_first_search_result();
+                break it;
+
+              case .KEYBOARD;
+                if it.key_pressed {
+                    if it.key_code == {
+
+                      case .BACKSPACE;
+                        last_search_query_key_pressed = .BACKSPACE;
+                        table_set(*search_query_key_pressed_on_frame, .BACKSPACE, frame);
+                        backspace_one_character();
+                        break it;
+
+                      case KEY_U;
+                        if it.ctrl_pressed {
+                            last_search_query_key_pressed = .CTRL_U;
+                            search_query.str.count = 0;
+                            break it;
+                        }
+
+                      case .ENTER; #through;
+                      case .ESCAPE;
+                        last_search_query_key_pressed = .ESCAPE;
+                        inputting_search_query = false;
+                        break it;
+                    }
+                }
+            }
+        }
+
+        if key_held_passed_threshold(search_query_key_pressed_on_frame, last_search_query_key_pressed, frame, .BACKSPACE) backspace_one_character();
+    }
 
     if cursor.selected < 0 {
         cursor.selected = 0;
@@ -458,4 +746,11 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
             }
         }
     }
+
+    if inputting_search_query {
+        // TODO: need to ensure the x/y here won't overlap with anything else
+        Simp.draw_text(font, X_MARGIN_SIZE, Y_MARGIN_SIZE, tprint("Search: %", search_query.str), rgba(1,1,1,1));
+    }
+
+    return inputting_search_query;
 }
