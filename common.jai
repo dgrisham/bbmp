@@ -43,6 +43,44 @@ ELLIPSIS :: u8.[226, 128, 166];
 * types *
 ********/
 
+Search_Query :: struct {
+    str: string;
+    max_characters: int = 100;
+}
+
+initialize_search_query :: (search_query: *Search_Query) {
+    // the 4x is for big unicode chars
+    search_query.str.data = alloc(4 * search_query.max_characters);
+    search_query.str.count = 0;
+}
+
+append_utf32_to_search_query :: (search_query: *Search_Query, c: u32) -> bool {
+    if get_unicode_length(search_query.str) == search_query.max_characters return false;
+    input_utf8: string = ---;
+    {
+        push_allocator(temp);
+        input_utf8 = character_utf32_to_utf8(c);
+    }
+    memcpy(search_query.str.data + search_query.str.count, input_utf8.data, input_utf8.count);
+    search_query.str.count += 1;
+    return true;
+}
+
+// backspace_search_query
+backspace_one_character :: (search_query: *Search_Query) {
+    if search_query.str == "" return;
+
+    i := 0;
+    bytes_in_last_utf8 := 0;
+    is_space := false;
+    while i < search_query.str.count {
+        bytes_in_last_utf8 = 1 + trailingBytesForUTF8[search_query.str.data[i]];
+        i += bytes_in_last_utf8;
+    }
+    is_space = bytes_in_last_utf8 == 1 && search_query.str[search_query.str.count - 1] == SPACE;
+    search_query.str.count -= bytes_in_last_utf8;
+}
+
 Library_Data :: struct {
     artists             : Table(string, Artist);
     artist_names_sorted : [..] string;

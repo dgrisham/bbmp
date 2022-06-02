@@ -53,8 +53,8 @@ load :: (library: *Library_Data) -> [..] *Album {
         }
     }
 
-    initialize_library_search_query();
-    initialize_album_search_query();
+    initialize_search_query(library_search_query);
+    initialize_search_query(album_search_query);
 
     return albums;
 }

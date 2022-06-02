@@ -9,6 +9,8 @@
 #import "Thread";
 #import "Unicode";
 
+#import "common";
+
 Input :: #import "Input";
 
 last_key_pressed: Key;
@@ -17,20 +19,13 @@ key_pressed_on_frame: Table(Key, u64);
 last_search_query_key_pressed: Key;
 search_query_key_pressed_on_frame: Table(Key, u64);
 
-search_query: struct {
-    str: string;
-    max_characters: int = 100;
-}
+search_query: Search_Query;
 
 inputting_search_query := false;
 
 #scope_module
 
-initialize_library_search_query :: () {
-    // the 4x is for big unicode chars
-    search_query.str.data = alloc(4 * search_query.max_characters);
-    search_query.str.count = 0;
-}
+library_search_query :: *search_query;
 
 process_library_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, rows: int, columns: int) -> bool {
 
@@ -229,37 +224,11 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, 
             }
         }
 
-        backspace_one_character :: () #expand {
-            if search_query.str == "" return;
-
-            i := 0;
-            bytes_in_last_utf8 := 0;
-            is_space := false;
-            while i < search_query.str.count {
-                bytes_in_last_utf8 = 1 + trailingBytesForUTF8[search_query.str.data[i]];
-                i += bytes_in_last_utf8;
-            }
-            is_space = bytes_in_last_utf8 == 1 && search_query.str[search_query.str.count - 1] == SPACE;
-            search_query.str.count -= bytes_in_last_utf8;
-
-            move_cursor_to_first_search_result();
-        }
-
         for Input.events_this_frame {
             if it.type == {
 
               case .TEXT_INPUT;
-                input_utf8: string = ---;
-                {
-                    push_allocator(temp);
-                    input_utf8 = character_utf32_to_utf8(it.utf32);
-                }
-                num_characters := get_unicode_length(search_query.str);
-                if num_characters == search_query.max_characters continue;
-                memcpy(search_query.str.data + search_query.str.count, input_utf8.data, input_utf8.count);
-                search_query.str.count += 1;
-
-                move_cursor_to_first_search_result();
+                if append_utf32_to_search_query(*search_query, it.utf32) move_cursor_to_first_search_result();
                 break it;
 
               case .KEYBOARD;
@@ -269,7 +238,8 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, 
                       case .BACKSPACE;
                         last_search_query_key_pressed = .BACKSPACE;
                         table_set(*search_query_key_pressed_on_frame, .BACKSPACE, frame);
-                        backspace_one_character();
+                        backspace_one_character(*search_query);
+                        move_cursor_to_first_search_result();
                         break it;
 
                       case KEY_U;
@@ -289,7 +259,7 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, 
             }
         }
 
-        if key_held_passed_threshold(search_query_key_pressed_on_frame, last_search_query_key_pressed, frame, .BACKSPACE) backspace_one_character();
+        if key_held_passed_threshold(search_query_key_pressed_on_frame, last_search_query_key_pressed, frame, .BACKSPACE) { backspace_one_character(*search_query); move_cursor_to_first_search_result(); }
     }
 
     return inputting_search_query;
