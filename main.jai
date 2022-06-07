@@ -1,6 +1,8 @@
 APPLICATION_NAME :: "grishcompoop";
 #run (#import "Compiler").set_build_options_dc(.{output_executable_name = APPLICATION_NAME});
 
+#scope_file
+
 #import "Basic"()(MEMORY_DEBUGGER=false);
 #import "File";
 #import "Math";
@@ -9,7 +11,6 @@ APPLICATION_NAME :: "grishcompoop";
 #import "Window_Creation";
 
 Process :: #import "Process";
-Simp    :: #import "Simp";
 Input   :: #import "Input";
 MPD     :: #import "libmpdclient";
 
@@ -18,6 +19,11 @@ Queue     :: #import "queue";
 Album_Art :: #import "album_art";
 
 #import "common";
+
+#scope_module
+
+// share Simp with album art management file -- is this necessary?
+Simp :: #import "Simp";
 
 #load "album_art_creation_and_loading.jai";
 

@@ -1,3 +1,5 @@
+#scope_file
+
 #import "File_Utilities";
 #import "Hash";
 #import "Hash_Table";
@@ -29,6 +31,8 @@ Album_Art_Job_Info :: struct {
 }
 
 REMAINING_ALBUM_ART_JOBS := 0;
+
+#scope_module
 
 start_album_art_creation_thread_group :: (albums: [..] *Album) {
 
