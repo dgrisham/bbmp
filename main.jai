@@ -7,7 +7,6 @@ APPLICATION_NAME :: "grishcompoop";
 #import "File";
 #import "Math";
 #import "String";
-#import "Time";
 #import "Window_Creation";
 
 Process :: #import "Process";
@@ -97,11 +96,11 @@ main :: () {
     table_add(*global_key_pressed_on_frame, .DASH,                0);
 
     while !quit {
-        if get_current_file_time() > status_update_timer + 10000000 {
+        if current_time() > status_update_timer + 1000 {
             Queue.update(mpd_connection, queue);
             update_status(Queue.get_current_song(mpd_connection, queue));
         }
-        frame_start := get_current_file_time();
+        frame_start := current_time();
 
         check_album_art_creation_jobs();
 
@@ -265,18 +264,19 @@ main :: () {
         frame += 1;
 
         calculate_frame_rate :: (start: u64, end: u64) -> float64 {
-            return 10000000.0 / (end - start);
+            return 1000000.0 / (end - start);
         }
 
-        frame_rate = calculate_frame_rate(frame_start, get_current_file_time());
+        frame_rate = calculate_frame_rate(frame_start, current_time());
         frame_time_ms := 1000 / frame_rate;
         MAX_MS_PER_FRAME :: 1000.0 / TARGET_FPS;
         if frame_time_ms < MAX_MS_PER_FRAME {
             sleep_milliseconds(cast(s32) (MAX_MS_PER_FRAME - frame_time_ms));
         }
-        frame_rate = calculate_frame_rate(frame_start, get_current_file_time());
+        frame_end := current_time();
+        frame_rate = calculate_frame_rate(frame_start, current_time());
         if !(frame % TARGET_FPS) {
-            print("frame rate: %\n", frame_rate);
+            print("frame rate: % fps (% ms / frame)\n", frame_rate, 1000.0 / frame_rate);
         }
     }
 

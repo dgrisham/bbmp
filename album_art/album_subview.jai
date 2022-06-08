@@ -1,7 +1,5 @@
 #scope_file
 
-#import "Time";
-
 #import "common";
 
 Input :: #import "Input";
@@ -311,11 +309,11 @@ draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dy
         if album.cover_path != "" {
             display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, get_hash(tprint("%-%", album.artist_name, album.name)), LARGE_ALBUM_ART_WIDTH);
             if file_exists(display_art_path) {
-                start := get_current_file_time();
+                start := current_time();
                 if !Simp.texture_load_from_file(loaded_album.art_texture, display_art_path) {
                     log("Failed to load display art for % - %", album.artist_name, album.name, flags=.ERROR);
                 } else {
-                    log("display album art load time: %\n", (get_current_file_time() - start) / 10000.0);
+                    log("display album art load time: % ms\n", (current_time() - start) / 1000.0);
                     loaded_album.art_loaded = true;
                 }
             }

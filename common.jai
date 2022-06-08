@@ -4,7 +4,6 @@
 #import "Hash_Table";
 #import "Unicode";
 #import "Thread";
-#import "Time";
 
 #import "queue";
 
@@ -293,9 +292,13 @@ Status :: struct {
 
 status: Status;
 
+current_time :: inline () -> u64 {
+    return cast(u64)to_microseconds(current_time_monotonic());
+}
+
 status_update_timer: u64 = 0;
 update_status :: (current_song: *Song) {
-    status_update_timer = get_current_file_time();
+    status_update_timer = current_time();
 
     if current_song {
         status.artist = copy_string(current_song.artist);
