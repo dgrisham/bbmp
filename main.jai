@@ -132,7 +132,7 @@ main :: () {
             update_status_time();
         }
         SEEK_SECONDS :: 0.5;
-        seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) + 5 * seconds);  }
+        seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) + 5 * seconds); }
         seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) - 5 * seconds); }
 
         play_previous_song :: () #expand {
@@ -292,7 +292,7 @@ draw_header :: () -> int {
 
     header_bottom := top;
 
-    { // current track time
+    { // current / total track time
         x := X_MARGIN_SIZE;
         y := top - TEXT_PADDING_Y - font.character_height / 2;
         Simp.draw_text(
