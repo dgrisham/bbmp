@@ -56,7 +56,11 @@ user_input_active := false;
 
 main :: () {
 
-    config := #run load_config();
+    #run {
+        config := load_config();
+        reset_temporary_storage();
+        print("config: %\n", config);
+    }
 
     init_fonts();
 
