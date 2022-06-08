@@ -204,7 +204,9 @@ Display_Text :: struct {
 * MPD connection/error handling *
 ********************************/
 
-Error :: struct {
+#scope_file
+
+MPD_Error :: struct {
     code: MPD.server_error;
     message: string;
     recovered: bool;
@@ -212,19 +214,21 @@ Error :: struct {
 }
 
 Server_Error :: struct {
-    using _error: Error;
+    using _error: MPD_Error;
     type = .SERVER;
 }
 
 Client_Error :: struct {
-    using _error: Error;
+    using _error: MPD_Error;
     type = .CLIENT;
 }
+
+#scope_export
 
 // returns true if a reconnect happened, false otherwise
 handle_errors :: (message: string) -> bool {
 
-    check_connection_errors :: () -> *Error {
+    check_connection_errors :: () -> *MPD_Error {
         error_code := MPD.connection_get_error(mpd_connection);
         if (error_code != .SUCCESS) {
             msg := copy_temp_from_c_string(MPD.connection_get_error_message(mpd_connection));

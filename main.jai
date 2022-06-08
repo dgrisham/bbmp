@@ -18,6 +18,7 @@ Queue     :: #import "queue";
 Album_Art :: #import "album_art";
 
 #import "common";
+#import "config";
 
 #scope_module
 
@@ -54,6 +55,8 @@ TARGET_FPS :: 30;
 user_input_active := false;
 
 main :: () {
+
+    config := #run load_config();
 
     init_fonts();
 
