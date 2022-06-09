@@ -52,8 +52,6 @@ load_config :: () -> Config {
 
         print_color("%/",  partial_string,   color=FOREGROUND_GREEN);
         print_color("%\n", remainder_string, color=FOREGROUND_RED);
-    } else {
-        print("EXISTS\n");
     }
 
     config_text, success := read_entire_file(config_filename);
