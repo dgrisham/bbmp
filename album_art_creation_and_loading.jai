@@ -137,8 +137,8 @@ start_album_art_creation_thread_group :: (albums: [..] *Album) {
         for album: albums {
             if album.cover_path && file_exists(album.cover_path) {
                 album_hash       := get_hash(tprint("%-%", album.artist_name, album.name));
-                thumbnail_path   := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, THUMBNAIL_WIDTH);
-                display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, album_hash, LARGE_ALBUM_ART_WIDTH);
+                thumbnail_path   := tprint("%/%-%x.bmp", config.album_cover_directory, album_hash, THUMBNAIL_WIDTH);
+                display_art_path := tprint("%/%-%x.bmp", config.album_cover_directory, album_hash, LARGE_ALBUM_ART_WIDTH);
 
                 work := New(Album_Art_Job_Info);
                 work.artist_name       = copy_string(album.artist_name);

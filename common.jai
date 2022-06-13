@@ -6,6 +6,7 @@
 #import "Thread";
 
 #import "queue";
+#import "config";
 
 Input :: #import "Input";
 MPD   :: #import "libmpdclient";
@@ -13,13 +14,15 @@ Simp  :: #import "Simp";
 
 #scope_export
 
+config: Config;
+
 mpd_connection: *MPD.connection;
 
 /************
 * constants *
 ************/
 
-THUMBNAIL_DIRECTORY :: "/home/grish/src/jai/jai-mpd/.thumbnails";
+// THUMBNAIL_DIRECTORY :: "/home/grish/src/jai/jai-mpd/.thumbnails";
 
 THUMBNAIL_WIDTH       :: 200;
 LARGE_ALBUM_ART_WIDTH :: 800;
@@ -257,7 +260,7 @@ handle_errors :: (message: string) -> bool {
             print("Failed to recover from error, attempting to reconnect to MPD\n");
 
             MPD.run_clear(mpd_connection);
-            mpd_connection = MPD.connection_new(null, 0, 15000);
+            mpd_connection = MPD.connection_new(to_c_string(config.mpd_host), config.mpd_port, 15000);
             if mpd_connection == null {
                 print("MPD reconnect failed, might be out of memory. Exiting\n");
                 exit(1);
@@ -267,7 +270,7 @@ handle_errors :: (message: string) -> bool {
             new_connection_error := check_connection_errors();
             while new_connection_error {
                 MPD.run_clear(mpd_connection);
-                mpd_connection = MPD.connection_new(null, 0, 0);
+                mpd_connection = MPD.connection_new(to_c_string(config.mpd_host), config.mpd_port, 0);
                 new_connection_error = check_connection_errors();
                 print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", error.type, error.code, error.message, error.recovered);
                 sleep_milliseconds(3000);

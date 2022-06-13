@@ -56,11 +56,13 @@ user_input_active := false;
 
 main :: () {
 
-    #run {
-        config := load_config();
-        reset_temporary_storage();
-        print("config: %\n", config);
+    success: bool;
+    config, success = load_config();
+    if !success { // @Logging: log this in a way that the user can see it
+        print("Failed to load config\n");
+        exit(1);
     }
+    reset_temporary_storage();
 
     init_fonts();
 
@@ -73,12 +75,12 @@ main :: () {
     thumbnail_slot_width  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 10);
     thumbnail_slot_height = thumbnail_slot_width;
 
-    mpd_connection = MPD.connection_new(null, 0, 15000);
+    mpd_connection = MPD.connection_new(to_c_string(config.mpd_host), config.mpd_port, 15000);
     if mpd_connection == null {
-        print("Out of memory\n");
+        print("Failed to connect to MPD instance at %:%\n", config.mpd_host, config.mpd_port);
         exit(1);
     }
-    handle_errors("Initializing MPD connection");
+    handle_errors(tprint("Initializing connection MPD server at %:%", config.mpd_host, config.mpd_port));
 
     library := Library.load(mpd_connection);
     queue := Queue.load(mpd_connection);

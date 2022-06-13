@@ -307,7 +307,7 @@ draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dy
 
     if load_current_album_art { // load thumbnail from disk
         if album.cover_path != "" {
-            display_art_path := tprint("%/%-%x.bmp", THUMBNAIL_DIRECTORY, get_hash(tprint("%-%", album.artist_name, album.name)), LARGE_ALBUM_ART_WIDTH);
+            display_art_path := tprint("%/%-%x.bmp", config.album_cover_directory, get_hash(tprint("%-%", album.artist_name, album.name)), LARGE_ALBUM_ART_WIDTH);
             if file_exists(display_art_path) {
                 start := current_time();
                 if !Simp.texture_load_from_file(loaded_album.art_texture, display_art_path) {
