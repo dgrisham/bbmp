@@ -18,6 +18,42 @@ config: Config;
 
 mpd_connection: *MPD.connection;
 
+/*********
+* logger *
+*********/
+
+Log_Data :: struct {
+    module  : string;
+}
+log_history: struct {
+    entries     : [..] string;
+    first_entry : int = 0;
+    max_entries : u32 = 1000;
+}
+
+reserve_log_history :: (count: u32) {
+    array_reserve(*log_history.entries, count);
+    log_history.max_entries = count;
+}
+
+DEBUG :: false;
+logger :: (message: string, data: *void, info: Log_Info) {
+    log_data := cast(*Log_Data) data;
+    entry := sprint("[%] %", log_data.module, message);
+    if log_history.entries.count == log_history.max_entries {
+        old_first_entry := log_history.entries[log_history.first_entry];
+        log_history.entries[log_history.first_entry] = entry;
+        free(old_first_entry);
+        log_history.first_entry += 1;
+        if log_history.first_entry == log_history.entries.count {
+            log_history.first_entry = 0;
+        }
+    } else {
+        array_add(*log_history.entries, entry);
+    }
+    #if DEBUG write_string(entry);
+}
+
 /************
 * constants *
 ************/

@@ -26,6 +26,7 @@ config_filename := "/home/grish/src/jai/jai-mpd/.grishcompooprc";
 Config :: struct {
     mpd_host              : string = "localhost";
     mpd_port              : u32    = 6600;
+    max_log_size          : u32    = 1000;
     album_cover_directory : string = "/home/grish/src/jai/jai-mpd/.thumbnails"; // TODO: set default based on OS
 }
 
@@ -118,6 +119,7 @@ parse_line :: (text: *string, config: *Config) -> *Error {
     config_key: enum u8 {
         MPD_HOST;
         MPD_PORT;
+        MAX_LOG_SIZE;
         ALBUM_COVER_DIRECTORY;
     } = ---;
 
@@ -127,6 +129,8 @@ parse_line :: (text: *string, config: *Config) -> *Error {
         config_key = .MPD_HOST;
       case "mpd_port";
         config_key = .MPD_PORT;
+      case "max_log_size";
+        config_key = .MAX_LOG_SIZE;
       case "album_cover_directory";
         config_key = .ALBUM_COVER_DIRECTORY;
       case;
@@ -178,6 +182,20 @@ parse_line :: (text: *string, config: *Config) -> *Error {
         }
         <<text = remainder;
         config.mpd_port = cast,no_check(u32)port;
+
+      case .MAX_LOG_SIZE;
+
+        success: bool;
+        max_log_size: int;
+        remainder: string;
+        max_log_size, success, remainder = to_integer(<<text);
+        if !success  return New_Error(original_count - text.count + 1, tprint("Error parsing max_log_size value as integer"));
+
+        if max_log_size < 1 || max_log_size > 4294967295 { // we accept a u32 because libmpdclient does (u16 is usually the max range)
+            return New_Error(original_count - text.count + 1, tprint("Invalid value for max_log_size"));
+        }
+        <<text = remainder;
+        config.max_log_size = cast,no_check(u32)max_log_size;
 
       case .ALBUM_COVER_DIRECTORY;
         reset(*builder);

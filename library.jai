@@ -30,9 +30,15 @@ cursor: struct {
     selected  := 0;
 };
 
+log_data :: Log_Data.{"queue"};
+
 #scope_export
 
 load :: (mpd_connection: *MPD.connection) -> *Library_Data {
+
+    original_logger_data := context.logger_data;
+    context.logger_data = *log_data;
+    defer context.logger_data = original_logger_data;
 
     assert(mpd_connection != null);
     MPD.send_list_all_meta(mpd_connection, "");
@@ -129,6 +135,10 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
 }
 
 event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Queue.Data, frame: u64, font: *Simp.Dynamic_Font, display_width: s32, header_bottom: int) -> bool {
+
+    original_logger_data := context.logger_data;
+    context.logger_data = *log_data;
+    defer context.logger_data = original_logger_data;
 
     items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 

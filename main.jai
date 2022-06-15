@@ -20,6 +20,8 @@ Album_Art :: #import "album_art";
 #import "common";
 #import "config";
 
+log_data :: Log_Data.{"main"};
+
 #scope_module
 
 // share Simp with album art management file -- is this necessary?
@@ -33,6 +35,7 @@ View :: enum {
     QUEUE;
     LIBRARY;
     ALBUM_ART;
+    LOG;
 }
 
 current_view := View.LIBRARY;
@@ -56,6 +59,9 @@ user_input_active := false;
 
 main :: () {
 
+    context.logger      = logger;
+    context.logger_data = *log_data;
+
     success: bool;
     config, success = load_config();
     if !success { // @Logging: log this in a way that the user can see it
@@ -63,6 +69,8 @@ main :: () {
         exit(1);
     }
     reset_temporary_storage();
+
+    reserve_log_history(config.max_log_size);
 
     init_fonts();
 
@@ -105,6 +113,9 @@ main :: () {
     table_add(*global_key_pressed_on_frame, .DASH,                0);
 
     while !quit {
+
+        context.logger_data = *log_data;
+
         if current_time() > status_update_timer + 1000 {
             Queue.update(mpd_connection, queue);
             update_status(Queue.get_current_song(mpd_connection, queue));
@@ -184,6 +195,9 @@ main :: () {
                     break it;
                   case .NUMBER_3;
                     current_view = .ALBUM_ART;
+                    break it;
+                  case .NUMBER_4;
+                    current_view = .LOG;
                     break it;
 
                   case KEY_P;
@@ -266,6 +280,14 @@ main :: () {
             user_input_active = Library.event_loop(library, mpd_connection, queue, frame, font, cast(s32)display_width(), header_bottom);
           case .ALBUM_ART;
             user_input_active = Album_Art.event_loop(mpd_connection, albums_sorted_by_artist_and_year, library, queue, frame, font, cast(s32)display_width(), header_bottom, thumbnail_slot_width, thumbnail_slot_height);
+          case .LOG;
+            items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
+            x := X_MARGIN_SIZE;
+            y := header_bottom - 25;
+            for i: max(0, log_history.entries.count-items_in_page-1)..log_history.entries.count-1 {
+                Simp.draw_text(font, x, y, log_history.entries[(log_history.first_entry + i) % log_history.entries.count], rgba(1,1,1,1));
+                y -= TEXT_PADDING_Y + font.character_height;
+            }
         }
         reset_temporary_storage();
         Simp.swap_buffers(window);
@@ -285,7 +307,7 @@ main :: () {
         frame_end := current_time();
         frame_rate = calculate_frame_rate(frame_start, current_time());
         if !(frame % TARGET_FPS) {
-            print("frame rate: % fps (% ms / frame)\n", frame_rate, 1000.0 / frame_rate);
+            log("frame rate: % fps (% ms / frame)", frame_rate, 1000.0 / frame_rate);
         }
     }
 

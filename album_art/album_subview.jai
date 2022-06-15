@@ -14,11 +14,17 @@ search_query: Search_Query;
 
 inputting_search_query := false;
 
+log_data :: Log_Data.{"album_art/library"};
+
 #scope_module
 
 album_search_query :: *search_query;
 
 process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, albums: [..] *Album, frame: u64, header_bottom: int, items_in_page: int, album: *Album) -> bool {
+
+    original_logger_data := context.logger_data;
+    context.logger_data = *log_data;
+    defer context.logger_data = original_logger_data;
 
     move_cursor_by_n_songs :: (number_of_songs_in_album: int, amount: int) #expand {
         `cursor.song_position += amount;
@@ -292,6 +298,10 @@ loaded_album: struct {
 }
 
 draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dynamic_Font, total_width: s32, header_bottom: int, items_in_page: int) {
+
+    original_logger_data := context.logger_data;
+    context.logger_data = *log_data;
+    defer context.logger_data = original_logger_data;
 
     if loaded_album.art_texture == null loaded_album.art_texture = New(Simp.Texture); // initialize loaded art texture, should only happen on the first album view frame
 

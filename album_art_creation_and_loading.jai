@@ -52,6 +52,10 @@ start_album_art_creation_thread_group :: (albums: [..] *Album) {
     }
 
     thread_proc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
+
+        context.logger = logger;
+        context.logger_data = *Log_Data.{"album_art_thread"};
+
         job_info := cast(*Album_Art_Job_Info) work;
 
         /************************************************************
@@ -125,6 +129,7 @@ start_album_art_creation_thread_group :: (albums: [..] *Album) {
     }
 
     set_allocators(*pool);
+
     thread_proc_context: Context;
     thread_proc_context.allocator.proc = pool_allocator_proc;
     thread_proc_context.allocator.data = *pool;

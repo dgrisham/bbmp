@@ -26,6 +26,8 @@ cursor: struct {
     position := 0;
 };
 
+log_data :: Log_Data.{"queue"};
+
 #scope_export
 
 Data :: struct {
@@ -33,7 +35,11 @@ Data :: struct {
     version: u32;
 }
 
-load :: (mpd_connection: *MPD.connection) -> *Data {
+load :: (mpd_connection: *MPD.connection) -> *Data {;
+
+    original_logger_data := context.logger_data;
+    context.logger_data = *log_data;
+    defer context.logger_data = original_logger_data;
 
     queue := New(Data);
 
@@ -83,6 +89,10 @@ load :: (mpd_connection: *MPD.connection) -> *Data {
 }
 
 update :: (mpd_connection: *MPD.connection, queue: *Data) {
+
+    original_logger_data := context.logger_data;
+    context.logger_data = *log_data;
+    defer context.logger_data = original_logger_data;
 
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
@@ -136,6 +146,10 @@ update :: (mpd_connection: *MPD.connection, queue: *Data) {
 }
 
 event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: *Simp.Dynamic_Font, display_width: s32, header_bottom: int) -> bool {
+
+    original_logger_data := context.logger_data;
+    context.logger_data = *log_data;
+    defer context.logger_data = original_logger_data;
 
     items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
@@ -509,6 +523,11 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
 }
 
 get_current_song :: (mpd_connection: *MPD.connection, queue: Data) -> *Song {
+
+    original_logger_data := context.logger_data;
+    context.logger_data = *log_data;
+    defer context.logger_data = original_logger_data;
+
     mpd_status := MPD.run_status(mpd_connection);
     handle_errors("Retrieving MPD status");
     MPD.response_finish(mpd_connection);
