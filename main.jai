@@ -87,7 +87,7 @@ main :: () {
 
     mpd_connection = MPD.connection_new(temp_c_string(config.mpd_host), config.mpd_port, 15000);
     if !mpd_connection {
-        log("Failed to connect to MPD instance at %:% (out of memory)\n", config.mpd_host, config.mpd_port);
+        log("Failed to connect to MPD instance at %:% (out of memory)", config.mpd_host, config.mpd_port);
     }
     handle_errors(tprint("Initializing connection MPD server at %:%", config.mpd_host, config.mpd_port));
 

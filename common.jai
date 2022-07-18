@@ -51,7 +51,12 @@ logger :: (message: string, data: *void, info: Log_Info) {
     } else {
         array_add(*log_history.entries, entry);
     }
-    #if OUTPUT_DEBUG_LOGS_TO_CONSOLE write_string(entry);
+    #if OUTPUT_DEBUG_LOGS_TO_CONSOLE {
+        write_string(entry);
+        if entry.count > 0 && entry[entry.count - 1] != #char "\n" {
+            write_string("\n");
+        }
+    }
 }
 
 /************
@@ -293,9 +298,9 @@ handle_errors :: (message: string) -> bool {
 
     error := check_connection_errors();
     if error {
-        log("%: MPD % error, code=%, message='%', recovered=%\n", message, error.type, error.code, error.message, error.recovered);
+        log("%: MPD % error, code=%, message='%', recovered=%", message, error.type, error.code, error.message, error.recovered);
         if !error.recovered {
-            log("Failed to recover from error, attempting to reconnect to MPD\n");
+            log("Failed to recover from error, attempting to reconnect to MPD");
 
             MPD.run_clear(mpd_connection);
             mpd_connection = null;

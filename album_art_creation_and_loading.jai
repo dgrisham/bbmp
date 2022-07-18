@@ -43,7 +43,7 @@ start_album_art_creation_thread_group :: (albums: [..] *Album) {
             num_cpus /= 2;
         }
         num_threads := min(num_jobs, max(num_cpus - 1, 1));
-        log("This machine reports % CPUs for % job(s); starting % threads.\n", num_cpus, num_jobs, num_threads);
+        log("This machine reports % CPUs for % job(s); starting % threads.", num_cpus, num_jobs, num_threads);
 
         init(*album_art_creation_thread_group, num_threads, thread_proc);
 
@@ -63,7 +63,7 @@ start_album_art_creation_thread_group :: (albums: [..] *Album) {
         ************************************************************/
 
         if job_info.create_thumbnail || job_info.create_display_art {
-            log("Attempting to load cover at path %\n", job_info.cover_path);
+            log("Attempting to load cover at path %", job_info.cover_path);
 
             bitmap: Simp.Bitmap;
             defer Simp.deinit(*bitmap);
@@ -200,10 +200,10 @@ check_album_art_creation_jobs :: () {
             }
 
             REMAINING_ALBUM_ART_JOBS -= results.count;
-            log("create thumbnail jobs finished: % successes, % failures\n", create_thumbnail_successes, create_thumbnail_failures);
-            log("create display art jobs finished: % successes, % failures\n", create_display_art_successes, create_display_art_failures);
-            log("load thumbnail jobs finished: % successes, % failures\n", load_thumbnail_successes, load_thumbnail_failures);
-            log("% remaining cover jobs\n", REMAINING_ALBUM_ART_JOBS);
+            log("create thumbnail jobs finished: % successes, % failures", create_thumbnail_successes, create_thumbnail_failures);
+            log("create display art jobs finished: % successes, % failures", create_display_art_successes, create_display_art_failures);
+            log("load thumbnail jobs finished: % successes, % failures", load_thumbnail_successes, load_thumbnail_failures);
+            log("% remaining cover jobs", REMAINING_ALBUM_ART_JOBS);
             if REMAINING_ALBUM_ART_JOBS == 0 {
                 log("No more remaining thumbnail jobs, shutting down thread group");
                 release(*pool);
