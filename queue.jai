@@ -43,9 +43,11 @@ load :: (mpd_connection: *MPD.connection) -> *Data {;
 
     queue := New(Data);
 
+    initialize_search_query(*search_query);
+
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
-    if !status { print("Status is null, not refreshing queue\n"); return null; }
+    if !status { print("Status is null, not loading queue\n"); return queue; }
     mpd_queue_length := MPD.status_get_queue_length(status);
     queue.version = MPD.status_get_queue_version(status);
     MPD.status_free(status);
@@ -82,8 +84,6 @@ load :: (mpd_connection: *MPD.connection) -> *Data {;
     }
 
     array_resize(*queue.songs, queue.songs.count);
-
-    initialize_search_query(*search_query);
 
     return queue;
 }
@@ -378,7 +378,9 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
             if it.type == {
 
               case .TEXT_INPUT;
-                if append_utf32_to_search_query(*search_query, it.utf32) move_cursor_to_first_search_result();
+                if append_utf32_to_search_query(*search_query, it.utf32) {
+                    move_cursor_to_first_search_result();
+                }
                 break it;
 
               case .KEYBOARD;
@@ -531,6 +533,8 @@ get_current_song :: (mpd_connection: *MPD.connection, queue: Data) -> *Song {
     mpd_status := MPD.run_status(mpd_connection);
     handle_errors("Retrieving MPD status");
     MPD.response_finish(mpd_connection);
+    if !mpd_status return null;
+    defer MPD.status_free(mpd_status);
 
     queue_song_position := MPD.status_get_song_pos(mpd_status);
     if queue_song_position < 0 return null;

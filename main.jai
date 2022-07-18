@@ -16,6 +16,7 @@ MPD     :: #import "libmpdclient";
 Library   :: #import "library";
 Queue     :: #import "queue";
 Album_Art :: #import "album_art";
+Log_View  :: #import "log_view";
 
 #import "common";
 #import "config";
@@ -49,7 +50,7 @@ thumbnail_slot_height : s32 = 200;
 window_width  : s32 = 1920;
 window_height : s32 = 1080;
 
-display_width :: () -> int #expand { return window_width  - 2 * X_MARGIN_SIZE; }
+display_width :: inline () -> int { return window_width  - 2 * X_MARGIN_SIZE; }
 
 frame: u64 = 0;
 frame_rate: float64;
@@ -80,23 +81,23 @@ main :: () {
     Simp.set_render_target(window);
     X_MARGIN_SIZE = window_width / 30;
     Y_MARGIN_SIZE = window_height / 30;
+    Y_PADDING_BELOW_HEADER = Y_MARGIN_SIZE;
     thumbnail_slot_width  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 10);
     thumbnail_slot_height = thumbnail_slot_width;
 
-    mpd_connection = MPD.connection_new(to_c_string(config.mpd_host), config.mpd_port, 15000);
+    mpd_connection = MPD.connection_new(temp_c_string(config.mpd_host), config.mpd_port, 15000);
     if mpd_connection == null {
-        print("Failed to connect to MPD instance at %:%\n", config.mpd_host, config.mpd_port);
+        log("Failed to connect to MPD instance at %:%\n", config.mpd_host, config.mpd_port);
         exit(1);
     }
     handle_errors(tprint("Initializing connection MPD server at %:%", config.mpd_host, config.mpd_port));
 
-    library := Library.load(mpd_connection);
-    queue := Queue.load(mpd_connection);
+    library                          := Library.load(mpd_connection);
+    queue                            := Queue.load(mpd_connection);
     albums_sorted_by_artist_and_year := Album_Art.load(library);
 
     start_album_art_creation_thread_group(albums_sorted_by_artist_and_year);
 
-    quit := false;
     frame: u64 = 0;
 
     last_global_key_pressed: Key;
@@ -112,11 +113,12 @@ main :: () {
     table_add(*global_key_pressed_on_frame, .EQUALS_SIGN,         0);
     table_add(*global_key_pressed_on_frame, .DASH,                0);
 
+    quit := false;
     while !quit {
 
         context.logger_data = *log_data;
 
-        if current_time() > status_update_timer + 1000 {
+        if queue && current_time() > status_update_timer + 1000 {
             Queue.update(mpd_connection, queue);
             update_status(Queue.get_current_song(mpd_connection, queue));
         }
@@ -277,17 +279,12 @@ main :: () {
           case .QUEUE;
             user_input_active = Queue.event_loop(mpd_connection, queue, frame, font, cast(s32)display_width(), header_bottom);
           case .LIBRARY;
-            user_input_active = Library.event_loop(library, mpd_connection, queue, frame, font, cast(s32)display_width(), header_bottom);
+            user_input_active = Library.event_loop(mpd_connection, library, queue, frame, font, cast(s32)display_width(), header_bottom);
           case .ALBUM_ART;
             user_input_active = Album_Art.event_loop(mpd_connection, albums_sorted_by_artist_and_year, library, queue, frame, font, cast(s32)display_width(), header_bottom, thumbnail_slot_width, thumbnail_slot_height);
           case .LOG;
-            items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
-            x := X_MARGIN_SIZE;
-            y := header_bottom - 25;
-            for i: max(0, log_history.entries.count-items_in_page-1)..log_history.entries.count-1 {
-                Simp.draw_text(font, x, y, log_history.entries[(log_history.first_entry + i) % log_history.entries.count], rgba(1,1,1,1));
-                y -= TEXT_PADDING_Y + font.character_height;
-            }
+            Log_View.event_loop(font, header_bottom);
+
         }
         reset_temporary_storage();
         Simp.swap_buffers(window);
@@ -371,7 +368,7 @@ draw_header :: () -> int {
         header_bottom = min(header_bottom, y - font.character_height);
     }
 
-    header_bottom -= 25;
+    header_bottom -= Y_PADDING_BELOW_HEADER;
 
     return header_bottom;
 }

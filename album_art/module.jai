@@ -41,11 +41,12 @@ current_album_art_subview := Subview.LIBRARY;
 
 load :: (library: *Library_Data) -> [..] *Album {
 
+    albums: [..] *Album;
+    if library == null return albums;
+
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
-
-    albums: [..] *Album;
 
     array_resize(*albums, library.stats.number_of_albums);
     i := 0;
@@ -73,8 +74,6 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Li
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
 
-    Y_PADDING_BELOW_HEADER := Y_MARGIN_SIZE;
-
     total_height := header_bottom - Y_PADDING_BELOW_HEADER - 2 * Y_MARGIN_SIZE;
     rows := total_height / thumbnail_slot_height - 1;
 
@@ -94,7 +93,7 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Li
 
     if current_album_art_subview == {
         case .LIBRARY;
-            draw_library_frame(albums, font, header_bottom, rows, columns, total_width, total_height, thumbnail_slot_width, thumbnail_slot_height, Y_PADDING_BELOW_HEADER);
+            draw_library_frame(albums, font, header_bottom, rows, columns, total_width, total_height, thumbnail_slot_width, thumbnail_slot_height);
         case .ALBUM;
             just_switched_to_album_subview := original_subview != .ALBUM;
             draw_album_frame(albums[cursor.album_position], just_switched_to_album_subview, font, total_width, header_bottom, album_songs_in_page);

@@ -46,9 +46,11 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
 
     library := New(Library_Data);
 
+    initialize_search_query(*search_query);
+
     entity := MPD.recv_entity(mpd_connection);
     handle_errors("Receiving first entity");
-    if !entity { print("Failed retrieving MPD metadata\n"); exit(1); }
+    if !entity { print("Failed retrieving MPD metadata\n"); return library; }
 
     while entity {
         if MPD.entity_get_type(entity) == .SONG {
@@ -129,12 +131,10 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
         handle_errors("Receiving entity");
     }
 
-    initialize_search_query(*search_query);
-
     return library;
 }
 
-event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Queue.Data, frame: u64, font: *Simp.Dynamic_Font, display_width: s32, header_bottom: int) -> bool {
+event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Queue.Data, frame: u64, font: *Simp.Dynamic_Font, display_width: s32, header_bottom: int) -> bool {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -147,8 +147,8 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
         if cursor.selected == 0 { `cursor.positions[1], `cursor.positions[2] = 0; }
         if cursor.selected == 1 `cursor.positions[2] = 0;
     }
-    move_selected_cursor_up            :: () #expand { move_selected_cursor(-1);             }
-    move_selected_cursor_down          :: () #expand { move_selected_cursor(+1);             }
+    move_selected_cursor_up             :: () #expand { move_selected_cursor(-1);                 }
+    move_selected_cursor_down           :: () #expand { move_selected_cursor(+1);                 }
     move_selected_cursor_half_page_up   :: () #expand { move_selected_cursor(-items_in_page / 2); }
     move_selected_cursor_half_page_down :: () #expand { move_selected_cursor(+items_in_page / 2); }
 
@@ -360,7 +360,7 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
                         if cursor.selected == {
                             case 0;
                               if it.shift_pressed {
-                                  cursor.positions[0] = library.artists.count - 1;
+                                  cursor.positions[0] = max(0, library.artists.count - 1);
                               } else {
                                   cursor.positions[0] = 0;
                               }
@@ -370,7 +370,7 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
                               if it.shift_pressed {
                                   artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
                                   assert(artist_ptr != null);
-                                  cursor.positions[1] = artist_ptr.albums.count - 1;
+                                  cursor.positions[1] = max(0, artist_ptr.albums.count - 1);
                               } else {
                                 cursor.positions[1] = 0;
                               }
@@ -380,7 +380,7 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
                                   artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
                                   assert(artist_ptr != null);
                                   album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
-                                  cursor.positions[2] = album_ptr.songs.count - 1;
+                                  cursor.positions[2] = max(0, album_ptr.songs.count - 1);
                               } else {
                                   cursor.positions[2] = 0;
                               }
@@ -558,7 +558,7 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
     if cursor.selected < 0 {
         cursor.selected = 0;
     } else if cursor.selected > cursor.positions.count - 1 {
-        cursor.selected = cursor.positions.count - 1;
+        cursor.selected = max(0, cursor.positions.count - 1);
     }
 
     if cursor.selected == {
@@ -567,7 +567,7 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
               cursor.positions[0] = 0;
           } else
           if cursor.positions[0] > library.artists.count - 1 {
-            cursor.positions[0] = library.artists.count - 1;
+              cursor.positions[0] = max(0, library.artists.count - 1);
           }
         case 1;
           artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
@@ -576,7 +576,7 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
               cursor.positions[1] = 0;
           } else
           if cursor.positions[1] > artist_ptr.albums.count - 1 {
-            cursor.positions[1] = artist_ptr.albums.count - 1;
+              cursor.positions[1] = max(0, artist_ptr.albums.count - 1);
           }
         case 2;
           artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
@@ -586,7 +586,7 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
               cursor.positions[2] = 0;
           } else
           if cursor.positions[2] > album_ptr.songs.count - 1 {
-            cursor.positions[2] = album_ptr.songs.count - 1;
+              cursor.positions[2] = max(0, album_ptr.songs.count - 1);
           }
     }
 
@@ -607,7 +607,7 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
             entries         : [..] Display_Text;
         };
 
-        {
+        if library.artists.count > 0 {
             display_columns[0].width = cast(s32)(1 / 3.0 * display_width);
             display_columns[1].width = cast(s32)(1 / 3.0 * display_width);
             display_columns[2].width = cast(s32)display_width - display_columns[0].width - display_columns[1].width;
@@ -621,7 +621,7 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
             display_columns[2].entries.allocator = temp;
 
             selected_artist_index := cursor.positions[0];
-            {
+            if library.artists.count > 0 {
                 index_start := max(0, min(library.artists.count - items_in_page, selected_artist_index  - items_in_page/ 2 + 1));
                 index_end   := min(index_start + items_in_page, library.artists.count) - 1;
                 array_reserve(*display_columns[0].entries, index_end - index_start);
@@ -638,7 +638,7 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
 
             selected_album_index := cursor.positions[1];
             selected_artist      := table_find_pointer(library.artists, library.artist_names_sorted[selected_artist_index]);
-            {
+            if selected_artist.albums.count > 0 {
                 index_start := max(0, min(selected_artist.albums.count - items_in_page, selected_album_index - items_in_page/ 2 + 1));
                 index_end   := min(index_start + items_in_page, selected_artist.albums.count) - 1;
                 array_reserve(*display_columns[1].entries, index_end - index_start + 1);
@@ -658,7 +658,7 @@ event_loop :: (library: Library_Data, mpd_connection: *MPD.connection, queue: *Q
 
             selected_song_index := cursor.positions[2];
             selected_album      := table_find_pointer(selected_artist.albums, selected_artist.album_names_sorted_by_date[selected_album_index]);
-            {
+            if selected_album.songs.count > 0 {
                 index_start := max(0, min(selected_album.songs.count - items_in_page, selected_song_index - items_in_page / 2 + 1));
                 index_end   := min(index_start + items_in_page, selected_album.songs.count) - 1;
                 array_reserve(*display_columns[2].entries, index_end - index_start + 1);

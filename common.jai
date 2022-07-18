@@ -36,7 +36,7 @@ reserve_log_history :: (count: u32) {
     log_history.max_entries = count;
 }
 
-DEBUG :: false;
+OUTPUT_DEBUG_LOGS_TO_CONSOLE :: true;
 logger :: (message: string, data: *void, info: Log_Info) {
     log_data := cast(*Log_Data) data;
     entry := sprint("[%] %", log_data.module, message);
@@ -51,7 +51,7 @@ logger :: (message: string, data: *void, info: Log_Info) {
     } else {
         array_add(*log_history.entries, entry);
     }
-    #if DEBUG write_string(entry);
+    #if OUTPUT_DEBUG_LOGS_TO_CONSOLE write_string(entry);
 }
 
 /************
@@ -73,6 +73,7 @@ KEY_HOLD_DELAY :: 20;
 X_MARGIN_SIZE  : s32;
 Y_MARGIN_SIZE  : s32;
 TEXT_PADDING_Y :: 5;
+Y_PADDING_BELOW_HEADER : s32;
 
 SPACE: u8 = 32;
 ELLIPSIS :: u8.[226, 128, 166];
@@ -291,27 +292,23 @@ handle_errors :: (message: string) -> bool {
 
     error := check_connection_errors();
     if error {
-        print("%: % error, code=%, message='%', recovered=%\n", message, error.type, error.code, error.message, error.recovered);
+        log("%: MPD % error, code=%, message='%', recovered=%\n", message, error.type, error.code, error.message, error.recovered);
         if !error.recovered {
-            print("Failed to recover from error, attempting to reconnect to MPD\n");
+            log("Failed to recover from error, attempting to reconnect to MPD\n");
 
             MPD.run_clear(mpd_connection);
-            mpd_connection = MPD.connection_new(to_c_string(config.mpd_host), config.mpd_port, 15000);
+            mpd_connection = MPD.connection_new(temp_c_string(config.mpd_host), config.mpd_port, 15000);
             if mpd_connection == null {
-                print("MPD reconnect failed, might be out of memory. Exiting\n");
+                log("MPD reconnect failed, might be out of memory. Exiting\n");
                 exit(1);
             }
 
             // TODO: if we get 'connection refused', wait a second before restarting (goes wayy to fast for my laptop)
             new_connection_error := check_connection_errors();
-            while new_connection_error {
-                MPD.run_clear(mpd_connection);
-                mpd_connection = MPD.connection_new(to_c_string(config.mpd_host), config.mpd_port, 0);
-                new_connection_error = check_connection_errors();
-                print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", error.type, error.code, error.message, error.recovered);
-                sleep_milliseconds(3000);
+            if new_connection_error {
+                print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", new_connection_error.type, new_connection_error.code, new_connection_error.message, new_connection_error.recovered);
+                return false;
             }
-
             print("Successfully reconnected to MPD\n");
             return true;
         }
@@ -356,6 +353,8 @@ update_status :: (current_song: *Song) {
     mpd_status := MPD.run_status(mpd_connection);
     handle_errors("Retrieving MPD status");
     MPD.response_finish(mpd_connection);
+    if !mpd_status return;
+
     status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
     status.total_time   = MPD.status_get_total_time(mpd_status);
     status.volume       = MPD.status_get_volume(mpd_status);
@@ -374,6 +373,8 @@ update_status_time :: () {
     mpd_status := MPD.run_status(mpd_connection);
     handle_errors("Retrieving MPD status");
     MPD.response_finish(mpd_connection);
+    if !mpd_status return;
+
     status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
     status.total_time   = MPD.status_get_total_time(mpd_status);
     MPD.status_free(mpd_status);
