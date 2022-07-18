@@ -28,10 +28,6 @@ log_data :: Log_Data.{"main"};
 // share Simp with album art management file -- is this necessary?
 Simp :: #import "Simp";
 
-#load "album_art_creation_and_loading.jai";
-
-window: Window_Type;
-
 View :: enum {
     QUEUE;
     LIBRARY;
@@ -40,6 +36,10 @@ View :: enum {
 }
 
 current_view := View.LIBRARY;
+
+#load "album_art_creation_and_loading.jai";
+
+window: Window_Type;
 
 LONG         : s32 : 0x200000;
 TCP_NODELAY  : s32 : LONG + xx 121;
@@ -212,9 +212,11 @@ main :: () {
                     seek_backward();
                     break it;
                   case KEY_F;
-                    last_global_key_pressed = .F;
-                    table_set(*global_key_pressed_on_frame, .F, frame);
-                    seek_forward();
+                    if !it.shift_pressed {
+                        last_global_key_pressed = .F;
+                        table_set(*global_key_pressed_on_frame, .F, frame);
+                        seek_forward();
+                    }
                     break it;
 
                   case .LEFT_ANGLE_BRACKET;
@@ -282,7 +284,7 @@ main :: () {
           case .ALBUM_ART;
             user_input_active = Album_Art.event_loop(mpd_connection, albums_sorted_by_artist_and_year, library, queue, frame, font, cast(s32)display_width(), header_bottom, thumbnail_slot_width, thumbnail_slot_height);
           case .LOG;
-            Log_View.event_loop(font, header_bottom);
+            Log_View.event_loop(font, frame, cast(s32)display_width(), header_bottom);
 
         }
         reset_temporary_storage();

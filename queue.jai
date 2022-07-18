@@ -428,7 +428,6 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
     {
         display_columns: [4] struct {
             width           : s32;
-            rectangle_width : s32;
             entries         : [..] Display_Text;
         };
 
