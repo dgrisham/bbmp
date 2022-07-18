@@ -86,9 +86,8 @@ main :: () {
     thumbnail_slot_height = thumbnail_slot_width;
 
     mpd_connection = MPD.connection_new(temp_c_string(config.mpd_host), config.mpd_port, 15000);
-    if mpd_connection == null {
-        log("Failed to connect to MPD instance at %:%\n", config.mpd_host, config.mpd_port);
-        exit(1);
+    if !mpd_connection {
+        log("Failed to connect to MPD instance at %:% (out of memory)\n", config.mpd_host, config.mpd_port);
     }
     handle_errors(tprint("Initializing connection MPD server at %:%", config.mpd_host, config.mpd_port));
 
@@ -335,7 +334,7 @@ draw_header :: () -> int {
         header_bottom = min(header_bottom, y - font.character_height);
     }
 
-    { // currently playing song + artist/album
+    if mpd_connection { // currently playing song + artist/album
         x := cast(int)window_width / 2;
         y := top;
 
@@ -351,6 +350,18 @@ draw_header :: () -> int {
             Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
         }
 
+        header_bottom = min(header_bottom, y - font.character_height);
+    } else {
+        x := cast(int)window_width / 2;
+        y := top - TEXT_PADDING_Y - font.character_height / 2;
+        msg :: "Not connected to MPD";
+        text_width := Simp.prepare_text(font, msg);
+        Simp.draw_prepared_text(
+            font,
+            x - text_width / 2,
+            y,
+            rgba(1,0,0,1),
+        );
         header_bottom = min(header_bottom, y - font.character_height);
     }
 

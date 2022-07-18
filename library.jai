@@ -40,13 +40,12 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
 
-    assert(mpd_connection != null);
+    library := New(Library_Data);
+    initialize_search_query(*search_query);
+    if !mpd_connection return library;
+
     MPD.send_list_all_meta(mpd_connection, "");
     handle_errors("Retrieving MPD metadata");
-
-    library := New(Library_Data);
-
-    initialize_search_query(*search_query);
 
     entity := MPD.recv_entity(mpd_connection);
     handle_errors("Receiving first entity");
@@ -156,8 +155,12 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
     move_selected_cursor_right :: () #expand { `cursor.selected += 1; }
 
     add_selection_to_queue :: (library: Library_Data) -> s32 #expand {
-        first_song_id_added: s32;
+        if !mpd_connection {
+            log("No connection to MPD, cannot add song to queue", flags=.ERROR);
+            return -1;
+        }
 
+        first_song_id_added: s32;
         if cursor.selected == {
           case 0;
             first_song_id_added = add_artist_to_queue(library, library.artist_names_sorted[cursor.positions[0]]);
@@ -177,7 +180,6 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
     add_selection_to_queue_and_play :: (library: Library_Data) #expand {
         song_id_to_play := add_selection_to_queue(library);
         if song_id_to_play >= 0 {
-            assert(mpd_connection != null);
             MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
             handle_errors("Playing first song in group added to queue");
             Queue.update(`mpd_connection, `queue);

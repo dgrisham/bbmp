@@ -158,7 +158,6 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, 
                     album := albums[cursor.album_position];
                     song_id_to_play := add_album_to_queue(library, album.artist_name, album.name);
                     if song_id_to_play >= 0 {
-                        assert(mpd_connection != null);
                         MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
                         handle_errors("Playing first song in group added to queue");
                         Queue.update(mpd_connection, queue);
@@ -303,10 +302,6 @@ draw_library_frame :: (albums: [..] *Album, font: *Simp.Dynamic_Font, header_bot
                 index_of_first_album_in_current_row := cursor.album_position / columns * columns;
                 index_of_first_album_on_last_page   := max(0, (albums.count - 1 - (rows - 1) * columns) / columns * columns);
                 number_of_albums_in_half_page       := ((rows - 1) / 2) * columns;
-
-                print("index_of_first_album_in_current_row: %\n", index_of_first_album_in_current_row);
-                print("number_of_albums_in_half_page: %\n", number_of_albums_in_half_page);
-                print("index_of_first_album_on_last_page: %\n", index_of_first_album_on_last_page);
 
                 if index_of_first_album_in_current_row > index_of_first_album_on_last_page { // we're on the last page
                     album_index = index_of_first_album_on_last_page;

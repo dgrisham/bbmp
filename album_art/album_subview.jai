@@ -49,7 +49,10 @@ process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, alb
     }
 
     add_selected_song_to_queue :: () -> int #expand {
-        assert(mpd_connection != null);
+        if !mpd_connection {
+            log("No connection to MPD, cannot add song to queue", flags=.ERROR);
+            return -1;
+        }
         id := MPD.run_add_id(mpd_connection, to_c_string(`album.songs[`cursor.song_position].uri));
         handle_errors("Adding song to queue from album view");
         move_cursor_to_next_song();
@@ -58,7 +61,6 @@ process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, alb
     add_selected_song_to_queue_and_play :: () #expand {
         song_id_to_play := add_selected_song_to_queue();
         if song_id_to_play >= 0 {
-            assert(mpd_connection != null);
             MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
             handle_errors("Playing first song in group added to queue");
             Queue.update(`mpd_connection, `queue);

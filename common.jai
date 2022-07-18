@@ -267,6 +267,7 @@ Client_Error :: struct {
 
 // returns true if a reconnect happened, false otherwise
 handle_errors :: (message: string) -> bool {
+    if !mpd_connection return false;
 
     check_connection_errors :: () -> *MPD_Error {
         error_code := MPD.connection_get_error(mpd_connection);
@@ -297,15 +298,18 @@ handle_errors :: (message: string) -> bool {
             log("Failed to recover from error, attempting to reconnect to MPD\n");
 
             MPD.run_clear(mpd_connection);
+            mpd_connection = null;
             mpd_connection = MPD.connection_new(temp_c_string(config.mpd_host), config.mpd_port, 15000);
-            if mpd_connection == null {
-                log("MPD reconnect failed, might be out of memory. Exiting\n");
-                exit(1);
+            if !mpd_connection {
+                log("Failed to connect to MPD: out of memory");
+                return false;
             }
 
             // TODO: if we get 'connection refused', wait a second before restarting (goes wayy to fast for my laptop)
             new_connection_error := check_connection_errors();
             if new_connection_error {
+                MPD.run_clear(mpd_connection);
+                mpd_connection = null;
                 print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", new_connection_error.type, new_connection_error.code, new_connection_error.message, new_connection_error.recovered);
                 return false;
             }
@@ -338,6 +342,7 @@ current_time :: inline () -> u64 {
 
 status_update_timer: u64 = 0;
 update_status :: (current_song: *Song) {
+    if !mpd_connection return;
     status_update_timer = current_time();
 
     if current_song {
@@ -403,6 +408,11 @@ add_artist_to_queue :: (library: Library_Data, artist_name: string) -> s32 {
 }
 
 add_album_to_queue :: (library: Library_Data, artist_name: string, album_name: string) -> s32 {
+    if !mpd_connection {
+        log("No connection to MPD, cannot add album to queue", flags=.ERROR);
+        return -1;
+    }
+
     first_id_added: s32;
     artist := table_find_pointer(library.artists, artist_name);
     if !artist return -1;

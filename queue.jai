@@ -42,8 +42,8 @@ load :: (mpd_connection: *MPD.connection) -> *Data {;
     defer context.logger_data = original_logger_data;
 
     queue := New(Data);
-
     initialize_search_query(*search_query);
+    if !mpd_connection return queue;
 
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
@@ -56,7 +56,6 @@ load :: (mpd_connection: *MPD.connection) -> *Data {;
     // for any songs while we're iterating below
     array_reserve(*queue.songs, mpd_queue_length);
 
-    assert(mpd_connection != null);
     MPD.send_list_queue_meta(mpd_connection);
     handle_errors("Retrieving MPD metadata");
 
@@ -94,6 +93,8 @@ update :: (mpd_connection: *MPD.connection, queue: *Data) {
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
 
+    if !mpd_connection return;
+
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
     // TODO: this check is okay to make but is also mainly a workaround for the mpd connection dying bug
@@ -105,7 +106,6 @@ update :: (mpd_connection: *MPD.connection, queue: *Data) {
 
     MPD.status_free(status);
 
-    assert(mpd_connection != null);
     MPD.send_queue_changes_meta(mpd_connection, old_version);
     handle_errors("Retrieving MPD metadata");
 
@@ -525,6 +525,8 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
 }
 
 get_current_song :: (mpd_connection: *MPD.connection, queue: Data) -> *Song {
+
+    if !mpd_connection return null;
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
