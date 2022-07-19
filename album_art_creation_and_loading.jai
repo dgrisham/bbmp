@@ -43,7 +43,9 @@ start_album_art_creation_thread_group :: (albums: [..] *Album) {
             num_cpus /= 2;
         }
         num_threads := min(num_jobs, max(num_cpus - 1, 1));
-        log("This machine reports % CPUs for % job(s); starting % threads.", num_cpus, num_jobs, num_threads);
+        plural_cpus := ifx num_cpus != 1 then "s" else ""
+        plural_jobs := ifx num_jobs != 1 then "s" else ""
+        log("This machine reports % CPU% for % job%; starting % threads.", num_cpus, plural_cpus, num_jobs, plural_jobs, num_threads);
 
         init(*album_art_creation_thread_group, num_threads, thread_proc);
 
