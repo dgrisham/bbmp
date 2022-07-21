@@ -245,7 +245,7 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, 
                       case .BACKSPACE;
                         last_search_query_key_pressed = .BACKSPACE;
                         table_set(*search_query_key_pressed_on_frame, .BACKSPACE, frame);
-                        backspace_one_character(*search_query);
+                        backspace_search_query(*search_query);
                         move_cursor_to_first_search_result();
                         break it;
 
@@ -266,7 +266,7 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, 
             }
         }
 
-        if key_held_passed_threshold(search_query_key_pressed_on_frame, last_search_query_key_pressed, frame, .BACKSPACE) { backspace_one_character(*search_query); move_cursor_to_first_search_result(); }
+        if key_held_passed_threshold(search_query_key_pressed_on_frame, last_search_query_key_pressed, frame, .BACKSPACE) { backspace_search_query(*search_query); move_cursor_to_first_search_result(); }
     }
 
     return inputting_search_query;

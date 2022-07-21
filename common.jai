@@ -110,8 +110,18 @@ append_utf32_to_search_query :: (search_query: *Search_Query, c: u32) -> bool {
     return true;
 }
 
-// backspace_search_query
-backspace_one_character :: (search_query: *Search_Query) {
+append_utf32_to_string :: (s: *string, c: u32) -> bool {
+    input_utf8: string = ---;
+    {
+        push_allocator(temp);
+        input_utf8 = character_utf32_to_utf8(c);
+    }
+    memcpy(s.data + s.count, input_utf8.data, input_utf8.count);
+    s.count += 1;
+    return true;
+}
+
+backspace_search_query :: (search_query: *Search_Query) {
     if search_query.str == "" return;
 
     i := 0;
@@ -546,23 +556,46 @@ create_temp_display_string_of_max_length :: (s: string, max_character_count: int
     }
 
     // string is too long, trim and replace last char with an ellipses
-    max_number_of_bytes := 0;
+    num_bytes_in_string_to_hit_char_limit := 0; // this will be the number of bytes in the string that hits the max_character_count
     num_bytes_in_last_unicode_char := 0;
     {
-        bytes_total := 0;
         num_unicode_chars := 0;
-        while num_unicode_chars < max_character_count && bytes_total < s.count {
-            num_bytes_in_last_unicode_char = 1 + trailingBytesForUTF8[s.data[bytes_total]];
-            bytes_total += num_bytes_in_last_unicode_char;
+        while num_unicode_chars < max_character_count && num_bytes_in_string_to_hit_char_limit < s.count {
+            num_bytes_in_last_unicode_char = 1 + trailingBytesForUTF8[s.data[num_bytes_in_string_to_hit_char_limit]];
+            num_bytes_in_string_to_hit_char_limit += num_bytes_in_last_unicode_char;
             num_unicode_chars += 1;
         }
-        max_number_of_bytes = bytes_total;
     }
 
-    num_bytes_to_copy := max_number_of_bytes - num_bytes_in_last_unicode_char;
+    num_bytes_to_copy := num_bytes_in_string_to_hit_char_limit - num_bytes_in_last_unicode_char;
     result := alloc_string(num_bytes_to_copy + ELLIPSIS.count, temp);
     memcpy(result.data, s.data, num_bytes_to_copy);
     memcpy(result.data + num_bytes_to_copy, ELLIPSIS.data, ELLIPSIS.count);
+    return result;
+}
+
+create_temp_display_string_of_max_length_truncate_left :: (s: string, max_character_count: int) -> string {
+
+    total_unicode_chars := get_unicode_length(s);
+    if total_unicode_chars <= max_character_count {
+        return copy_temporary_string(s);
+    }
+
+    bytes_to_skip := 0;
+    num_bytes_in_last_unicode_char := 0;
+    {
+        num_unicode_chars := total_unicode_chars;
+        while num_unicode_chars >= max_character_count && bytes_to_skip < s.count {
+            num_bytes_in_last_unicode_char = 1 + trailingBytesForUTF8[s.data[bytes_to_skip]];
+            bytes_to_skip += num_bytes_in_last_unicode_char;
+            num_unicode_chars -= 1;
+        }
+    }
+
+    num_bytes_to_copy := s.count - bytes_to_skip;
+    result := alloc_string(num_bytes_to_copy + ELLIPSIS.count, temp);
+    memcpy(result.data, ELLIPSIS.data, ELLIPSIS.count);
+    memcpy(result.data + ELLIPSIS.count, s.data + bytes_to_skip, num_bytes_to_copy);
     return result;
 }
 

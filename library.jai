@@ -533,7 +533,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                       case .BACKSPACE;
                         last_search_query_key_pressed = .BACKSPACE;
                         table_set(*search_query_key_pressed_on_frame, .BACKSPACE, frame);
-                        backspace_one_character(*search_query);
+                        backspace_search_query(*search_query);
                         move_cursor_to_first_search_result();
                         break it;
 
@@ -554,7 +554,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             }
         }
 
-        if key_held_passed_threshold(search_query_key_pressed_on_frame, last_search_query_key_pressed, frame, .BACKSPACE) { backspace_one_character(*search_query); move_cursor_to_first_search_result(); }
+        if key_held_passed_threshold(search_query_key_pressed_on_frame, last_search_query_key_pressed, frame, .BACKSPACE) { backspace_search_query(*search_query); move_cursor_to_first_search_result(); }
     }
 
     if cursor.selected < 0 {
@@ -694,7 +694,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
         ******************/
 
         {
-            top := header_bottom - 25;
+            top := header_bottom - Y_PADDING_BELOW_HEADER;
             x := X_MARGIN_SIZE;
             for column_index: 0..display_columns.count - 1 {
                 y := top;

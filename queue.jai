@@ -390,7 +390,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
                       case .BACKSPACE;
                         last_search_query_key_pressed = .BACKSPACE;
                         table_set(*search_query_key_pressed_on_frame, .BACKSPACE, frame);
-                        backspace_one_character(*search_query);
+                        backspace_search_query(*search_query);
                         move_cursor_to_first_search_result();
                         break it;
 
@@ -411,7 +411,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
             }
         }
 
-        if key_held_passed_threshold(search_query_key_pressed_on_frame, last_search_query_key_pressed, frame, .BACKSPACE) { backspace_one_character(*search_query); move_cursor_to_first_search_result(); }
+        if key_held_passed_threshold(search_query_key_pressed_on_frame, last_search_query_key_pressed, frame, .BACKSPACE) { backspace_search_query(*search_query); move_cursor_to_first_search_result(); }
     }
 
     if cursor.position < 0 {
@@ -440,7 +440,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
             display_columns[0].width = cast(s32)(8 / 20.0 * display_width);
             display_columns[1].width = cast(s32)(5 / 20.0 * display_width);
             display_columns[2].width = cast(s32)(5 / 20.0 * display_width);
-            display_columns[3].width = cast(s32)display_width - display_columns[0].width - display_columns[1].width - display_columns[2].width;
+            display_columns[3].width = display_width - display_columns[0].width - display_columns[1].width - display_columns[2].width;
 
             index_start := max(0, min(queue.songs.count - items_in_page, cursor.position - items_in_page/ 2 + 1));
             index_end   := min(index_start + items_in_page, queue.songs.count) - 1;
@@ -492,7 +492,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
         }
 
         {
-            top := header_bottom - 25;
+            top := header_bottom - Y_PADDING_BELOW_HEADER;
             x := X_MARGIN_SIZE;
             for column_index: 0..display_columns.count - 1 {
                 y := top;

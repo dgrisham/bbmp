@@ -13,10 +13,11 @@ Process :: #import "Process";
 Input   :: #import "Input";
 MPD     :: #import "libmpdclient";
 
-Library   :: #import "library";
-Queue     :: #import "queue";
-Album_Art :: #import "album_art";
-Log_View  :: #import "log_view";
+Library       :: #import "library";
+Queue         :: #import "queue";
+Album_Art     :: #import "album_art";
+Log_View      :: #import "log_view";
+Config_Editor :: #import "config_editor";
 
 #import "common";
 #import "config";
@@ -33,6 +34,7 @@ View :: enum {
     LIBRARY;
     ALBUM_ART;
     LOG;
+    CONFIG_EDITOR;
 }
 
 current_view := View.LIBRARY;
@@ -94,6 +96,7 @@ main :: () {
     library                          := Library.load(mpd_connection);
     queue                            := Queue.load(mpd_connection);
     albums_sorted_by_artist_and_year := Album_Art.load(library);
+    Config_Editor.load();
 
     start_album_art_creation_thread_group(albums_sorted_by_artist_and_year);
 
@@ -200,6 +203,9 @@ main :: () {
                   case .NUMBER_4;
                     current_view = .LOG;
                     break it;
+                  case .NUMBER_5;
+                    current_view = .CONFIG_EDITOR;
+                    break it;
 
                   case KEY_P;
                     MPD.run_toggle_pause(mpd_connection);
@@ -285,6 +291,8 @@ main :: () {
             user_input_active = Album_Art.event_loop(mpd_connection, albums_sorted_by_artist_and_year, library, queue, frame, font, cast(s32)display_width(), header_bottom, thumbnail_slot_width, thumbnail_slot_height);
           case .LOG;
             Log_View.event_loop(font, frame, cast(s32)display_width(), header_bottom);
+          case .CONFIG_EDITOR;
+            user_input_active = Config_Editor.event_loop(font, frame, cast(s32)display_width(), header_bottom);
 
         }
         reset_temporary_storage();
