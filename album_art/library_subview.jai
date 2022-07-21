@@ -27,7 +27,7 @@ log_data :: Log_Data.{"album_art/album"};
 
 library_search_query :: *search_query;
 
-process_library_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, rows: int, columns: int) -> bool {
+process_library_input :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, rows: int, columns: int) -> bool {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -272,7 +272,7 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [..] *Album, 
     return inputting_search_query;
 }
 
-draw_library_frame :: (albums: [..] *Album, font: *Simp.Dynamic_Font, header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32) {
+draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32) {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -286,17 +286,13 @@ draw_library_frame :: (albums: [..] *Album, font: *Simp.Dynamic_Font, header_bot
             texture     : *Simp.Texture;
             selected    : bool;
         };
-        entries_to_draw: [..] Entry;
-        entries_to_draw.allocator = temp;
+        entries_to_draw: [] Entry;
 
         /************************************************
         * determine the set of album thumbnails to draw *
         ************************************************/
 
         {
-            max_entries_to_draw := rows * columns;
-            array_reserve(*entries_to_draw, max_entries_to_draw);
-
             album_index: s64 = 0;
             { // calculate index of first album to display
                 index_of_first_album_in_current_row := cursor.album_position / columns * columns;
@@ -310,8 +306,11 @@ draw_library_frame :: (albums: [..] *Album, font: *Simp.Dynamic_Font, header_bot
                 }
             }
 
+            num_entries_to_draw := min(albums.count - album_index, rows * columns);
+            entries_to_draw = NewArray(num_entries_to_draw, Entry, false, temp);
+
             max_characters_in_column := thumbnail_slot_width / font.w_width;
-            while entries_to_draw.count < max_entries_to_draw {
+            for i: 0..entries_to_draw.count-1 {
                 album := albums[album_index];
 
                 entry: Entry;
@@ -324,12 +323,8 @@ draw_library_frame :: (albums: [..] *Album, font: *Simp.Dynamic_Font, header_bot
                 entry.texture  = album.thumbnail_texture;
                 entry.selected = album_index == cursor.album_position;
 
-                array_add(*entries_to_draw, entry);
-
+                entries_to_draw[i] = entry;
                 album_index += 1;
-                if album_index == albums.count {
-                    break;
-                }
             }
         }
 

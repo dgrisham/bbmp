@@ -206,32 +206,32 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
     {
         display_column :: struct {
             width           : s32;
-            entries         : [..] Display_Text;
+            entries         : [] Display_Text;
         };
         display_keys, display_values: display_column;
 
         {
-            display_keys.entries.allocator  = temp;
-            display_values.entries.allocator = temp;
-
             display_keys.width   = cast(s32)(0.25 * display_width);
             display_values.width = cast(s32)(0.5 * display_width);
 
             index_start := max(0, min(ORDERED_CONFIG_KEYS.count - max_items_in_page, cursor.position - max_items_in_page/ 2 + 1));
             index_end   := min(index_start + max_items_in_page, ORDERED_CONFIG_KEYS.count) - 1;
 
-            array_reserve(*display_keys.entries,   index_end - index_start + 1);
-            array_reserve(*display_values.entries, index_end - index_start + 1);
+            display_keys.entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
+            display_values.entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
 
             selected_index := cursor.position;
 
-            for key: ORDERED_CONFIG_KEYS {
+            for i: index_start..index_end {
+                key := ORDERED_CONFIG_KEYS[i];
+
                 { // key
                     max_characters_in_column := display_keys.width / font.w_width - 2;
                     display_text: Display_Text;
                     display_text.text = create_temp_display_string_of_max_length(key, max_characters_in_column);
-                    display_text.selected = selected_index == it_index;
-                    array_add(*display_keys.entries, display_text);
+                    display_text.selected = selected_index == i;
+
+                    display_keys.entries[i-index_start] = display_text;
                 }
 
                 { // value
@@ -245,8 +245,9 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
                     } else {
                         display_text.text = create_temp_display_string_of_max_length(<<value_ptr, max_characters_in_column);
                     }
-                    display_text.selected = selected_index == it_index;
-                    array_add(*display_values.entries, display_text);
+                    display_text.selected = selected_index == i;
+
+                    display_values.entries[i-index_start] = display_text;
                 }
             }
         }

@@ -428,31 +428,27 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
     {
         display_columns: [4] struct {
             width           : s32;
-            entries         : [..] Display_Text;
+            entries         : [] Display_Text;
         };
 
         {
-            display_columns[0].entries.allocator = temp;
-            display_columns[1].entries.allocator = temp;
-            display_columns[2].entries.allocator = temp;
-            display_columns[3].entries.allocator = temp;
+            index_start := max(0, min(queue.songs.count - items_in_page, cursor.position - items_in_page/ 2 + 1));
+            index_end   := min(index_start + items_in_page, queue.songs.count) - 1;
+
+            display_columns[0].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
+            display_columns[1].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
+            display_columns[2].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
+            display_columns[3].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
 
             display_columns[0].width = cast(s32)(8 / 20.0 * display_width);
             display_columns[1].width = cast(s32)(5 / 20.0 * display_width);
             display_columns[2].width = cast(s32)(5 / 20.0 * display_width);
             display_columns[3].width = display_width - display_columns[0].width - display_columns[1].width - display_columns[2].width;
 
-            index_start := max(0, min(queue.songs.count - items_in_page, cursor.position - items_in_page/ 2 + 1));
-            index_end   := min(index_start + items_in_page, queue.songs.count) - 1;
-
-            array_reserve(*display_columns[0].entries, index_end - index_start + 1);
-            array_reserve(*display_columns[1].entries, index_end - index_start + 1);
-            array_reserve(*display_columns[2].entries, index_end - index_start + 1);
-            array_reserve(*display_columns[3].entries, index_end - index_start + 1);
-
             selected_index := cursor.position;
 
             for i: index_start..index_end {
+                entry := i - index_start;
                 song := queue.songs[i];
                 selected := i == selected_index;
 
@@ -461,7 +457,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
                     display_text: Display_Text;
                     display_text.text = create_temp_display_string_of_max_length(song.name, max_characters_in_column);
                     display_text.selected = selected;
-                    array_add(*display_columns[0].entries, display_text);
+                    display_columns[0].entries[entry] = display_text;
                 }
 
                 { // album name
@@ -469,7 +465,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
                     display_text: Display_Text;
                     display_text.selected = selected;
                     display_text.text = create_temp_display_string_of_max_length(song.album, max_characters_in_column);
-                    array_add(*display_columns[1].entries, display_text);
+                    display_columns[1].entries[entry] = display_text;
                 }
 
                 { // artist name
@@ -477,7 +473,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
                     display_text: Display_Text;
                     display_text.selected = selected;
                     display_text.text = create_temp_display_string_of_max_length(song.artist, max_characters_in_column);
-                    array_add(*display_columns[2].entries, display_text);
+                    display_columns[2].entries[entry] = display_text;
                 }
 
                 { // song duration
@@ -486,7 +482,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
                     display_text: Display_Text;
                     display_text.selected = selected;
                     display_text.text = create_temp_display_string_of_max_length(duration_time_string, max_characters_in_column);
-                    array_add(*display_columns[3].entries, display_text);
+                    display_columns[3].entries[entry] = display_text;
                 }
             }
         }

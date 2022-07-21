@@ -20,7 +20,7 @@ log_data :: Log_Data.{"album_art/library"};
 
 album_search_query :: *search_query;
 
-process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, albums: [..] *Album, frame: u64, header_bottom: int, items_in_page: int, album: *Album) -> bool {
+process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, albums: [] *Album, frame: u64, header_bottom: int, items_in_page: int, album: *Album) -> bool {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -372,12 +372,12 @@ draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dy
     rectangle_width := total_width - X_MARGIN_SIZE - text_x;
     max_characters_in_column := rectangle_width / font.w_width - 2;
 
-    display_entries: [..]Display_Text;
+    display_entries: []Display_Text;
     selected_song_index := cursor.song_position;
     {
         index_start := max(0, min(album.songs.count - items_in_page, selected_song_index - items_in_page / 2 + 1));
         index_end   := min(index_start + items_in_page, album.songs.count) - 1;
-        array_reserve(*display_entries, index_end - index_start);
+        display_entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
 
         for i: index_start..index_end {
             song := album.songs[i];
@@ -396,7 +396,7 @@ draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dy
             display_text: Display_Text;
             display_text.text = tprint("%   %", track_and_title, duration);
             display_text.selected = selected_song_index == i;
-            array_add(*display_entries, display_text);
+            display_entries[i-index_start] = display_text;
         }
     }
 

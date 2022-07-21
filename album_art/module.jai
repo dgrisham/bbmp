@@ -39,16 +39,19 @@ Subview :: enum {
 
 current_album_art_subview := Subview.LIBRARY;
 
-load :: (library: *Library_Data) -> [..] *Album {
-
-    albums: [..] *Album;
-    if library == null return albums;
+load :: (library: *Library_Data) -> [] *Album {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
 
-    array_resize(*albums, library.stats.number_of_albums);
+    albums: [] *Album;
+    if library == null return albums;
+
+    initialize_search_query(library_search_query);
+    initialize_search_query(album_search_query);
+
+    albums = NewArray(library.stats.number_of_albums, *Album);
     i := 0;
     for artist_name: library.artist_names_sorted {
         artist_ptr := table_find_pointer(library.artists, artist_name);
@@ -62,13 +65,10 @@ load :: (library: *Library_Data) -> [..] *Album {
         }
     }
 
-    initialize_search_query(library_search_query);
-    initialize_search_query(album_search_query);
-
     return albums;
 }
 
-event_loop :: (mpd_connection: *MPD.connection, albums: [..] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, font: *Simp.Dynamic_Font, total_width: s32, header_bottom: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32) -> bool {
+event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, font: *Simp.Dynamic_Font, total_width: s32, header_bottom: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32) -> bool {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;

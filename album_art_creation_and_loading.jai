@@ -34,8 +34,7 @@ REMAINING_ALBUM_ART_JOBS := 0;
 
 #scope_module
 
-start_album_art_creation_thread_group :: (albums: [..] *Album) {
-
+start_album_art_creation_thread_group :: (albums: [] *Album) {
     init_thread_group :: (num_jobs: s32) {
         num_cpus := get_number_of_processors();
         #if (OS == .WINDOWS) || (OS == .LINUX) {

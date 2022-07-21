@@ -523,7 +523,9 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             if it.type == {
 
               case .TEXT_INPUT;
-                if append_utf32_to_search_query(*search_query, it.utf32) move_cursor_to_first_search_result();
+                if append_utf32_to_search_query(*search_query, it.utf32) {
+                    move_cursor_to_first_search_result();
+                }
                 break it;
 
               case .KEYBOARD;
@@ -596,9 +598,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
     * draw frame *
     *************/
 
-    // draw_frame :: (items_in_page: int, header_bottom: int) {
     {
-
         /*********************************************
         * determine the artists/albums/songs to show *
         *********************************************/
@@ -606,7 +606,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
         display_columns: [3] struct {
             width           : s32;
             rectangle_width : s32;
-            entries         : [..] Display_Text;
+            entries         : [] Display_Text;
         };
 
         if library.artists.count > 0 {
@@ -618,15 +618,11 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             display_columns[1].rectangle_width = display_columns[1].width - 50;
             display_columns[2].rectangle_width = display_columns[2].width;
 
-            display_columns[0].entries.allocator = temp;
-            display_columns[1].entries.allocator = temp;
-            display_columns[2].entries.allocator = temp;
-
             selected_artist_index := cursor.positions[0];
             if library.artists.count > 0 {
                 index_start := max(0, min(library.artists.count - items_in_page, selected_artist_index  - items_in_page/ 2 + 1));
                 index_end   := min(index_start + items_in_page, library.artists.count) - 1;
-                array_reserve(*display_columns[0].entries, index_end - index_start);
+                display_columns[0].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
 
                 max_characters_in_column := display_columns[0].rectangle_width / font.w_width - 2;
 
@@ -634,7 +630,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                     display_text: Display_Text;
                     display_text.text = create_temp_display_string_of_max_length(library.artist_names_sorted[i], max_characters_in_column);
                     display_text.selected = selected_artist_index == i;
-                    array_add(*display_columns[0].entries, display_text);
+                    display_columns[0].entries[i-index_start] = display_text;
                 }
             }
 
@@ -643,7 +639,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             if selected_artist.albums.count > 0 {
                 index_start := max(0, min(selected_artist.albums.count - items_in_page, selected_album_index - items_in_page/ 2 + 1));
                 index_end   := min(index_start + items_in_page, selected_artist.albums.count) - 1;
-                array_reserve(*display_columns[1].entries, index_end - index_start + 1);
+                display_columns[1].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
 
                 max_characters_in_column := display_columns[1].rectangle_width / font.w_width - 2;
 
@@ -654,7 +650,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                     display_text.text = create_temp_display_string_of_max_length(tprint("(%) %", to_string(album.date), album.name), max_characters_in_column);
 
                     display_text.selected = selected_album_index == i;
-                    array_add(*display_columns[1].entries, display_text);
+                    display_columns[1].entries[i-index_start] = display_text;
                 }
             }
 
@@ -663,7 +659,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             if selected_album.songs.count > 0 {
                 index_start := max(0, min(selected_album.songs.count - items_in_page, selected_song_index - items_in_page / 2 + 1));
                 index_end   := min(index_start + items_in_page, selected_album.songs.count) - 1;
-                array_reserve(*display_columns[2].entries, index_end - index_start + 1);
+                display_columns[2].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
 
                 max_characters_in_column := display_columns[2].rectangle_width / font.w_width - 2;
 
@@ -684,7 +680,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                     display_text: Display_Text;
                     display_text.text = tprint("%   %", track_and_title, duration);
                     display_text.selected = selected_song_index == i;
-                    array_add(*display_columns[2].entries, display_text);
+                    display_columns[2].entries[i-index_start] = display_text;
                 }
             }
         }
