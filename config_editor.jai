@@ -54,7 +54,7 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
 
-    max_items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
+    max_items_in_page := (header_bottom - Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
     move_cursor_down :: () #expand {
         `cursor.position += 1;
@@ -258,7 +258,7 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
 
         {
             x_center := display_width / 2;
-            y := header_bottom - Y_PADDING_BELOW_HEADER;
+            y := header_bottom;
             for display_key: display_keys.entries {
                 key_width := Simp.prepare_text(font, display_key.text);
                 Simp.draw_prepared_text(font, x_center - key_width, y, rgba(1,1,1,1));

@@ -139,7 +139,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
 
-    items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
+    items_in_page := (header_bottom - Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
     move_selected_cursor :: (amount: int) #expand {
         `cursor.positions[cursor.selected] += amount;
@@ -690,7 +690,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
         ******************/
 
         {
-            top := header_bottom - Y_PADDING_BELOW_HEADER;
+            top := header_bottom;
             x := X_MARGIN_SIZE;
             for column_index: 0..display_columns.count - 1 {
                 y := top;

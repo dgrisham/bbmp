@@ -333,7 +333,7 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
         ****************/
 
         footer_height := font.character_height + TEXT_PADDING_Y;
-        y := header_bottom - Y_PADDING_BELOW_HEADER;
+        y := header_bottom;
 
         {
             TEXT_PADDING_Y :: 5;

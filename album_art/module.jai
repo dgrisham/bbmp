@@ -74,7 +74,7 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Libr
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
 
-    total_height := header_bottom - Y_PADDING_BELOW_HEADER - 2 * Y_MARGIN_SIZE;
+    total_height := header_bottom - Y_MARGIN_SIZE;
     rows := total_height / thumbnail_slot_height - 1;
 
     columns := total_width / thumbnail_slot_width - 1;

@@ -151,7 +151,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
 
-    items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
+    items_in_page := (header_bottom - Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
     shift_selected_item_down :: () #expand {
         if cursor.position < `queue.songs.count - 1 {
@@ -488,7 +488,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
         }
 
         {
-            top := header_bottom - Y_PADDING_BELOW_HEADER;
+            top := header_bottom;
             x := X_MARGIN_SIZE;
             for column_index: 0..display_columns.count - 1 {
                 y := top;

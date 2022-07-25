@@ -49,7 +49,7 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
         `cursor.position -= items_in_page / 2;
     }
 
-    items_in_page := (header_bottom - 2 * Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
+    items_in_page := (header_bottom - Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
     if !inputting_search_query {
         for Input.events_this_frame {
@@ -131,7 +131,7 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
     }
 
     x := X_MARGIN_SIZE;
-    y := header_bottom - Y_PADDING_BELOW_HEADER;
+    y := header_bottom;
     for i: index_start..index_end {
         if !follow_log && i == cursor.position {
             Simp.set_shader_for_color();
