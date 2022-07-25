@@ -324,30 +324,11 @@ main :: () {
 draw_header :: () -> int {
 
     top := cast(int)window_height - Y_MARGIN_SIZE;
-    {
-        VIEW_TITLES :: string.["Queue", "Library", "Library Album Art", "Config Viewer", "Debug Logs"];
-        x := cast(s64)X_MARGIN_SIZE;
-        for title: VIEW_TITLES {
-            y := top;
-            text_width := Simp.prepare_text(font, tprint("(%) %", it_index + 1, title));
-            selected := cast(s64)current_view == it_index;
-            if selected {
-                Simp.set_shader_for_color();
-                Simp.immediate_quad(cast(float)x - 5, cast(float)y - 5, cast(float)x + text_width + 5, cast(float)y + font.character_height, rgba(1,1,1,1));
-                Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
-            } else {
-                Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
-            }
-            x += text_width + X_PADDING_BETWEEN_VIEW_TITLES;
-        }
-    }
-
-    status_top := top - font.character_height - Y_MARGIN_SIZE;
-    header_bottom := status_top;
+    header_bottom := top;
 
     { // current / total track time
         x := X_MARGIN_SIZE;
-        y := status_top - TEXT_PADDING_Y - font.character_height / 2;
+        y := top - TEXT_PADDING_Y - font.character_height / 2;
         Simp.draw_text(
             font,
             x,
@@ -359,13 +340,11 @@ draw_header :: () -> int {
             ),
             rgba(1,1,1,1),
         );
-
-        header_bottom = min(header_bottom, y - font.character_height);
     }
 
     if mpd_connection { // currently playing song + artist/album
         x := cast(int)window_width / 2;
-        y := status_top;
+        y := top;
 
         max_characters_in_column := (display_width() / 2) / font.w_width;
         if status.song {
@@ -379,10 +358,10 @@ draw_header :: () -> int {
             Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
         }
 
-        header_bottom = min(header_bottom, y - font.character_height);
+        header_bottom = y - font.character_height;
     } else {
         x := cast(int)window_width / 2;
-        y := status_top - TEXT_PADDING_Y - font.character_height / 2;
+        y := top - TEXT_PADDING_Y - font.character_height / 2;
         msg :: "Not connected to MPD -- please ensure your config is pointing to a valid MPD server and restart.";
         text_width := Simp.prepare_text(font, msg);
         Simp.draw_prepared_text(
@@ -391,12 +370,12 @@ draw_header :: () -> int {
             y,
             rgba(1,0,0,1),
         );
-        header_bottom = min(header_bottom, y - font.character_height);
+        header_bottom = y - font.character_height;
     }
 
     { // volume
         x := display_width() + X_MARGIN_SIZE - font.w_width * 10;
-        y := status_top - TEXT_PADDING_Y - font.character_height / 2;
+        y := top - TEXT_PADDING_Y - font.character_height / 2;
         display_volume := ifx status.volume >= 0 then tprint("%1%%", left_pad(status.volume, #char " ", 3)) else "N/A";
         Simp.draw_text(
             font,
@@ -405,7 +384,25 @@ draw_header :: () -> int {
             tprint("Vol: %", display_volume),
             rgba(1,1,1,1),
         );
-        header_bottom = min(header_bottom, y - font.character_height);
+    }
+
+    { // view titles
+        VIEW_TITLES :: string.["Queue", "Library", "Library Album Art", "Config Viewer", "Debug Logs"];
+        x := cast(s64)X_MARGIN_SIZE;
+        y := header_bottom - Y_MARGIN_SIZE;
+        for title: VIEW_TITLES {
+            text_width := Simp.prepare_text(font, tprint("(%) %", it_index + 1, title));
+            selected := cast(s64)current_view == it_index;
+            if selected {
+                Simp.set_shader_for_color();
+                Simp.immediate_quad(cast(float)x - 5, cast(float)y - 5, cast(float)x + text_width + 5, cast(float)y + font.character_height, rgba(0.85,0.85,0.85,1));
+                Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+            } else {
+                Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+            }
+            x += text_width + X_PADDING_BETWEEN_VIEW_TITLES;
+        }
+        header_bottom -= Y_MARGIN_SIZE + font.character_height;
     }
 
     header_bottom -= Y_PADDING_BELOW_HEADER;

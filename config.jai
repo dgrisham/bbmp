@@ -65,7 +65,7 @@ load_config :: () -> Config, bool {
 
     config_text, success := read_entire_file(config_filename);
     if !success {
-        log("Error reading config at %\n", config_filename, flags=.ERROR);
+        log("Error reading config at %", config_filename, flags=.ERROR);
     }
 
     config := Config.{};
