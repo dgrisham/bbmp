@@ -4,19 +4,12 @@
 #import "File";
 #import "File_Utilities";
 #import "Hash_Table";
+#import "POSIX";
 #import "String";
 
 #import "Print_Color";
 
 #import "common";
-
-// TODO
-//  - read XDG_CONFIG_HOME on linux
-//  - figure out windows default
-//  - osx?
-//  - support command line flag w/ expansion
-
-config_filename := "/home/grish/src/jai/jai-mpd/.grishcompooprc";
 
 log_data :: Log_Data.{"config_loader", false};
 
@@ -35,9 +28,7 @@ Config :: struct {
     mpd_host              : string = "localhost";
     mpd_port              : u32    = 6600;
     max_log_size          : u32    = 1000;
-    // album_cover_directory : string;
-    album_cover_directory : string = "~/.cache/grishcompoop/thumbnails";
-    // album_cover_directory : string = "/home/grish/src/jai/jai-mpd/.thumbnails";
+    album_cover_directory : string;
 }
 
 load_config :: () -> Config, bool {
@@ -46,7 +37,22 @@ load_config :: () -> Config, bool {
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
 
+    // default config file to $XDG_CONFIG_HOME/grishcompoop/grishcompooprc if XDG_CONFIG_HOME is set, otherwise ~/.grishcompooprc (and expand the ~ later)
+    config_filename := "~/.grishcompooprc";
+    config_directory_env_var := getenv("XDG_CONFIG_HOME");
+    if config_directory_env_var {
+        config_filename = sprint("%/grishcompoop/grishcompooprc", to_string(config_directory_env_var));
+    }
+
+    success: bool;
+    config_filename, success = expand_path(config_filename);
+    if !success {
+        log("Failed to expand config path '%'", config_filename);
+    }
+
     path := parse_path(config_filename, false);
+
+    config := Config.{};
 
     file_exists, how_much_exists := how_much_of_path_exists_on_the_local_filesystem(path);
     if !file_exists {
@@ -67,33 +73,42 @@ load_config :: () -> Config, bool {
         // TODO: output this in the actual program (not just the console)
         print_color("%/",  partial_string,   color=FOREGROUND_GREEN);
         print_color("%\n", remainder_string, color=FOREGROUND_RED);
-    }
-
-    config_text, success := read_entire_file(config_filename);
-    if !success {
-        log("Error reading config at %", config_filename, flags=.ERROR);
-    }
-
-    config := Config.{};
-    { // parse the config
-        line_number := 1;
-        while true {
-            error := parse_line(*config_text, *config);
-            if error {
-                log("Parse error on line %, column %: %", line_number, error.position, error.message);
-                return config, false;
+     } else {
+        config_text, success := read_entire_file(config_filename);
+        if !success {
+            log("Error reading config at %", config_filename, flags=.ERROR);
+        } else {
+            // parse the config
+            line_number := 1;
+            while true {
+                error := parse_line(*config_text, *config);
+                if error {
+                    log("Parse error on line %, column %: %", line_number, error.position, error.message);
+                    // TODO: we have a memory leak here if string field was allocated in parse_line!
+                    // But we can't just always free the strings, because the default constant strings can't be freed
+                    // Best solution might be to do temp allocations, then copy once we know we've succeeded
+                    config = Config.{};
+                    break;
+                }
+                line_number += 1;
+                if !config_text break;
             }
-            line_number += 1;
-            if !config_text break;
         }
     }
 
-    config.album_cover_directory, success = expand_path(config.album_cover_directory);
+    album_cover_directory := config.album_cover_directory;
+    if album_cover_directory == "" {
+        // default cache directory to XDG_CACHE_HOME if it exists, otherwise ~/.cache (and expand the ~ later)
+        cache_directory_env_var := getenv("XDG_CACHE_HOME");
+        cache_directory := ifx cache_directory_env_var then to_string(cache_directory_env_var) else "~/.cache";
+        album_cover_directory = sprint("%/grishcompoop/covers", cache_directory);
+    }
+    config.album_cover_directory, success = expand_path(album_cover_directory);
     if !success {
         log("Failed to expand album cover directory");
-    } else {
-        log("config.album_cover_directory: %", config.album_cover_directory);
+        free(album_cover_directory);
     }
+
     return config, true;
 }
 

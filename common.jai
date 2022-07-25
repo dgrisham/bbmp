@@ -561,13 +561,11 @@ expand_path :: (path_to_expand: string) -> string, success: bool {
         if path.words[0] == "~" { // e.g. ~/a/b/c
             success: bool;
             home_directory, success = get_home_directory();
-            log("HERE 1");
             if !success return "", false;
         } else if path.words[0][0] == #char "~" { // e.g. ~grish/a/b/c
             username := advance(path.words[0], 1);
             success: bool;
             home_directory = get_home_directory(username);
-            log("HERE 2: %", username);
             if !success return "", false;
         } else {
             return path_to_expand, true;
