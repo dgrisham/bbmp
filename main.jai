@@ -84,7 +84,7 @@ main :: () {
     X_MARGIN_SIZE = window_width / 30;
     Y_MARGIN_SIZE = window_height / 30;
     Y_PADDING_BELOW_HEADER = Y_MARGIN_SIZE;
-    thumbnail_slot_width  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 10);
+    thumbnail_slot_width  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 15);
     thumbnail_slot_height = thumbnail_slot_width;
 
     mpd_connection = MPD.connection_new(temp_c_string(config.mpd_host), config.mpd_port, 15000);
@@ -138,7 +138,7 @@ main :: () {
                     X_MARGIN_SIZE = window_width / 30;
                     Y_MARGIN_SIZE = window_height / 30;
                     ALBUM_ART_DISPLAY_WIDTH = max(MIN_ALBUM_ART_DISPLAY_WIDTH, window_width / 3);
-                    thumbnail_slot_width  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 10);
+                    thumbnail_slot_width  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 15);
                     thumbnail_slot_height = thumbnail_slot_width;
                     init_fonts();
                     break;
@@ -322,9 +322,8 @@ main :: () {
 
 draw_header :: () -> int {
 
+    top := cast(int)window_height - Y_MARGIN_SIZE;
     {
-        top := cast(int)window_height - Y_MARGIN_SIZE; // TODO: move outside of block?
-
         VIEW_TITLES :: string.["Queue", "Library", "Library Album Art", "Config Viewer", "Debug Logs"];
         x := cast(s64)X_MARGIN_SIZE;
         for title: VIEW_TITLES {
@@ -342,13 +341,12 @@ draw_header :: () -> int {
         }
     }
 
-    top := cast(int)window_height - 2 * Y_MARGIN_SIZE;
-
-    header_bottom := top;
+    status_top := top - Y_MARGIN_SIZE;
+    header_bottom := status_top;
 
     { // current / total track time
         x := X_MARGIN_SIZE;
-        y := top - TEXT_PADDING_Y - font.character_height / 2;
+        y := status_top - TEXT_PADDING_Y - font.character_height / 2;
         Simp.draw_text(
             font,
             x,
@@ -366,7 +364,7 @@ draw_header :: () -> int {
 
     if mpd_connection { // currently playing song + artist/album
         x := cast(int)window_width / 2;
-        y := top;
+        y := status_top;
 
         max_characters_in_column := (display_width() / 2) / font.w_width;
         if status.song {
@@ -383,7 +381,7 @@ draw_header :: () -> int {
         header_bottom = min(header_bottom, y - font.character_height);
     } else {
         x := cast(int)window_width / 2;
-        y := top - TEXT_PADDING_Y - font.character_height / 2;
+        y := status_top - TEXT_PADDING_Y - font.character_height / 2;
         msg :: "Not connected to MPD -- please ensure your config is pointing to a valid MPD server and restart.";
         text_width := Simp.prepare_text(font, msg);
         Simp.draw_prepared_text(
@@ -397,7 +395,7 @@ draw_header :: () -> int {
 
     { // volume
         x := display_width() + X_MARGIN_SIZE - font.w_width * 10;
-        y := top - TEXT_PADDING_Y - font.character_height / 2;
+        y := status_top - TEXT_PADDING_Y - font.character_height / 2;
         display_volume := ifx status.volume >= 0 then tprint("%1%%", left_pad(status.volume, #char " ", 3)) else "N/A";
         Simp.draw_text(
             font,
