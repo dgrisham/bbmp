@@ -52,7 +52,7 @@ thumbnail_slot_height : s32 = 200;
 window_width  : s32 = 1920;
 window_height : s32 = 1080;
 
-display_width :: inline () -> int { return window_width  - 2 * X_MARGIN_SIZE; }
+display_width :: inline () -> int { return window_width - 2 * X_MARGIN_SIZE; }
 
 frame: u64 = 0;
 frame_rate: float64;

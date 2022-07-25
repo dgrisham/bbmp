@@ -272,7 +272,7 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [] *Album, li
     return inputting_search_query;
 }
 
-draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32) {
+draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32, horizontal_padding: s32, vertical_padding: s32, x_margin_offset: s32, y_margin_offset: s32, selected_cover_highlight_width: s32) {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -332,17 +332,10 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
         * draw the page *
         ****************/
 
-        footer_height := font.character_height + TEXT_PADDING_Y;
-        y := header_bottom;
-
+        x_left := X_MARGIN_SIZE + x_margin_offset;
+        y := header_bottom - y_margin_offset;
         {
-            TEXT_PADDING_Y :: 5;
-            SELECTED_COVER_HIGHLIGHT_WIDTH :: 8;
-            HORIZONTAL_PADDING := cast(s32) ((total_width  - columns * thumbnail_slot_width) / (columns - 1));
-            EXTRA_PADDING_BETWEEN_ROWS :: 5;
-            VERTICAL_PADDING   := cast(s32) ((total_height - rows * (thumbnail_slot_height + 2 * (font.character_height + TEXT_PADDING_Y + SELECTED_COVER_HIGHLIGHT_WIDTH)) - footer_height) / (rows - 1));
-
-            x := X_MARGIN_SIZE;
+            x := x_left;
 
             row, column := 0;
             for entry: entries_to_draw {
@@ -350,7 +343,7 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
                 { // album name
                     text_width := Simp.prepare_text(font, entry.album_name);
                     text_x := x + thumbnail_slot_width / 2 - text_width / 2;
-                    text_y := y - thumbnail_slot_height - SELECTED_COVER_HIGHLIGHT_WIDTH - (TEXT_PADDING_Y + font.character_height);
+                    text_y := y - thumbnail_slot_height - selected_cover_highlight_width - (TEXT_PADDING_Y + font.character_height);
 
                     if entry.selected {
                         rectangle_width := thumbnail_slot_width;
@@ -364,7 +357,7 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
                 { // artist name
                     text_width := Simp.prepare_text(font, entry.artist_name);
                     text_x := x + thumbnail_slot_width / 2 - text_width / 2;
-                    text_y := y - thumbnail_slot_height - SELECTED_COVER_HIGHLIGHT_WIDTH - 2 * (TEXT_PADDING_Y + font.character_height);
+                    text_y := y - thumbnail_slot_height - selected_cover_highlight_width - 2 * (TEXT_PADDING_Y + font.character_height);
 
                     if entry.selected {
                         rectangle_width := thumbnail_slot_width;
@@ -377,9 +370,9 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
                 }
 
                 if entry.selected {
-                    for i: 0..SELECTED_COVER_HIGHLIGHT_WIDTH {
-                        c := 1.0 - i / cast(float)SELECTED_COVER_HIGHLIGHT_WIDTH;
-                        highlight_width := SELECTED_COVER_HIGHLIGHT_WIDTH - i + 4;
+                    for i: 0..selected_cover_highlight_width {
+                        c := 1.0 - i / cast(float)selected_cover_highlight_width;
+                        highlight_width := selected_cover_highlight_width - i + 4;
                         Simp.set_shader_for_color();
                         Simp.immediate_quad(
                             cast(float)x - highlight_width,
@@ -415,12 +408,12 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
                 if column == columns {
                     row += 1;
                     column = 0;
-                    x = X_MARGIN_SIZE;
-                    y -= thumbnail_slot_height + EXTRA_PADDING_BETWEEN_ROWS + 2 * (font.character_height + TEXT_PADDING_Y + SELECTED_COVER_HIGHLIGHT_WIDTH);
-                    y -= VERTICAL_PADDING;
+                    x = x_left;
+                    y -= thumbnail_slot_height + 2 * (font.character_height + TEXT_PADDING_Y + selected_cover_highlight_width);
+                    y -= vertical_padding;
                 } else {
                     x += thumbnail_slot_width;
-                    x += HORIZONTAL_PADDING;
+                    x += horizontal_padding;
                 }
             }
         }
