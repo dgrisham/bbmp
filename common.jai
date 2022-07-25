@@ -25,6 +25,7 @@ mpd_connection: *MPD.connection;
 Log_Data :: struct {
     module  : string;
 }
+
 log_history: struct {
     entries     : [..] string;
     first_entry : int = 0;

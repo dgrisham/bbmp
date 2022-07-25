@@ -65,11 +65,12 @@ main :: () {
     context.logger      = logger;
     context.logger_data = *log_data;
 
+    reserve_log_history(1000); // default log history in case we need to log config errors
+
     success: bool;
     config, success = load_config();
-    if !success { // @Logging: log this in a way that the user can see it
-        print("Failed to load config\n");
-        exit(1);
+    if !success {
+        log("Failed to load config, using default.");
     }
     reset_temporary_storage();
 

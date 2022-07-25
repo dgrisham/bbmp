@@ -8,6 +8,8 @@
 
 #import "Print_Color";
 
+#import "common";
+
 // TODO
 //  - read XDG_CONFIG_HOME on linux
 //  - figure out windows default
@@ -16,6 +18,8 @@
 
 // config_filename := "./.grishcompooprc";
 config_filename := "/home/grish/src/jai/jai-mpd/.grishcompooprc";
+
+log_data :: Log_Data.{"config_loader"};
 
 #scope_export
 
@@ -27,10 +31,14 @@ Config :: struct {
     mpd_host              : string = "localhost";
     mpd_port              : u32    = 6600;
     max_log_size          : u32    = 1000;
-    album_cover_directory : string = "/home/grish/src/jai/jai-mpd/.thumbnails"; // TODO: set default based on OS
+    album_cover_directory : string;
 }
 
 load_config :: () -> Config, bool {
+
+    original_logger_data := context.logger_data;
+    context.logger_data = *log_data;
+    defer context.logger_data = original_logger_data;
 
     path := parse_path(config_filename, false);
 
@@ -39,18 +47,18 @@ load_config :: () -> Config, bool {
         partial := path;
         partial.words.count = how_much_exists;
         partial_string := path_to_string(partial);
-        print("This much exists: %\n", partial_string);
 
         remainder: Path;
         remainder.trailing_slash = path.trailing_slash;
 
         remainder_words := path.words;
-        remainder_words.data += how_much_exists;
+        remainder_words.data  += how_much_exists;
         remainder_words.count -= how_much_exists;
 
         remainder.words = remainder_words;
         remainder_string := path_to_string(remainder);
 
+        // TODO: output this in the actual program (not just the console)
         print_color("%/",  partial_string,   color=FOREGROUND_GREEN);
         print_color("%\n", remainder_string, color=FOREGROUND_RED);
     }
@@ -66,11 +74,11 @@ load_config :: () -> Config, bool {
         while true {
             error := parse_line(*config_text, *config);
             if error {
-                print("Parse error on line %, column %: %\n", line_number, error.position, error.message);
+                log("Parse error on line %, column %: %", line_number, error.position, error.message);
                 return config, false;
             }
             line_number += 1;
-            if !(config_text)  return config, true;
+            if !config_text return config, true;
         }
     }
 
