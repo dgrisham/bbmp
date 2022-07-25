@@ -239,7 +239,7 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
                 }
 
                 { // value
-                    value_ptr := table_find_pointer(input_config, key);
+                    value_ptr := table_find_pointer(*input_config, key);
                     assert(value_ptr != null);
 
                     max_characters_in_column := display_values.width / font.w_width - 2;

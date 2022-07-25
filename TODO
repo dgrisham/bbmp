@@ -1,6 +1,5 @@
 - [ ] ask about proper way of getting font width (font.em_width vs. my font.w_width hack)
-    -   expected width may stil sometimes be wrong
-- [ ] `<` and `>` might kill the application sometimes??
+    -   expected width may still sometimes be wrong
 - [ ] 'y' for setting single-mode
 
 'memory leak' measurements

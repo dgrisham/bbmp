@@ -68,7 +68,7 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
                 song.uri      = copy_from_c_string(MPD.song_get_uri(mpd_song));
                 song.duration = MPD.song_get_duration(mpd_song);
 
-                artist_ptr := table_find_pointer(library.artists, song.artist);
+                artist_ptr := table_find_pointer(*library.artists, song.artist);
                 if !artist_ptr {
                     artist: Artist;
                     artist.name = song.artist;
@@ -84,7 +84,7 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
                     library.stats.number_of_artists += 1;
                 }
 
-                album_ptr := table_find_pointer(artist_ptr.albums, song.album);
+                album_ptr := table_find_pointer(*artist_ptr.albums, song.album);
                 if !album_ptr {
                     album: Album;
                     album.name        = song.album;
@@ -107,7 +107,7 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
                     { // TODO: album_ptr name is confusing from above
                         index := 0;
                         for artist_ptr.album_names_sorted_by_date {
-                            album_ptr := table_find_pointer(artist_ptr.albums, it);
+                            album_ptr := table_find_pointer(*artist_ptr.albums, it);
                             assert(album_ptr != null);
                             if album.date < album_ptr.date break;
                             index += 1;
@@ -165,11 +165,11 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
           case 0;
             first_song_id_added = add_artist_to_queue(library, library.artist_names_sorted[cursor.positions[0]]);
           case 1;
-            artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            artist := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
             first_song_id_added = add_album_to_queue(library, artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
           case 2;
-            artist := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
-            album  := table_find_pointer(artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
+            artist := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            album  := table_find_pointer(*artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
             first_song_id_added = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[cursor.positions[2]].uri));
         }
         `cursor.positions[cursor.selected] += 1;
@@ -210,7 +210,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                 }
             }
           case 1;
-            artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
             assert(artist_ptr != null);
             for i: 0..(artist_ptr.album_names_sorted_by_date.count - 1) {
                 album_index := (i + cursor.positions[1] + 1) % artist_ptr.album_names_sorted_by_date.count;
@@ -229,9 +229,9 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                 }
             }
           case 2;
-            artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
             assert(artist_ptr != null);
-            album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
+            album_ptr := table_find_pointer(*artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
             assert(album_ptr != null);
             for i: 0..(album_ptr.songs.count - 1) {
                 song_index := (i + cursor.positions[2] + 1) % album_ptr.songs.count;
@@ -273,7 +273,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                 }
             }
           case 1;
-            artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
             assert(artist_ptr != null);
             for < i: (artist_ptr.album_names_sorted_by_date.count - 1)..0 {
                 album_index := (i + cursor.positions[1]) % artist_ptr.album_names_sorted_by_date.count;
@@ -292,9 +292,9 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                 }
             }
           case 2;
-            artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
             assert(artist_ptr != null);
-            album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
+            album_ptr := table_find_pointer(*artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
             assert(album_ptr != null);
             for < i: (album_ptr.songs.count - 1)..0 {
                 song_index := (i + cursor.positions[2]) % album_ptr.songs.count;
@@ -370,7 +370,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                               cursor.positions[2] = 0;
                             case 1;
                               if it.shift_pressed {
-                                  artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+                                  artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
                                   assert(artist_ptr != null);
                                   cursor.positions[1] = max(0, artist_ptr.albums.count - 1);
                               } else {
@@ -379,9 +379,9 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                               cursor.positions[2] = 0;
                             case 2;
                               if it.shift_pressed {
-                                  artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+                                  artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
                                   assert(artist_ptr != null);
-                                  album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
+                                  album_ptr := table_find_pointer(*artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
                                   cursor.positions[2] = max(0, album_ptr.songs.count - 1);
                               } else {
                                   cursor.positions[2] = 0;
@@ -400,7 +400,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                                     if song.uri == uri {
                                         artist_found, artist_index := array_find(library.artist_names_sorted, artist_name);
                                         if !artist_found break artist;
-                                        artist_ptr := table_find_pointer(library.artists, artist_name);
+                                        artist_ptr := table_find_pointer(*library.artists, artist_name);
                                         album_found, album_index := array_find(artist_ptr.album_names_sorted_by_date, album_name);
                                         if !album_found break artist;
                                         cursor.positions[0] = artist_index;
@@ -482,7 +482,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                     }
                 }
               case 1;
-                artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+                artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
                 assert(artist_ptr != null);
                 for album, album_index: artist_ptr.album_names_sorted_by_date {
                     match := true;
@@ -499,9 +499,9 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                     }
                 }
               case 2;
-                artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+                artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
                 assert(artist_ptr != null);
-                album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
+                album_ptr := table_find_pointer(*artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
                 assert(album_ptr != null);
                 for song, song_index: album_ptr.songs {
                     match := true;
@@ -574,7 +574,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
               cursor.positions[0] = max(0, library.artists.count - 1);
           }
         case 1;
-          artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+          artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
           assert(artist_ptr != null);
           if cursor.positions[1] < 0 {
               cursor.positions[1] = 0;
@@ -583,9 +583,9 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
               cursor.positions[1] = max(0, artist_ptr.albums.count - 1);
           }
         case 2;
-          artist_ptr := table_find_pointer(library.artists, library.artist_names_sorted[cursor.positions[0]]);
+          artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
           assert(artist_ptr != null);
-          album_ptr := table_find_pointer(artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
+          album_ptr := table_find_pointer(*artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
           if cursor.positions[2] < 0 {
               cursor.positions[2] = 0;
           } else
@@ -635,7 +635,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             }
 
             selected_album_index := cursor.positions[1];
-            selected_artist      := table_find_pointer(library.artists, library.artist_names_sorted[selected_artist_index]);
+            selected_artist      := table_find_pointer(*library.artists, library.artist_names_sorted[selected_artist_index]);
             if selected_artist.albums.count > 0 {
                 index_start := max(0, min(selected_artist.albums.count - items_in_page, selected_album_index - items_in_page/ 2 + 1));
                 index_end   := min(index_start + items_in_page, selected_artist.albums.count) - 1;
@@ -645,7 +645,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
 
                 for i: index_start..index_end {
                     display_text: Display_Text;
-                    album := table_find_pointer(selected_artist.albums, selected_artist.album_names_sorted_by_date[i]);
+                    album := table_find_pointer(*selected_artist.albums, selected_artist.album_names_sorted_by_date[i]);
                     assert(album != null);
                     display_text.text = create_temp_display_string_of_max_length(tprint("(%) %", to_string(album.date), album.name), max_characters_in_column);
 
@@ -655,7 +655,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             }
 
             selected_song_index := cursor.positions[2];
-            selected_album      := table_find_pointer(selected_artist.albums, selected_artist.album_names_sorted_by_date[selected_album_index]);
+            selected_album      := table_find_pointer(*selected_artist.albums, selected_artist.album_names_sorted_by_date[selected_album_index]);
             if selected_album.songs.count > 0 {
                 index_start := max(0, min(selected_album.songs.count - items_in_page, selected_song_index - items_in_page / 2 + 1));
                 index_end   := min(index_start + items_in_page, selected_album.songs.count) - 1;

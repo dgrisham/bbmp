@@ -271,12 +271,12 @@ MPD_Error :: struct {
 }
 
 Server_Error :: struct {
-    using _error: MPD_Error;
+    using #as _error: MPD_Error;
     type = .SERVER;
 }
 
 Client_Error :: struct {
-    using _error: MPD_Error;
+    using #as _error: MPD_Error;
     type = .CLIENT;
 }
 
@@ -408,10 +408,10 @@ update_status_time :: () {
 
 add_artist_to_queue :: (library: Library_Data, artist_name: string) -> s32 {
     first_id_added: s32;
-    artist := table_find_pointer(library.artists, artist_name);
+    artist := table_find_pointer(*library.artists, artist_name);
     if !artist return -1;
     for album_name, album_index: artist.album_names_sorted_by_date {
-        album := table_find_pointer(artist.albums, album_name);
+        album := table_find_pointer(*artist.albums, album_name);
 
         for song, song_index: album.songs {
             id := MPD.run_add_id(mpd_connection, temp_c_string(song.uri));
@@ -431,9 +431,9 @@ add_album_to_queue :: (library: Library_Data, artist_name: string, album_name: s
     }
 
     first_id_added: s32;
-    artist := table_find_pointer(library.artists, artist_name);
+    artist := table_find_pointer(*library.artists, artist_name);
     if !artist return -1;
-    album := table_find_pointer(artist.albums, album_name);
+    album := table_find_pointer(*artist.albums, album_name);
     if !album return -1;
 
     for song, song_index: album.songs {
