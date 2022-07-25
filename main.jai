@@ -33,8 +33,8 @@ View :: enum {
     QUEUE;
     LIBRARY;
     ALBUM_ART;
-    LOG;
     CONFIG_EDITOR;
+    LOG;
 }
 
 current_view := View.LIBRARY;
@@ -201,10 +201,10 @@ main :: () {
                     current_view = .ALBUM_ART;
                     break it;
                   case .NUMBER_4;
-                    current_view = .LOG;
+                    current_view = .CONFIG_EDITOR;
                     break it;
                   case .NUMBER_5;
-                    current_view = .CONFIG_EDITOR;
+                    current_view = .LOG;
                     break it;
 
                   case KEY_P;
@@ -322,6 +322,26 @@ main :: () {
 
 draw_header :: () -> int {
 
+    {
+        top := cast(int)window_height - Y_MARGIN_SIZE; // TODO: move outside of block?
+
+        VIEW_TITLES :: string.["Queue", "Library", "Library Album Art", "Config Viewer", "Debug Logs"];
+        x := cast(s64)X_MARGIN_SIZE;
+        for title: VIEW_TITLES {
+            y := top;
+            text_width := Simp.prepare_text(font, tprint("(%) %", it_index + 1, title));
+            selected := cast(s64)current_view == it_index;
+            if selected {
+                Simp.set_shader_for_color();
+                Simp.immediate_quad(cast(float)x - 5, cast(float)y - 5, cast(float)x + text_width + 5, cast(float)y + font.character_height, rgba(1,1,1,1));
+                Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+            } else {
+                Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+            }
+            x += text_width + X_PADDING_BETWEEN_VIEW_TITLES;
+        }
+    }
+
     top := cast(int)window_height - 2 * Y_MARGIN_SIZE;
 
     header_bottom := top;
@@ -364,7 +384,7 @@ draw_header :: () -> int {
     } else {
         x := cast(int)window_width / 2;
         y := top - TEXT_PADDING_Y - font.character_height / 2;
-        msg :: "Not connected to MPD";
+        msg :: "Not connected to MPD -- please ensure your config is pointing to a valid MPD server and restart.";
         text_width := Simp.prepare_text(font, msg);
         Simp.draw_prepared_text(
             font,

@@ -35,6 +35,8 @@ input_config: Table(string, string);
 
 inputting_config_value := false;
 
+ENABLE_CONFIG_EDITOR :: false;
+
 #scope_export
 
 // should be called after the user's config is loaded
@@ -90,107 +92,109 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
         }
     }
 
-    if !inputting_config_value {
-        for Input.events_this_frame {
-            if it.type == {
-              case .KEYBOARD;
-                if it.key_pressed {
-                    if it.key_code == {
+    #if ENABLE_CONFIG_EDITOR {
+        if !inputting_config_value {
+            for Input.events_this_frame {
+                if it.type == {
+                  case .KEYBOARD;
+                    if it.key_pressed {
+                        if it.key_code == {
 
-                      case KEY_J;
-                        table_set(*key_pressed_on_frame, .J, frame);
-                        last_key_pressed = .J;
-                        move_cursor_down();
-                        break it;
-                      case KEY_K;
-                        table_set(*key_pressed_on_frame, .K, frame);
-                        last_key_pressed = .K;
-                        move_cursor_up();
-                        break it;
+                          case KEY_J;
+                            table_set(*key_pressed_on_frame, .J, frame);
+                            last_key_pressed = .J;
+                            move_cursor_down();
+                            break it;
+                          case KEY_K;
+                            table_set(*key_pressed_on_frame, .K, frame);
+                            last_key_pressed = .K;
+                            move_cursor_up();
+                            break it;
 
-                      case KEY_D;
-                        if it.ctrl_pressed {
-                            table_set(*key_pressed_on_frame, .CTRL_D, frame);
-                            last_key_pressed = .CTRL_D;
-                            move_cursor_half_page_down();
-                        }
-                        break it;
-                      case KEY_U;
-                        if it.ctrl_pressed {
-                            table_set(*key_pressed_on_frame, .CTRL_U, frame);
-                            last_key_pressed = .CTRL_U;
-                            move_cursor_half_page_up();
-                        }
-                        break it;
+                          case KEY_D;
+                            if it.ctrl_pressed {
+                                table_set(*key_pressed_on_frame, .CTRL_D, frame);
+                                last_key_pressed = .CTRL_D;
+                                move_cursor_half_page_down();
+                            }
+                            break it;
+                          case KEY_U;
+                            if it.ctrl_pressed {
+                                table_set(*key_pressed_on_frame, .CTRL_U, frame);
+                                last_key_pressed = .CTRL_U;
+                                move_cursor_half_page_up();
+                            }
+                            break it;
 
-                      case KEY_G;
-                        if it.shift_pressed {
-                            cursor.position = ORDERED_CONFIG_KEYS.count - 1;
-                        } else {
-                            cursor.position = 0;
-                        }
-                        break it;
+                          case KEY_G;
+                            if it.shift_pressed {
+                                cursor.position = ORDERED_CONFIG_KEYS.count - 1;
+                            } else {
+                                cursor.position = 0;
+                            }
+                            break it;
 
-                      case KEY_I; #through;
-                      case .ENTER;
-                        key := ORDERED_CONFIG_KEYS[cursor.position];
-                        value_ptr := table_find_pointer(*input_config, key);
-                        assert(value_ptr != null);
-                        cursor.text_input_position = value_ptr.count;
-                        inputting_config_value = true;
-                        break it;
-                    }
-                }
-            }
-        }
-
-        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .J)       move_cursor_down();
-        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .K)       move_cursor_up();
-        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D)  move_cursor_half_page_down();
-        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U)  move_cursor_half_page_up();
-    } else {
-        for Input.events_this_frame {
-            if it.type == {
-
-              case .TEXT_INPUT;
-                key := ORDERED_CONFIG_KEYS[cursor.position];
-                value_ptr := table_find_pointer(*input_config, key);
-                assert(value_ptr != null);
-                append_utf32_to_string(value_ptr, it.utf32);
-                cursor.text_input_position += 1;
-                break it;
-
-              case .KEYBOARD;
-                if it.key_pressed {
-                    if it.key_code == {
-
-                      case .BACKSPACE;
-                        last_field_input_key_pressed = .BACKSPACE;
-                        table_set(*field_input_key_pressed_on_frame, .BACKSPACE, frame);
-                        backspace_config_value();
-                        break it;
-
-                      case KEY_U;
-                        if it.ctrl_pressed {
-                            last_field_input_key_pressed = .CTRL_U;
-                            value_ptr := table_find_pointer(*input_config, ORDERED_CONFIG_KEYS[cursor.position]);
+                          case KEY_I; #through;
+                          case .ENTER;
+                            key := ORDERED_CONFIG_KEYS[cursor.position];
+                            value_ptr := table_find_pointer(*input_config, key);
                             assert(value_ptr != null);
-                            value_ptr.count = 0;
-                            cursor.text_input_position = 0;
+                            cursor.text_input_position = value_ptr.count;
+                            inputting_config_value = true;
                             break it;
                         }
-
-                      case .ENTER; #through;
-                      case .ESCAPE;
-                        last_field_input_key_pressed = .ESCAPE;
-                        inputting_config_value = false;
-                        break it;
                     }
                 }
             }
-        }
 
-        if key_held_passed_threshold(field_input_key_pressed_on_frame, last_field_input_key_pressed, frame, .BACKSPACE) { backspace_config_value(); }
+            if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .J)       move_cursor_down();
+            if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .K)       move_cursor_up();
+            if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D)  move_cursor_half_page_down();
+            if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U)  move_cursor_half_page_up();
+        } else {
+            for Input.events_this_frame {
+                if it.type == {
+
+                  case .TEXT_INPUT;
+                    key := ORDERED_CONFIG_KEYS[cursor.position];
+                    value_ptr := table_find_pointer(*input_config, key);
+                    assert(value_ptr != null);
+                    append_utf32_to_string(value_ptr, it.utf32);
+                    cursor.text_input_position += 1;
+                    break it;
+
+                  case .KEYBOARD;
+                    if it.key_pressed {
+                        if it.key_code == {
+
+                          case .BACKSPACE;
+                            last_field_input_key_pressed = .BACKSPACE;
+                            table_set(*field_input_key_pressed_on_frame, .BACKSPACE, frame);
+                            backspace_config_value();
+                            break it;
+
+                          case KEY_U;
+                            if it.ctrl_pressed {
+                                last_field_input_key_pressed = .CTRL_U;
+                                value_ptr := table_find_pointer(*input_config, ORDERED_CONFIG_KEYS[cursor.position]);
+                                assert(value_ptr != null);
+                                value_ptr.count = 0;
+                                cursor.text_input_position = 0;
+                                break it;
+                            }
+
+                          case .ENTER; #through;
+                          case .ESCAPE;
+                            last_field_input_key_pressed = .ESCAPE;
+                            inputting_config_value = false;
+                            break it;
+                        }
+                    }
+                }
+            }
+
+            if key_held_passed_threshold(field_input_key_pressed_on_frame, last_field_input_key_pressed, frame, .BACKSPACE) { backspace_config_value(); }
+        }
     }
 
     if cursor.position < 0 {
@@ -263,18 +267,22 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
 
                 x := x_center + 3 * font.w_width;
                 value := display_values.entries[it_index];
-                if value.selected {
-                    if inputting_config_value {
-                        value_width := Simp.prepare_text(font, value.text);
-                        Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+                #if ENABLE_CONFIG_EDITOR {
+                    if value.selected {
+                        if inputting_config_value {
+                            value_width := Simp.prepare_text(font, value.text);
+                            Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
 
-                        Simp.set_shader_for_color();
-                        x_cursor_start := cast(float)x + value_width;
-                        Simp.immediate_quad(x_cursor_start, cast(float)y - 5, x_cursor_start + font.w_width, cast(float)y + font.character_height, rgba(1,1,1,1));
+                            Simp.set_shader_for_color();
+                            x_cursor_start := cast(float)x + value_width;
+                            Simp.immediate_quad(x_cursor_start, cast(float)y - 5, x_cursor_start + font.w_width, cast(float)y + font.character_height, rgba(1,1,1,1));
+                        } else {
+                            Simp.set_shader_for_color();
+                            Simp.immediate_quad(cast(float)x - 3, cast(float)y - 5, cast(float)x + display_values.width, cast(float)y + font.character_height, rgba(1,1,1,1));
+                            Simp.draw_text(font, x, y, value.text, rgba(0,0,0,1));
+                        }
                     } else {
-                        Simp.set_shader_for_color();
-                        Simp.immediate_quad(cast(float)x - 3, cast(float)y - 5, cast(float)x + display_values.width, cast(float)y + font.character_height, rgba(1,1,1,1));
-                        Simp.draw_text(font, x, y, value.text, rgba(0,0,0,1));
+                        Simp.draw_text(font, x, y, value.text, rgba(1,1,1,1));
                     }
                 } else {
                     Simp.draw_text(font, x, y, value.text, rgba(1,1,1,1));
