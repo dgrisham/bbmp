@@ -154,8 +154,10 @@ main :: () {
             update_status_time();
         }
         SEEK_SECONDS :: 0.5;
-        seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) + 5 * seconds); }
-        seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) - 5 * seconds); }
+        seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(+2 * seconds); }
+        seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(-2 * seconds); } // TODO: this is too slow on some machines
+        // seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) + 5 * seconds); }
+        // seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) - 5 * seconds); }
 
         play_previous_song :: () #expand {
             last_global_key_pressed = .LEFT_ANGLE_BRACKET;
