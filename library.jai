@@ -30,7 +30,7 @@ cursor: struct {
     selected  := 0;
 };
 
-log_data :: Log_Data.{"queue"};
+log_data :: Log_Data.{"library", false};
 
 #scope_export
 

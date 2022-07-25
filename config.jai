@@ -16,16 +16,20 @@
 //  - osx?
 //  - support command line flag w/ expansion
 
-// config_filename := "./.grishcompooprc";
 config_filename := "/home/grish/src/jai/jai-mpd/.grishcompooprc";
 
-log_data :: Log_Data.{"config_loader"};
+log_data :: Log_Data.{"config_loader", false};
 
 #scope_export
 
+// example config file:
+//
+// ```
 // mpd_host = localhost
 // mpd_port = 6600
+// max_log_size = 10000
 // album_cover_directory = "/home/grish/src/jai/jai-mpd/.thumbnails"
+// ```
 
 Config :: struct {
     mpd_host              : string = "localhost";

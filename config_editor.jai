@@ -22,7 +22,7 @@ cursor: struct {
     text_input_position := 0;
 };
 
-log_data :: Log_Data.{"config_editor"};
+log_data :: Log_Data.{"config_editor", false};
 
 ORDERED_CONFIG_KEYS :: string.[
     "mpd_host",

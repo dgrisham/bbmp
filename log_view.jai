@@ -25,7 +25,7 @@ cursor: struct {
 
 follow_log := true;
 
-log_data :: Log_Data.{"log_view"};
+log_data :: Log_Data.{"log_view", false};
 
 #scope_export
 

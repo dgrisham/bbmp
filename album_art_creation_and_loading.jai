@@ -32,9 +32,16 @@ Album_Art_Job_Info :: struct {
 
 REMAINING_ALBUM_ART_JOBS := 0;
 
+log_data :: Log_Data.{"album_art_thread", true};
+
 #scope_module
 
 start_album_art_creation_thread_group :: (albums: [] *Album) {
+
+    original_logger_data := context.logger_data;
+    context.logger_data = *log_data;
+    defer context.logger_data = original_logger_data;
+
     init_thread_group :: (num_jobs: s32) {
         num_cpus := get_number_of_processors();
         #if (OS == .WINDOWS) || (OS == .LINUX) {
@@ -54,8 +61,9 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
 
     thread_proc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
 
-        context.logger = logger;
-        context.logger_data = *Log_Data.{"album_art_thread"};
+        original_logger_data := context.logger_data;
+        context.logger_data = *log_data;
+        defer context.logger_data = original_logger_data;
 
         job_info := cast(*Album_Art_Job_Info) work;
 
@@ -179,6 +187,11 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
 }
 
 check_album_art_creation_jobs :: () {
+
+    original_logger_data := context.logger_data;
+    context.logger_data = *log_data;
+    defer context.logger_data = original_logger_data;
+
     if REMAINING_ALBUM_ART_JOBS > 0 {
         results := get_completed_work(*album_art_creation_thread_group);
         if results.count > 0 {

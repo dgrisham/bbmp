@@ -21,7 +21,7 @@ search_query: Search_Query;
 
 inputting_search_query := false;
 
-log_data :: Log_Data.{"album_art/album"};
+log_data :: Log_Data.{"album_art/library", false};
 
 #scope_module
 

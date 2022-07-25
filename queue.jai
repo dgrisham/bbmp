@@ -26,7 +26,7 @@ cursor: struct {
     position := 0;
 };
 
-log_data :: Log_Data.{"queue"};
+log_data :: Log_Data.{"queue", false};
 
 #scope_export
 

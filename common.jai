@@ -23,7 +23,8 @@ mpd_connection: *MPD.connection;
 *********/
 
 Log_Data :: struct {
-    module  : string;
+    module: string;
+    disable_logging := false;
 }
 
 log_history: struct {
@@ -40,6 +41,7 @@ reserve_log_history :: (count: u32) {
 OUTPUT_DEBUG_LOGS_TO_CONSOLE :: true;
 logger :: (message: string, data: *void, info: Log_Info) {
     log_data := cast(*Log_Data) data;
+    if log_data.disable_logging return;
     entry := sprint("[%] %", log_data.module, message);
     if log_history.entries.count == log_history.max_entries {
         old_first_entry := log_history.entries[log_history.first_entry];
@@ -543,7 +545,7 @@ key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pr
     else #assert(false);
 
     if !(Input.input_button_states[key_code] & .DOWN) return false;
-    return frame > <<table_find_pointer(key_pressed_on_frame, key) + threshold;
+    return frame > <<table_find_pointer(*key_pressed_on_frame, key) + threshold;
 }
 
 /**********

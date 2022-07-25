@@ -28,7 +28,7 @@ move_cursor_to_next_album :: () #expand { move_cursor_by_n_albums(`albums.count,
 
 #scope_file
 
-log_data :: Log_Data.{"album_art/main"};
+log_data :: Log_Data.{"album_art/main", false};
 
 #scope_export
 
