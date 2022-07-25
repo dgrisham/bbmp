@@ -1,9 +1,12 @@
 #scope_file
 
 #import "Basic";
+#import "File_Utilities";
 #import "Hash_Table";
-#import "Unicode";
+#import "POSIX";
+#import "System";
 #import "Thread";
+#import "Unicode";
 
 #import "queue";
 #import "config";
@@ -65,8 +68,6 @@ logger :: (message: string, data: *void, info: Log_Info) {
 /************
 * constants *
 ************/
-
-// THUMBNAIL_DIRECTORY :: "/home/grish/src/jai/jai-mpd/.thumbnails";
 
 THUMBNAIL_WIDTH       :: 200;
 LARGE_ALBUM_ART_WIDTH :: 800;
@@ -546,6 +547,45 @@ key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pr
 
     if !(Input.input_button_states[key_code] & .DOWN) return false;
     return frame > <<table_find_pointer(*key_pressed_on_frame, key) + threshold;
+}
+
+/*******
+* path *
+*******/
+
+expand_path :: (path_to_expand: string) -> string, success: bool {
+    path := parse_path(path_to_expand);  // This does cleanup.
+
+    if path.words && path.words[0] {
+        home_directory: string = ---;
+        if path.words[0] == "~" { // e.g. ~/a/b/c
+            success: bool;
+            home_directory, success = get_home_directory();
+            log("HERE 1");
+            if !success return "", false;
+        } else if path.words[0][0] == #char "~" { // e.g. ~grish/a/b/c
+            username := advance(path.words[0], 1);
+            success: bool;
+            home_directory = get_home_directory(username);
+            log("HERE 2: %", username);
+            if !success return "", false;
+        } else {
+            return path_to_expand, true;
+        }
+
+        home_path := parse_path(home_directory);
+        new_words: [..] string;
+        array_add(*new_words, ..home_path.words);
+        for 1..path.words.count-1  array_add(*new_words, path.words[it]);
+
+        home_path.trailing_slash = path.trailing_slash;
+        home_path.words          = new_words;
+
+        return path_to_string(home_path), true;
+    } else {
+        // If no ~ in the first slot, we don't need to substitute. Just return the input.
+        return path_to_expand, true;
+    }
 }
 
 /**********

@@ -35,7 +35,9 @@ Config :: struct {
     mpd_host              : string = "localhost";
     mpd_port              : u32    = 6600;
     max_log_size          : u32    = 1000;
-    album_cover_directory : string;
+    // album_cover_directory : string;
+    album_cover_directory : string = "~/.cache/grishcompoop/thumbnails";
+    // album_cover_directory : string = "/home/grish/src/jai/jai-mpd/.thumbnails";
 }
 
 load_config :: () -> Config, bool {
@@ -82,10 +84,16 @@ load_config :: () -> Config, bool {
                 return config, false;
             }
             line_number += 1;
-            if !config_text return config, true;
+            if !config_text break;
         }
     }
 
+    config.album_cover_directory, success = expand_path(config.album_cover_directory);
+    if !success {
+        log("Failed to expand album cover directory");
+    } else {
+        log("config.album_cover_directory: %", config.album_cover_directory);
+    }
     return config, true;
 }
 
