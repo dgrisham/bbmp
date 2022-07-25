@@ -83,7 +83,7 @@ main :: () {
 
     Simp.set_render_target(window);
     X_MARGIN_SIZE = window_width / 30;
-    Y_MARGIN_SIZE = window_height / 30;
+    Y_MARGIN_SIZE = window_height / 25;
     Y_PADDING_BELOW_HEADER = Y_MARGIN_SIZE * 2;
     thumbnail_slot_width  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 15);
     thumbnail_slot_height = thumbnail_slot_width;
@@ -137,7 +137,7 @@ main :: () {
                     window_width  = it.width;
                     window_height = it.height;
                     X_MARGIN_SIZE = window_width / 30;
-                    Y_MARGIN_SIZE = window_height / 30;
+                    Y_MARGIN_SIZE = window_height / 25;
                     ALBUM_ART_DISPLAY_WIDTH = max(MIN_ALBUM_ART_DISPLAY_WIDTH, window_width / 3);
                     thumbnail_slot_width  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 15);
                     thumbnail_slot_height = thumbnail_slot_width;
