@@ -137,6 +137,9 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
         if log_entry.flags & .VERBOSE_ONLY && config.log_level < .VERBOSE {
             continue;
         }
+        if log_entry.flags & .VERY_VERBOSE_ONLY && config.log_level < .VERY_VERBOSE {
+            continue;
+        }
 
         color := rgba(1,1,1,1); // default to white
         if log_entry.flags & .ERROR { // errors in red
