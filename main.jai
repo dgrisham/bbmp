@@ -1,4 +1,4 @@
-APPLICATION_NAME :: "grishcompoop";
+APPLICATION_NAME :: "bbmp";
 #run (#import "Compiler").set_build_options_dc(.{output_executable_name = APPLICATION_NAME});
 
 #scope_file

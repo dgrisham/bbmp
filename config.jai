@@ -43,11 +43,11 @@ load_config :: () -> Config, bool {
 
     config_file_loaded := false;
 
-    // default config file to $XDG_CONFIG_HOME/grishcompoop/grishcompooprc if XDG_CONFIG_HOME is set, otherwise ~/.grishcompooprc (and expand the ~ later)
-    config_filename := "~/.grishcompooprc";
+    // default config file to $XDG_CONFIG_HOME/bbmp/bbmprc if XDG_CONFIG_HOME is set, otherwise ~/.bbmprc (and expand the ~ later)
+    config_filename := "~/.bbmprc";
     config_directory_env_var := getenv("XDG_CONFIG_HOME");
     if config_directory_env_var {
-        config_filename = sprint("%/grishcompoop/grishcompooprc", to_string(config_directory_env_var));
+        config_filename = sprint("%/bbmp/bbmprc", to_string(config_directory_env_var));
     }
 
     success: bool;
@@ -115,7 +115,7 @@ load_config :: () -> Config, bool {
         // default cache directory to XDG_CACHE_HOME if it exists, otherwise ~/.cache (and expand the ~ later)
         cache_directory_env_var := getenv("XDG_CACHE_HOME");
         cache_directory := ifx cache_directory_env_var then to_string(cache_directory_env_var) else "~/.cache";
-        album_cover_directory = sprint("%/grishcompoop/covers", cache_directory);
+        album_cover_directory = sprint("%/bbmp/covers", cache_directory);
     }
     config.album_cover_directory, success = expand_path(album_cover_directory);
     if !success {
