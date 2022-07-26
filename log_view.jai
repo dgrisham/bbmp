@@ -134,6 +134,9 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
     y := header_bottom;
     for i: index_start..index_end {
         log_entry := log_history.entries[(log_history.first_entry + i) % log_history.entries.count];
+        if log_entry.flags & .VERBOSE_ONLY && config.log_level < .VERBOSE {
+            continue;
+        }
 
         color := rgba(1,1,1,1); // default to white
         if log_entry.flags & .ERROR { // errors in red

@@ -28,7 +28,9 @@ ORDERED_CONFIG_KEYS :: string.[
     "mpd_host",
     "mpd_port",
     "max_log_size",
+    "log_level",
     "album_cover_directory",
+    "mpd_library_directory",
 ];
 
 input_config: Table(string, string);
@@ -44,8 +46,10 @@ load :: () {
     // initialize input text boxes to the originally loaded config
     table_set(*input_config, "mpd_host",              copy_string(config.mpd_host));
     table_set(*input_config, "mpd_port",              sprint("%", config.mpd_port));
+    table_set(*input_config, "log_level",             sprint("%", config.log_level));
     table_set(*input_config, "max_log_size",          sprint("%", config.max_log_size));
     table_set(*input_config, "album_cover_directory", copy_string(config.album_cover_directory));
+    table_set(*input_config, "mpd_library_directory", copy_string(config.mpd_library_directory));
 }
 
 event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_bottom: int) -> bool {

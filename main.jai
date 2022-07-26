@@ -316,7 +316,7 @@ main :: () {
         frame_end := current_time();
         frame_rate = calculate_frame_rate(frame_start, current_time());
         if !(frame % TARGET_FPS) {
-            log("frame rate: % fps (% ms / frame)", frame_rate, 1000.0 / frame_rate);
+            log("frame rate: % fps (% ms / frame)", frame_rate, 1000.0 / frame_rate, flags=.VERBOSE_ONLY);
         }
     }
 
