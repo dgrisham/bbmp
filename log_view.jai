@@ -51,13 +51,28 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
 
     items_in_page := (header_bottom - Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
-    if !inputting_search_query {
+    if follow_log {
         for Input.events_this_frame {
             if it.type == {
               case .KEYBOARD;
                 if it.key_pressed {
                     if it.key_code == {
-
+                      case KEY_F;
+                        if it.shift_pressed {
+                            follow_log = false;
+                            cursor.position = log_history.entries.count - items_in_page / 2 + 1;
+                        }
+                        break it;
+                    }
+                }
+            }
+        }
+    } else {
+        for Input.events_this_frame {
+            if it.type == {
+              case .KEYBOARD;
+                if it.key_pressed {
+                    if it.key_code == {
                       case KEY_J;
                         table_set(*key_pressed_on_frame, .J, frame);
                         last_key_pressed = .J;
@@ -94,11 +109,11 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
 
                       case KEY_F;
                         if it.shift_pressed {
-                            follow_log = !follow_log;
-                            if !follow_log {
-                                cursor.position = log_history.entries.count - items_in_page / 2 + 1;
-                            }
+                            follow_log = true;
                         }
+                        break it;
+                      case .ESCAPE;
+                        follow_log = true;
                         break it;
                     }
                 }
