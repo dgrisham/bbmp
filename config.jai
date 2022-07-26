@@ -75,6 +75,8 @@ load_config :: () -> Config, bool {
         // TODO: output this in the actual program (not just the console)
         print_color("%/",  partial_string,   color=FOREGROUND_GREEN);
         print_color("%\n", remainder_string, color=FOREGROUND_RED);
+
+        log("Config file does not exist at '%'", config_filename, flags=.WARNING);
      } else {
         config_text, success := read_entire_file(config_filename);
         if !success {
