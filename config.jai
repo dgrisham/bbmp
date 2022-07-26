@@ -21,13 +21,15 @@ log_data :: Log_Data.{"config_loader", false};
 // mpd_host = localhost
 // mpd_port = 6600
 // max_log_size = 10000
-// album_cover_directory = "/home/grish/src/jai/jai-mpd/.thumbnails"
+// mpd_library_directory = ~/media/music/library
+// album_cover_directory = /home/grish/src/jai/jai-mpd/.thumbnails
 // ```
 
 Config :: struct {
     mpd_host              : string = "localhost";
     mpd_port              : u32    = 6600;
     max_log_size          : u32    = 1000;
+    mpd_library_directory : string;
     album_cover_directory : string;
 }
 
@@ -119,6 +121,13 @@ load_config :: () -> Config, bool {
         free(album_cover_directory);
     }
 
+    mpd_library_directory := config.mpd_library_directory;
+    config.mpd_library_directory, success = expand_path(mpd_library_directory);
+    if !success {
+        log("Failed to expand MPD library directory '%'", mpd_library_directory, flags=.ERROR);
+        free(mpd_library_directory);
+    }
+
     return config, config_file_loaded;
 }
 
@@ -165,6 +174,7 @@ parse_line :: (text: *string, config: *Config) -> *Error {
         MPD_HOST;
         MPD_PORT;
         MAX_LOG_SIZE;
+        MPD_LIBRARY_DIRECTORY;
         ALBUM_COVER_DIRECTORY;
     } = ---;
 
@@ -176,6 +186,8 @@ parse_line :: (text: *string, config: *Config) -> *Error {
         config_key = .MPD_PORT;
       case "max_log_size";
         config_key = .MAX_LOG_SIZE;
+      case "mpd_library_directory";
+        config_key = .MPD_LIBRARY_DIRECTORY;
       case "album_cover_directory";
         config_key = .ALBUM_COVER_DIRECTORY;
       case;
@@ -250,6 +262,15 @@ parse_line :: (text: *string, config: *Config) -> *Error {
             advance(text, 1);
         }
         config.album_cover_directory = builder_to_string(*builder);
+
+      case .MPD_LIBRARY_DIRECTORY;
+        reset(*builder);
+        while s := <<text {
+            if is_space(s[0]) break;
+            append(*builder, s[0]);
+            advance(text, 1);
+        }
+        config.mpd_library_directory = builder_to_string(*builder);
     }
 
     while s := <<text { // eat spaces

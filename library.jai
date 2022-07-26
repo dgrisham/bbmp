@@ -93,9 +93,7 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
                     album.directory   = path_strip_filename(song.uri);
 
                     for cover_name: string.["cover.jpg", "cover.png"] {
-                        // TODO: get library path from mpd and pass into this thread UPDATE: unless libmpdclient doesn't provide that??
-                        MPD_LIBRARY_DIRECTORY :: "/home/grish/media/music/library";
-                        path := tprint("%/%2%3", MPD_LIBRARY_DIRECTORY, album.directory, cover_name);
+                        path := tprint("%/%2%3", config.mpd_library_directory, album.directory, cover_name);
                         if file_exists(path) {
                             album.cover_path = copy_string(path);
                             break;
