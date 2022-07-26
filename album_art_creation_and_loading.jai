@@ -32,7 +32,7 @@ Album_Art_Job_Info :: struct {
 
 REMAINING_ALBUM_ART_JOBS := 0;
 
-log_data :: Log_Data.{"album_art_thread", true};
+log_data :: Log_Data.{"album_art_thread", false};
 
 #scope_module
 
@@ -41,6 +41,11 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
+
+    if !directory_exists(config.album_cover_directory) {
+        log("Album cover directory doesn't exist at '%', skipping album art + thumbnail creation", config.album_cover_directory, flags=.ERROR);
+        return;
+    }
 
     init_thread_group :: (num_jobs: s32) {
         num_cpus := get_number_of_processors();

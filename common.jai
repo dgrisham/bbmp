@@ -596,6 +596,26 @@ expand_path :: (path_to_expand: string) -> string, success: bool {
     }
 }
 
+directory_exists :: (path: string) -> bool {
+    #if OS == .WINDOWS {
+        attrib := GetFileAttributesW(utf8_to_wide(path));
+        if attrib != INVALID_FILE_ATTRIBUTES {
+            if attrib & FILE_ATTRIBUTE_DIRECTORY {
+                return true;
+            }
+        }
+    } else {
+        fs: stat_t;
+        result := stat(temp_c_string(path), *fs);
+        if result == 0 { // stat succeded
+            if S_ISDIR(fs.st_mode) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 /**********
 * strings *
 **********/
