@@ -70,7 +70,7 @@ main :: () {
     success: bool;
     config, success = load_config();
     if !success {
-        log("Failed to load config, using default.", flags=.ERROR);
+        log("Failed to load config, using default.", flags=.WARNING);
     }
     reset_temporary_storage();
 

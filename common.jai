@@ -31,9 +31,14 @@ Log_Data :: struct {
 }
 
 log_history: struct {
-    entries     : [..] string;
+    entries     : [..] Log_Entry;
     first_entry : int = 0;
     max_entries : u32 = 1000;
+}
+
+Log_Entry :: struct {
+    message: string;
+    flags:   Log_Flags;
 }
 
 reserve_log_history :: (count: u32) {
@@ -45,11 +50,15 @@ OUTPUT_DEBUG_LOGS_TO_CONSOLE :: true;
 logger :: (message: string, data: *void, info: Log_Info) {
     log_data := cast(*Log_Data) data;
     if log_data.disable_logging return;
-    entry := sprint("[%] %", log_data.module, message);
+
+    entry: Log_Entry;
+    entry.message = sprint("[%] %", log_data.module, message);
+    entry.flags = info.common_flags;
+
     if log_history.entries.count == log_history.max_entries {
         old_first_entry := log_history.entries[log_history.first_entry];
         log_history.entries[log_history.first_entry] = entry;
-        free(old_first_entry);
+        free(old_first_entry.message);
         log_history.first_entry += 1;
         if log_history.first_entry == log_history.entries.count {
             log_history.first_entry = 0;
@@ -58,8 +67,9 @@ logger :: (message: string, data: *void, info: Log_Info) {
         array_add(*log_history.entries, entry);
     }
     #if OUTPUT_DEBUG_LOGS_TO_CONSOLE {
-        write_string(entry);
-        if entry.count > 0 && entry[entry.count - 1] != #char "\n" {
+        message := entry.message;
+        write_string(message);
+        if message.count > 0 && message[message.count - 1] != #char "\n" {
             write_string("\n");
         }
     }

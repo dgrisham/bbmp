@@ -133,12 +133,20 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
     x := X_MARGIN_SIZE;
     y := header_bottom;
     for i: index_start..index_end {
+        log_entry := log_history.entries[(log_history.first_entry + i) % log_history.entries.count];
+
+        color := rgba(1,1,1,1); // default to white
+        if log_entry.flags & .ERROR { // errors in red
+            color = rgba(1,0,0,1);
+        } else if log_entry.flags & .WARNING { // warnings in yellow
+            color = rgba(1,0.9,0,1);
+        }
         if !follow_log && i == cursor.position {
             Simp.set_shader_for_color();
-            Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + cast(s32)display_width, cast(float)y + font.character_height, rgba(1,1,1,1));
-            Simp.draw_text(font, x, y, log_history.entries[(log_history.first_entry + i) % log_history.entries.count], rgba(0,0,0,1));
+            Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + cast(s32)display_width, cast(float)y + font.character_height, color);
+            Simp.draw_text(font, x, y, log_entry.message, rgba(0,0,0,1));
         } else {
-            Simp.draw_text(font, x, y, log_history.entries[(log_history.first_entry + i) % log_history.entries.count], rgba(1,1,1,1));
+            Simp.draw_text(font, x, y, log_entry.message, color);
         }
 
         y -= TEXT_PADDING_Y + font.character_height;

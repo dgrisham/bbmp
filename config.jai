@@ -37,6 +37,8 @@ load_config :: () -> Config, bool {
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
 
+    config_file_loaded := false;
+
     // default config file to $XDG_CONFIG_HOME/grishcompoop/grishcompooprc if XDG_CONFIG_HOME is set, otherwise ~/.grishcompooprc (and expand the ~ later)
     config_filename := "~/.grishcompooprc";
     config_directory_env_var := getenv("XDG_CONFIG_HOME");
@@ -47,7 +49,7 @@ load_config :: () -> Config, bool {
     success: bool;
     config_filename, success = expand_path(config_filename);
     if !success {
-        log("Failed to expand config path '%'", config_filename);
+        log("Failed to expand config path '%'", config_filename, flags=.ERROR);
     }
 
     path := parse_path(config_filename, false);
@@ -83,7 +85,7 @@ load_config :: () -> Config, bool {
             while true {
                 error := parse_line(*config_text, *config);
                 if error {
-                    log("Parse error on line %, column %: %", line_number, error.position, error.message);
+                    log("Parse error on line %, column %: %", line_number, error.position, error.message, flags=.ERROR);
                     // TODO: we have a memory leak here if string field was allocated in parse_line!
                     // But we can't just always free the strings, because the default constant strings can't be freed
                     // Best solution might be to do temp allocations, then copy once we know we've succeeded
@@ -91,7 +93,10 @@ load_config :: () -> Config, bool {
                     break;
                 }
                 line_number += 1;
-                if !config_text break;
+                if !config_text {
+                    config_file_loaded = true;
+                    break;
+                }
             }
         }
     }
@@ -105,11 +110,11 @@ load_config :: () -> Config, bool {
     }
     config.album_cover_directory, success = expand_path(album_cover_directory);
     if !success {
-        log("Failed to expand album cover directory");
+        log("Failed to expand album cover directory '%'", album_cover_directory, flags=.ERROR);
         free(album_cover_directory);
     }
 
-    return config, true;
+    return config, config_file_loaded;
 }
 
 #scope_file
