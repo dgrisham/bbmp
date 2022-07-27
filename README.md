@@ -6,7 +6,7 @@ Minimal, responsive, aesthetically pleasing frontend for MPD. Written in Jai, in
 Configuration
 -------------
 
-If you have `$XDG_CONFIG_HOME` defined, then save your config to `$XDG_CONFIG_HOME/bbmp/bbmprc`.
+If you have `XDG_CONFIG_HOME` defined, then save your config to `$XDG_CONFIG_HOME/bbmp/bbmprc`.
 Otherwise, save it to`$HOME/.bbmprc`.
 
 Example config:
