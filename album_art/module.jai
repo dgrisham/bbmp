@@ -78,11 +78,11 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Libr
 
     MAX_HORIZONTAL_PADDING_FACTOR : s32 : 10;
     columns := (total_width + thumbnail_slot_width / MAX_HORIZONTAL_PADDING_FACTOR) / (thumbnail_slot_width + thumbnail_slot_width / MAX_HORIZONTAL_PADDING_FACTOR);
-    horizontal_padding := cast(s32) ((total_width - columns * thumbnail_slot_width) / (columns - 1));
+    horizontal_padding := ifx columns == 1 then 0 else cast(s32) ((total_width - columns * thumbnail_slot_width) / (columns - 1));
     {
         min_horizontal_padding := thumbnail_slot_width / MAX_HORIZONTAL_PADDING_FACTOR;
-        if horizontal_padding < min_horizontal_padding { // padding between columns is too small, remove a column
-            columns = ifx columns == 1 then 1 else columns - 1;
+        if horizontal_padding < min_horizontal_padding && columns > 1 { // padding between columns is too small, remove a column
+            columns -= 1;
             horizontal_padding = cast(s32) ((total_width - columns * thumbnail_slot_width) / (columns - 1));
         }
     }
@@ -104,11 +104,11 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Libr
 
     MAX_VERTICAL_PADDING_FACTOR : s32 : 10;
     rows := (total_height - footer_height + thumbnail_slot_height / MAX_VERTICAL_PADDING_FACTOR) / (total_album_entry_height + thumbnail_slot_height / MAX_VERTICAL_PADDING_FACTOR);
-    vertical_padding := cast(s32) ((total_height - rows * total_album_entry_height - footer_height) / (rows - 1));
+    vertical_padding := ifx rows == 1 then 0 else cast(s32) ((total_height - rows * total_album_entry_height - footer_height) / (rows - 1));
     {
         min_vertical_padding := thumbnail_slot_height / MAX_VERTICAL_PADDING_FACTOR;
-        if vertical_padding < min_vertical_padding { // padding between rows is too small, remove a row
-            rows = ifx rows == 1 then 1 else rows - 1;
+        if vertical_padding < min_vertical_padding && rows > 1 { // padding between rows is too small, remove a row
+            rows -= 1;
             vertical_padding = cast(s32) ((total_height - rows * total_album_entry_height - footer_height) / (rows - 1));
         }
     }
