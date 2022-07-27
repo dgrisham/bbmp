@@ -43,13 +43,13 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
     }
 
     move_cursor_half_page_down :: () #expand {
-        `cursor.position += items_in_page / 2;
+        `cursor.position += max_items_in_page / 2;
     }
     move_cursor_half_page_up :: () #expand {
-        `cursor.position -= items_in_page / 2;
+        `cursor.position -= max_items_in_page / 2;
     }
 
-    items_in_page := (header_bottom - Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
+    max_items_in_page := (header_bottom - Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 
     if follow_log {
         for Input.events_this_frame {
@@ -60,7 +60,7 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
                       case KEY_F;
                         if it.shift_pressed {
                             follow_log = false;
-                            cursor.position = log_history.entries.count - items_in_page / 2 + 1;
+                            cursor.position = log_history.entries.count - max_items_in_page / 2 + 1;
                         }
                         break it;
                     }
@@ -136,19 +136,22 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
     * draw *
     *******/
 
-    index_start, index_end: int;
+    index_start, max_entries_to_show: int;
     if follow_log {
-        index_start = max(0, log_history.entries.count-items_in_page-1);
-        index_end   = log_history.entries.count-1;
+        index_start = max(0, log_history.entries.count-1 - max_items_in_page);
     } else {
-        index_start = max(0, min(log_history.entries.count - items_in_page, cursor.position - items_in_page / 2 + 1));
-        index_end   = min(index_start + items_in_page, log_history.entries.count) - 1;
+        index_start = max(0, min(log_history.entries.count-1 - max_items_in_page, cursor.position - max_items_in_page / 2));
     }
+    max_entries_to_show = min(max_items_in_page, log_history.entries.count);
 
     x := X_MARGIN_SIZE;
     y := header_bottom;
-    for i: index_start..index_end {
-        log_entry := log_history.entries[(log_history.first_entry + i) % log_history.entries.count];
+
+    i := 0; // keep track of the next log index to check
+    entries_shown := 0; // keep track of the number of entries we've shown, since we might skip some based on verbosity
+    while entries_shown <= max_entries_to_show && i < log_history.entries.count {
+        log_entry := log_history.entries[(log_history.first_entry + index_start + i) % log_history.entries.count];
+        i += 1;
         if log_entry.flags & .VERBOSE_ONLY && config.log_level < .VERBOSE {
             continue;
         }
@@ -162,7 +165,7 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
         } else if log_entry.flags & .WARNING { // warnings in yellow
             color = rgba(1,0.9,0,1);
         }
-        if !follow_log && i == cursor.position {
+        if !follow_log && (index_start + entries_shown) == cursor.position {
             Simp.set_shader_for_color();
             Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + cast(s32)display_width, cast(float)y + font.character_height, color);
             Simp.draw_text(font, x, y, log_entry.message, rgba(0,0,0,1));
@@ -171,5 +174,6 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
         }
 
         y -= TEXT_PADDING_Y + font.character_height;
+        entries_shown += 1;
     }
 }
