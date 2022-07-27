@@ -6,31 +6,42 @@ Minimal, responsive, aesthetically pleasing frontend for MPD. Written in Jai, in
 Configuration
 -------------
 
-If you have `$XDG_CONFIG_HOME` defined, then put your config in `$XDG_CONFIG_HOME/bbmp/bbmprc`.
-Otherwise, put it in `$HOME/.bbmprc`.
+If you have `$XDG_CONFIG_HOME` defined, then save your config to `$XDG_CONFIG_HOME/bbmp/bbmprc`.
+Otherwise, save it to`$HOME/.bbmprc`.
 
 Example config:
 
 ```
-mpd_host = localhost
-mpd_port = 6600
-max_log_size = 1000
-album_cover_directory = ~/.cache/bbmp/covers
+mpd_host              = localhost
+mpd_port              = 6600
+max_log_size          = 1000
+log_level             = normal
 mpd_library_directory = ~/media/music/library
-log_level = normal
+album_cover_directory = ~/.cache/bbmp/covers
 ```
 
-Make sure `mpd_library_directory` is set to the same folder that MPD loads your library from.
+Description of these values:
+
+-   `mpd_host`: The URI of the MPD host to connect to. Defaults to `localhost`.
+-   `mpd_port`: The port of the MPD host to connect to. Defaults to `6600`.
+-   `max_log_size`: This is the maximum number of values to store in the debug log. Defaults to `1000`, which is plenty
+    for most situations.
+-   `log_level`: The verbosity level of the logs to display. This can be `normal`, `verbose`, or `very_verbose`.
+    Defaults to `normal`.
+-   `mpd_library_directory`: The path to your MPD directory. This must be specified for `bbmp` to locate your album
+    cover files. Should be set to the same folder that MPD loads your library from. Does not have a default value.
+-   `album_cover_directory`: The directory to save generated album covers to (see the next section for more on this).
+    The default is `$XDG_CACHE_HOME/bbmp/covers` if the `XDG_CACHE_HOME` environment variale is set, otherwise the
+    default is `$HOME/.cache/bbmp/covers`.
 
 Album Cover Generation
 ----------------------
 
-The `album_cover_directory` is the folder you want `bbmp` to save the generated album covers to. If `$XDG_CACHE_HOME`
-is set, then they'll be saved to `$XDG_CACHE_HOME/bbmp/covers`, otherwise `~/.cache/bbmp/covers` is used. Right now,
-you must create this directory manually, it will not be created for you.
+The `album_cover_directory` is the folder you want `bbmp` to save the generated album covers to. Right now, you must
+create this directory manually, it will not be created for you.
 
-For each album cover file in your library named `cover.jpg` or `cover.png`, two bitmap files will be generated and saved
-to the `album_cover_directory`: an 800-pixel-width version of the cover, and a 200-pixel-width version. So, the
+For each album cover file in your library named `cover.jpg` or `cover.png`, two bitmap files will be generated and
+saved to the `album_cover_directory`: an 800-pixel-width version of the cover, and a 200-pixel-width version. So, the
 higher-resolution your original files are, the better these will look.
 
 The 200 px covers are used as thumbnails in the Library Album Art view:
