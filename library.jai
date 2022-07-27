@@ -56,6 +56,9 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
             mpd_song  := MPD.entity_get_song(entity);
 
             mpd_artist := MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0);
+            if !mpd_artist {
+                mpd_artist = MPD.song_get_tag(mpd_song, .ARTIST, 0);
+            }
             mpd_album  := MPD.song_get_tag(mpd_song, .ALBUM       , 0);
             mpd_title  := MPD.song_get_tag(mpd_song, .TITLE       , 0);
             mpd_date   := MPD.song_get_tag(mpd_song, .DATE        , 0);
@@ -119,7 +122,7 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
 
                 library.stats.number_of_songs += 1;
             } else {
-                // print("skipping: '%' ('%'), '%', '%'\n", to_string(mpd_artist), to_string(mpd_album_artist), to_string(mpd_album), to_string(mpd_title));
+                // print("skipping:\nartist: '%'\nalbum:'%',\ntitle:'%'\n", to_string(mpd_artist), to_string(mpd_album), to_string(mpd_title));
             }
         }
 
