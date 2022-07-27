@@ -83,8 +83,8 @@ There are a few global keybindings, then each view has its own keybindings.
 -   `k`: Move the cursor up
 -   `J`: Shift the selected song up in the queue
 -   `K`: Shift the selected song down in the queue
--   `C-d`: Move the cursor half a page down
--   `C-u`: Move the cursor half a page up
+-   `Ctrl-d`: Move the cursor half a page down
+-   `Ctrl-u`: Move the cursor half a page up
 -   `g`: Move the cursor to the top of the page
 -   `G`: Move the cursor to the bottom of the page
 -   `x`: Delete the selected song from the queue
@@ -101,8 +101,8 @@ There are a few global keybindings, then each view has its own keybindings.
 -   `k`: Move the cursor up
 -   `j`: Move the cursor left
 -   `l`: Move the cursor right
--   `C-d`: Move the cursor half a page down
--   `C-u`: Move the cursor half a page up
+-   `Ctrl-d`: Move the cursor half a page down
+-   `Ctrl-u`: Move the cursor half a page up
 -   `g`: Move the cursor to the top of the current column
 -   `G`: Move the cursor to the bottom of the current column
 -   `o`: Move the cursor to the currently playing song
@@ -121,8 +121,8 @@ There are a few global keybindings, then each view has its own keybindings.
 -   `k`: Move the cursor up
 -   `j`: Move the cursor left
 -   `l`: Move the cursor right
--   `C-d`: Move the cursor one page down
--   `C-u`: Move the cursor one page up
+-   `Ctrl-d`: Move the cursor one page down
+-   `Ctrl-u`: Move the cursor one page up
 -   `g`: Move the cursor to the first album
 -   `G`: Move the cursor to the last album
 -   `o`: Move the cursor to the currently playing album
@@ -138,8 +138,8 @@ There are a few global keybindings, then each view has its own keybindings.
 
 -   `j`: Move the cursor down
 -   `k`: Move the cursor up
--   `C-d`: Move the cursor one page down
--   `C-u`: Move the cursor one page up
+-   `Ctrl-d`: Move the cursor one page down
+-   `Ctrl-u`: Move the cursor one page up
 -   `g`: Move the cursor to the first track in the selected album
 -   `G`: Move the cursor to the last track in the selected album
 -   `o`: Move the cursor to the currently playing album + song
@@ -162,8 +162,8 @@ start a cursor that allows you to navigate the logs with:
 
 -   `j`: Move the cursor down
 -   `k`: Move the cursor up
--   `C-d`: Move the cursor half a page down
--   `C-u`: Move the cursor half a page up
+-   `Ctrl-d`: Move the cursor half a page down
+-   `Ctrl-u`: Move the cursor half a page up
 -   `g`: Move the cursor to the top of the page
 -   `G`: Move the cursor to the bottom of the page
 
