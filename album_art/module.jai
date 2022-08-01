@@ -39,14 +39,13 @@ Subview :: enum {
 
 current_album_art_subview := Subview.LIBRARY;
 
-load :: (library: *Library_Data) -> [] *Album {
+load :: (library: Library_Data) -> [] *Album {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
 
     albums: [] *Album;
-    if library == null return albums;
 
     initialize_search_query(library_search_query);
     initialize_search_query(album_search_query);
@@ -133,7 +132,7 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Libr
         case .LIBRARY;
             user_input_active = process_library_input(mpd_connection, albums, library, queue, frame, rows, columns);
         case .ALBUM;
-            user_input_active = process_album_input(mpd_connection, queue, albums, frame, header_bottom, album_songs_in_page, albums[cursor.album_position]);
+            user_input_active = process_album_input(mpd_connection, library, queue, albums, frame, header_bottom, album_songs_in_page, albums[cursor.album_position]);
     }
 
     if current_album_art_subview == {

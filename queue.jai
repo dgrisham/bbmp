@@ -31,11 +31,11 @@ log_data :: Log_Data.{"queue", false};
 #scope_export
 
 Data :: struct {
-    songs: [..] Song;
+    songs: [..] *Song;
     version: u32;
 }
 
-load :: (mpd_connection: *MPD.connection) -> *Data {;
+load :: (mpd_connection: *MPD.connection, library: Library_Data) -> *Data {;
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -52,8 +52,7 @@ load :: (mpd_connection: *MPD.connection) -> *Data {;
     queue.version = MPD.status_get_queue_version(status);
     MPD.status_free(status);
 
-    // reserve the space but don't resize the array, in case we're missing metadata
-    // for any songs while we're iterating below
+    // reserve the space but don't resize the array, in case we can't find a queue song in the library
     array_reserve(*queue.songs, mpd_queue_length);
 
     MPD.send_list_queue_meta(mpd_connection);
@@ -64,30 +63,27 @@ load :: (mpd_connection: *MPD.connection) -> *Data {;
 
     while entity {
         if MPD.entity_get_type(entity) == .SONG {
-            mpd_song  := MPD.entity_get_song(entity);
+            defer {
+                MPD.entity_free(entity);
+                entity = MPD.recv_entity(mpd_connection);
+                handle_errors("Receiving entity");
+            }
 
-            song: Song;
-            song.track    = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK       , 0));
-            song.artist   = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0));
-            song.album    = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM       , 0));
-            song.name     = copy_from_c_string(MPD.song_get_tag(mpd_song, .TITLE       , 0));
-            song.uri      = copy_from_c_string(MPD.song_get_uri(mpd_song));
-            song.duration = MPD.song_get_duration(mpd_song);
-
-            array_add(*queue.songs, song);
+            mpd_song := MPD.entity_get_song(entity);
+            uri := copy_temp_from_c_string(MPD.song_get_uri(mpd_song));
+            song_ptr, success := table_find(*library.songs_by_uri, uri);
+            if !success {
+                log("Queue song URI not found in library: '%'", uri, flags=.WARNING);
+                continue;
+            }
+            array_add(*queue.songs, song_ptr);
         }
-
-        MPD.entity_free(entity);
-        entity = MPD.recv_entity(mpd_connection);
-        handle_errors("Receiving entity");
     }
-
-    array_resize(*queue.songs, queue.songs.count);
 
     return queue;
 }
 
-update :: (mpd_connection: *MPD.connection, queue: *Data) {
+update :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data) {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -100,6 +96,10 @@ update :: (mpd_connection: *MPD.connection, queue: *Data) {
     // TODO: this check is okay to make but is also mainly a workaround for the mpd connection dying bug
     if !status { print("Status is null, not refreshing queue\n"); return; }
     mpd_queue_length := MPD.status_get_queue_length(status);
+    array_reserve(*queue.songs, mpd_queue_length);
+    if mpd_queue_length < queue.songs.count {
+        array_resize(*queue.songs, mpd_queue_length);
+    }
 
     old_version := queue.version;
     queue.version = MPD.status_get_queue_version(status);
@@ -113,39 +113,28 @@ update :: (mpd_connection: *MPD.connection, queue: *Data) {
     handle_errors("Receiving first updated queue song");
 
     while mpd_song {
-        queue_song_position := MPD.song_get_pos(mpd_song);
-        mpd_artist := MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0);
-        mpd_album  := MPD.song_get_tag(mpd_song, .ALBUM       , 0);
-        mpd_title  := MPD.song_get_tag(mpd_song, .TITLE       , 0);
-        mpd_date   := MPD.song_get_tag(mpd_song, .DATE        , 0);
-
-        song: Song;
-        song.track    = copy_from_c_string(MPD.song_get_tag(mpd_song, .TRACK       , 0));
-        song.artist   = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0));
-        song.album    = copy_from_c_string(MPD.song_get_tag(mpd_song, .ALBUM       , 0));
-        song.name     = copy_from_c_string(MPD.song_get_tag(mpd_song, .TITLE       , 0));
-        song.uri      = copy_from_c_string(MPD.song_get_uri(mpd_song));
-        song.duration = MPD.song_get_duration(mpd_song);
-
-        if queue_song_position < queue.songs.count {
-            free(queue.songs[queue_song_position]);
-            queue.songs[queue_song_position] = song;
-        } else {
-            array_add(*queue.songs, song);
+        defer {
+            MPD.song_free(mpd_song);
+            mpd_song = MPD.recv_song(mpd_connection);
+            handle_errors("Receiving updated queue song");
         }
 
-        MPD.song_free(mpd_song);
-        mpd_song = MPD.recv_song(mpd_connection);
-        handle_errors("Receiving updated queue song");
-    }
+        uri := copy_temp_from_c_string(MPD.song_get_uri(mpd_song));
+        song_ptr, success := table_find(*library.songs_by_uri, uri);
+        if !success continue;
 
-    for i: mpd_queue_length..(queue.songs.count - 1) {
-        free(queue.songs[i]);
+        queue_song_position := MPD.song_get_pos(mpd_song);
+        assert(queue_song_position < mpd_queue_length);
+
+        if queue_song_position < queue.songs.count {
+            queue.songs[queue_song_position] = song_ptr;
+        } else {
+            array_add(*queue.songs, song_ptr);
+        }
     }
-    array_resize(*queue.songs, mpd_queue_length);
 }
 
-event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: *Simp.Dynamic_Font, display_width: s32, header_bottom: int) -> bool {
+event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data, frame: u64, font: *Simp.Dynamic_Font, display_width: s32, header_bottom: int) -> bool {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -157,7 +146,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
         if cursor.position < `queue.songs.count - 1 {
             MPD.run_swap(`mpd_connection, cast(u32)cursor.position, cast(u32)cursor.position + 1);
             handle_errors("Moving song down in queue");
-            update(`mpd_connection, `queue);
+            update(`mpd_connection, `library, `queue);
             `cursor.position += 1;
         }
     }
@@ -169,7 +158,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
         if cursor.position > 0 {
             MPD.run_swap(mpd_connection, cast(u32)cursor.position, cast(u32)cursor.position - 1);
             handle_errors("Moving song up in queue");
-            update(`mpd_connection, `queue);
+            update(`mpd_connection, `library, `queue);
             `cursor.position -= 1;
         }
     }
@@ -188,7 +177,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
         if cursor.position >= 0 && cursor.position <= queue.songs.count {
             MPD.run_delete(mpd_connection, cast(u32)cursor.position);
             handle_errors("Removing song from queue");
-            update(`mpd_connection, `queue);
+            update(`mpd_connection, `library, `queue);
             update_status(get_current_song(`mpd_connection, `queue));
         }
     }
@@ -490,7 +479,7 @@ event_loop :: (mpd_connection: *MPD.connection, queue: *Data, frame: u64, font: 
         {
             top := header_bottom;
             x := X_MARGIN_SIZE;
-            for column_index: 0..display_columns.count - 1 {
+            for column_index: 0..(display_columns.count - 1) {
                 y := top;
                 column_width := display_columns[column_index].width;
 
@@ -536,5 +525,5 @@ get_current_song :: (mpd_connection: *MPD.connection, queue: Data) -> *Song {
     queue_song_position := MPD.status_get_song_pos(mpd_status);
     if queue_song_position < 0 return null;
     assert(queue_song_position < queue.songs.count);
-    return *queue.songs[queue_song_position];
+    return queue.songs[queue_song_position];
 }

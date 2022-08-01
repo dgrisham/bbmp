@@ -95,7 +95,7 @@ main :: () {
     handle_errors(tprint("Initializing connection MPD server at %:%", config.mpd_host, config.mpd_port));
 
     library                          := Library.load(mpd_connection);
-    queue                            := Queue.load(mpd_connection);
+    queue                            := Queue.load(mpd_connection, library);
     albums_sorted_by_artist_and_year := Album_Art.load(library);
     Config_Editor.load();
 
@@ -122,7 +122,7 @@ main :: () {
         context.logger_data = *log_data;
 
         if queue && current_time() > status_update_timer + 1000 {
-            Queue.update(mpd_connection, queue);
+            Queue.update(mpd_connection, library, queue);
             update_status(Queue.get_current_song(mpd_connection, queue));
         }
         frame_start := current_time();
@@ -150,7 +150,7 @@ main :: () {
         seek :: ($seconds: float32) #expand {
             MPD.run_seek_current(mpd_connection, seconds, true);
             handle_errors("Seeking");
-            Queue.update(mpd_connection, queue);
+            Queue.update(mpd_connection, library, queue);
             update_status_time();
         }
         SEEK_SECONDS :: 0.5;
@@ -195,7 +195,7 @@ main :: () {
 
                   case .NUMBER_1;
                     current_view = .QUEUE;
-                    Queue.update(mpd_connection, queue);
+                    Queue.update(mpd_connection, library, queue);
                     break it;
                   case .NUMBER_2;
                     current_view = .LIBRARY;
@@ -253,7 +253,7 @@ main :: () {
                   case KEY_C;
                     MPD.run_clear(mpd_connection);
                     handle_errors("Clearing queue");
-                    Queue.update(mpd_connection, queue);
+                    Queue.update(mpd_connection, library, queue);
                     update_status(Queue.get_current_song(mpd_connection, queue));
                     break it;
                 }
@@ -287,7 +287,7 @@ main :: () {
         header_bottom := draw_header();
         if current_view == {
           case .QUEUE;
-            user_input_active = Queue.event_loop(mpd_connection, queue, frame, font, cast(s32)display_width(), header_bottom);
+            user_input_active = Queue.event_loop(mpd_connection, library, queue, frame, font, cast(s32)display_width(), header_bottom);
           case .LIBRARY;
             user_input_active = Library.event_loop(mpd_connection, library, queue, frame, font, cast(s32)display_width(), header_bottom);
           case .ALBUM_ART;

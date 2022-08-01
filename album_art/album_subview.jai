@@ -20,7 +20,7 @@ log_data :: Log_Data.{"album_art/album", false};
 
 album_search_query :: *search_query;
 
-process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, albums: [] *Album, frame: u64, header_bottom: int, items_in_page: int, album: *Album) -> bool {
+process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Queue.Data, albums: [] *Album, frame: u64, header_bottom: int, items_in_page: int, album: *Album) -> bool {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -63,7 +63,7 @@ process_album_input :: (mpd_connection: *MPD.connection, queue: *Queue.Data, alb
         if song_id_to_play >= 0 {
             MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
             handle_errors("Playing first song in group added to queue");
-            Queue.update(`mpd_connection, `queue);
+            Queue.update(`mpd_connection, `library, `queue);
             update_status(Queue.get_current_song(`mpd_connection, `queue));
         }
     }

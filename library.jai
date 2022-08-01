@@ -34,7 +34,7 @@ log_data :: Log_Data.{"library", false};
 
 #scope_export
 
-load :: (mpd_connection: *MPD.connection) -> *Library_Data {
+load :: (mpd_connection: *MPD.connection) -> Library_Data {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -63,7 +63,7 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
             mpd_title  := MPD.song_get_tag(mpd_song, .TITLE       , 0);
             mpd_date   := MPD.song_get_tag(mpd_song, .DATE        , 0);
             if mpd_artist && mpd_album && mpd_title {
-                song: Song;
+                song := New(Song);
                 song.artist   = copy_from_c_string(mpd_artist);
                 song.album    = copy_from_c_string(mpd_album);
                 song.name     = copy_from_c_string(mpd_title);
@@ -119,6 +119,7 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
                 }
 
                 array_add(*album_ptr.songs, song);
+                table_set(*library.songs_by_uri, song.uri, song);
 
                 library.stats.number_of_songs += 1;
             }
@@ -129,6 +130,7 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
         handle_errors("Receiving entity");
     }
 
+    playlist_load_start := current_time();
     playlist_paths: [..] *u8;
 
     if MPD.send_list_playlists(mpd_connection) {
@@ -154,9 +156,10 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
     }
 
     for playlist_path: playlist_paths {
-        if MPD.send_list_playlist_meta(mpd_connection, playlist_path) {
+        if MPD.send_list_playlist(mpd_connection, playlist_path) {
             entity := MPD.recv_entity(mpd_connection);
-            handle_errors(tprint("Receiving first entity for playlist '%'", copy_from_c_string(playlist_path)));
+            handle_errors(tprint("Receiving first entity for playlist '%'", copy_temp_from_c_string(playlist_path)));
+            if !entity continue;
 
             playlist: Playlist;
             playlist.name = copy_from_c_string(playlist_path);
@@ -164,32 +167,21 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
                 defer {
                     MPD.entity_free(entity);
                     entity = MPD.recv_entity(mpd_connection);
-                    handle_errors(tprint("Receiving entity for playlist '%'", playlist_path));
+                    handle_errors(tprint("Receiving entity for playlist '%'", playlist.name));
                 }
+
                 if MPD.entity_get_type(entity) == .SONG {
                     mpd_song := MPD.entity_get_song(entity);
-                    mpd_artist := MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0);
-                    if !mpd_artist {
-                        mpd_artist = MPD.song_get_tag(mpd_song, .ARTIST, 0);
+                    uri := copy_temp_from_c_string(MPD.song_get_uri(mpd_song));
+                    song_ptr, success := table_find(*library.songs_by_uri, uri);
+                    if !success {
+                        log("Playlist '%' song URI not found in library: '%'", playlist.name, uri, flags=.WARNING);
+                        continue;
                     }
-                    mpd_album := MPD.song_get_tag(mpd_song, .ALBUM, 0);
-                    mpd_title := MPD.song_get_tag(mpd_song, .TITLE, 0);
-
-                    artist := table_find_pointer(*library.artists, copy_temp_from_c_string(mpd_artist));
-                    if !artist continue;
-                    album  := table_find_pointer(*artist.albums, copy_temp_from_c_string(mpd_album));
-                    if !album continue;
-
-                    title := copy_temp_from_c_string(mpd_title);
-                    for * album.songs {
-                        if it.name == title {
-                            array_add(*playlist.songs, it);
-                            break;
-                        }
-                    }
+                    array_add(*playlist.songs, song_ptr);
                 }
             }
-            log("playlist: %", playlist);
+            // log("playlist: %", playlist);
         } else {
             handle_errors(tprint("Listing playlist '%'", playlist_path));
         }
@@ -247,7 +239,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
         if song_id_to_play >= 0 {
             MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
             handle_errors("Playing first song in group added to queue");
-            Queue.update(`mpd_connection, `queue);
+            Queue.update(`mpd_connection, library, `queue);
             update_status(Queue.get_current_song(`mpd_connection, `queue));
         }
     }
