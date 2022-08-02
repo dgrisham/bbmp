@@ -130,7 +130,6 @@ load :: (mpd_connection: *MPD.connection) -> Library_Data {
         handle_errors("Receiving entity");
     }
 
-    playlist_load_start := current_time();
     playlist_paths: [..] *u8;
 
     if MPD.send_list_playlists(mpd_connection) {
@@ -141,18 +140,11 @@ load :: (mpd_connection: *MPD.connection) -> Library_Data {
             if mpd_playlist_path {
                 array_add(*playlist_paths, mpd_playlist_path);
             }
-            // MPD.playlist_free(mpd_playlist);
             mpd_playlist = MPD.recv_playlist(mpd_connection);
             handle_errors("Receiving playlist");
         }
     } else {
         handle_errors("Listing playlists");
-    }
-
-    playlists: [..] Playlist;
-    Playlist :: struct {
-        name: string;
-        songs: [..] *Song;
     }
 
     for playlist_path: playlist_paths {
@@ -164,28 +156,21 @@ load :: (mpd_connection: *MPD.connection) -> Library_Data {
             playlist: Playlist;
             playlist.name = copy_from_c_string(playlist_path);
             while entity {
-                defer {
-                    MPD.entity_free(entity);
-                    entity = MPD.recv_entity(mpd_connection);
-                    handle_errors(tprint("Receiving entity for playlist '%'", playlist.name));
-                }
-
                 if MPD.entity_get_type(entity) == .SONG {
                     mpd_song := MPD.entity_get_song(entity);
-                    uri := copy_temp_from_c_string(MPD.song_get_uri(mpd_song));
-                    song_ptr, success := table_find(*library.songs_by_uri, uri);
-                    if !success {
-                        log("Playlist '%' song URI not found in library: '%'", playlist.name, uri, flags=.WARNING);
-                        continue;
-                    }
-                    array_add(*playlist.songs, song_ptr);
+                    array_add(*playlist.song_URIs, copy_from_c_string(MPD.song_get_uri(mpd_song)));
                 }
+
+                MPD.entity_free(entity);
+                entity = MPD.recv_entity(mpd_connection);
+                handle_errors(tprint("Receiving entity for playlist '%'", playlist.name));
             }
-            // log("playlist: %", playlist);
+            array_add(*library.playlists, playlist);
         } else {
             handle_errors(tprint("Listing playlist '%'", playlist_path));
         }
     }
+    array_free(playlist_paths);
 
     return library;
 }
