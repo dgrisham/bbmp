@@ -3,6 +3,8 @@ Based Black Music Player
 
 Minimal, responsive, aesthetically pleasing frontend for MPD. Written in Jai, inspired by `ncmpcpp`.
 
+Intro video: https://www.youtube.com/watch?v=HqxlbBX7YyQ
+
 Configuration
 -------------
 
