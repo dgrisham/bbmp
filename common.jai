@@ -102,6 +102,10 @@ ELLIPSIS :: u8.[226, 128, 166];
 * types *
 ********/
 
+Fonts :: struct {
+    regular, bold: *Simp.Dynamic_Font;
+}
+
 Search_Query :: struct {
     str: string;
     max_characters: int = 100;
@@ -158,16 +162,10 @@ Library_Data :: struct {
         number_of_albums  : int = 0;
         number_of_songs   : int = 0;
     };
-    playlists           : [..] Playlist;
     songs_by_uri        : Table(string, *Song);
 }
 
-Playlist :: struct {
-    name      : string;
-    song_URIs : [..] string;
-}
-
-Artist  :: struct {
+Artist :: struct {
     name                       : string;
     albums                     : Table(string, Album);
     album_names_sorted_by_date : [..] string;
@@ -265,7 +263,7 @@ to_long_date_string :: (date: Date) -> string {
         case 11; month_name = tprint("November");
         case 12; month_name = tprint("December");
         case;
-            log("Warning: '%' is not a valid month number", date.month, flags=.ERROR);
+            log("Warning: '%' is not a valid month number", date.month, flags=.WARNING);
             return tprint("%", date.year);
     }
     if !date.day return tprint("% %", month_name, date.year);
@@ -275,6 +273,7 @@ to_long_date_string :: (date: Date) -> string {
 Display_Text :: struct {
     text     : string;
     selected : bool;
+    font     : *Simp.Dynamic_Font;
 }
 
 /********************************
@@ -330,15 +329,15 @@ handle_errors :: (message: string) -> bool {
 
     error := check_connection_errors();
     if error {
-        log("%: MPD % error, code=%, message='%', recovered=%", message, error.type, error.code, error.message, error.recovered);
+        log("%: MPD % error, code=%, message='%', recovered=%", message, error.type, error.code, error.message, error.recovered, flags=.ERROR);
         if !error.recovered {
-            log("Failed to recover from error, attempting to reconnect to MPD");
+            log("Failed to recover from error, attempting to reconnect to MPD", flags=.ERROR);
 
             MPD.run_clear(mpd_connection);
             mpd_connection = null;
             mpd_connection = MPD.connection_new(temp_c_string(config.mpd_host), config.mpd_port, 15000);
             if !mpd_connection {
-                log("Failed to connect to MPD: out of memory");
+                log("Failed to connect to MPD: out of memory", flags=.ERROR);
                 return false;
             }
 
@@ -347,13 +346,12 @@ handle_errors :: (message: string) -> bool {
             if new_connection_error {
                 MPD.run_clear(mpd_connection);
                 mpd_connection = null;
-                print("Failed to reconnect: % error: code=%, message='%', recovered=%\n", new_connection_error.type, new_connection_error.code, new_connection_error.message, new_connection_error.recovered);
+                log("Failed to reconnect: % error: code=%, message='%', recovered=%", new_connection_error.type, new_connection_error.code, new_connection_error.message, new_connection_error.recovered, flags=.ERROR);
                 return false;
             }
-            print("Successfully reconnected to MPD\n");
+            log("Successfully reconnected to MPD");
             return true;
         }
-        print("Recovered from error\n");
     }
     return false;
 }
@@ -363,9 +361,11 @@ handle_errors :: (message: string) -> bool {
 ******************/
 
 Status :: struct {
-    artist:       string;
-    album:        string;
-    song:         string;
+    artist:         string;
+    album:          string;
+    song:           string;
+    queue_position: s32;
+
     elapsed_time: u32;
     total_time:   u32;
     volume:       s32;
@@ -397,9 +397,10 @@ update_status :: (current_song: *Song) {
     MPD.response_finish(mpd_connection);
     if !mpd_status return;
 
-    status.elapsed_time = MPD.status_get_elapsed_time(mpd_status);
-    status.total_time   = MPD.status_get_total_time(mpd_status);
-    status.volume       = MPD.status_get_volume(mpd_status);
+    status.queue_position = MPD.status_get_song_pos(mpd_status);
+    status.elapsed_time   = MPD.status_get_elapsed_time(mpd_status);
+    status.total_time     = MPD.status_get_total_time(mpd_status);
+    status.volume         = MPD.status_get_volume(mpd_status);
     MPD.status_free(mpd_status);
 }
 

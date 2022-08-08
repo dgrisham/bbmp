@@ -31,11 +31,12 @@ log_data :: Log_Data.{"queue", false};
 #scope_export
 
 Data :: struct {
-    songs: [..] *Song;
-    version: u32;
+    songs       : [..] *Song;
+    version     : u32;
+    queued_URIs : Table(string, bool);
 }
 
-load :: (mpd_connection: *MPD.connection, library: Library_Data) -> *Data {;
+load :: (mpd_connection: *MPD.connection, library: Library_Data) -> *Data {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -47,7 +48,7 @@ load :: (mpd_connection: *MPD.connection, library: Library_Data) -> *Data {;
 
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
-    if !status { print("Status is null, not loading queue\n"); return queue; }
+    if !status { log("Status is null, not loading queue"); return queue; }
     mpd_queue_length := MPD.status_get_queue_length(status);
     queue.version = MPD.status_get_queue_version(status);
     MPD.status_free(status);
@@ -77,6 +78,7 @@ load :: (mpd_connection: *MPD.connection, library: Library_Data) -> *Data {;
                 continue;
             }
             array_add(*queue.songs, song_ptr);
+            table_add(*queue.queued_URIs, song_ptr.uri, true);
         }
     }
 
@@ -94,8 +96,10 @@ update :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data)
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
     // TODO: this check is okay to make but is also mainly a workaround for the mpd connection dying bug
-    if !status { print("Status is null, not refreshing queue\n"); return; }
+    if !status { log("Status is null, not refreshing queue"); return; }
     mpd_queue_length := MPD.status_get_queue_length(status);
+    queue_changed := mpd_queue_length != queue.songs.count;
+
     array_reserve(*queue.songs, mpd_queue_length);
     if mpd_queue_length < queue.songs.count {
         array_resize(*queue.songs, mpd_queue_length);
@@ -112,6 +116,7 @@ update :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data)
     mpd_song := MPD.recv_song(mpd_connection);
     handle_errors("Receiving first updated queue song");
 
+    if mpd_song queue_changed = true;
     while mpd_song {
         defer {
             MPD.song_free(mpd_song);
@@ -132,15 +137,22 @@ update :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data)
             array_add(*queue.songs, song_ptr);
         }
     }
+
+    if queue_changed {
+        table_reset(*queue.queued_URIs);
+        for song: queue.songs {
+            table_add(*queue.queued_URIs, song.uri, true);
+        }
+    }
 }
 
-event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data, frame: u64, font: *Simp.Dynamic_Font, display_width: s32, header_bottom: int) -> bool {
+event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data, frame: u64, fonts: Fonts, display_width: s32, header_bottom: int) -> bool {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
     defer context.logger_data = original_logger_data;
 
-    items_in_page := (header_bottom - Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
+    items_in_page := (header_bottom - Y_MARGIN_SIZE) / (fonts.regular.character_height + TEXT_PADDING_Y);
 
     shift_selected_item_down :: () #expand {
         if cursor.position < `queue.songs.count - 1 {
@@ -440,12 +452,14 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
                 entry := i - index_start;
                 song := queue.songs[i];
                 selected := i == selected_index;
+                font := ifx i == status.queue_position then fonts.bold else fonts.regular;
 
                 { // song name
                     max_characters_in_column := display_columns[0].width / font.w_width - 2;
                     display_text: Display_Text;
                     display_text.text = create_temp_display_string_of_max_length(song.name, max_characters_in_column);
                     display_text.selected = selected;
+                    display_text.font = font;
                     display_columns[0].entries[entry] = display_text;
                 }
 
@@ -454,6 +468,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
                     display_text: Display_Text;
                     display_text.selected = selected;
                     display_text.text = create_temp_display_string_of_max_length(song.album, max_characters_in_column);
+                    display_text.font = font;
                     display_columns[1].entries[entry] = display_text;
                 }
 
@@ -462,6 +477,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
                     display_text: Display_Text;
                     display_text.selected = selected;
                     display_text.text = create_temp_display_string_of_max_length(song.artist, max_characters_in_column);
+                    display_text.font = font;
                     display_columns[2].entries[entry] = display_text;
                 }
 
@@ -471,6 +487,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
                     display_text: Display_Text;
                     display_text.selected = selected;
                     display_text.text = create_temp_display_string_of_max_length(duration_time_string, max_characters_in_column);
+                    display_text.font = font;
                     display_columns[3].entries[entry] = display_text;
                 }
             }
@@ -487,13 +504,13 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
                     if display_text.selected {
                         Simp.set_shader_for_color();
                         color := ifx column_index == 0 then rgba(1,1,1,1) else rgba(0.5, 0.5, 0.5, 1); // highlight the first column (song title) brighter than the rest
-                        Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width, cast(float)y + font.character_height, color);
-                        Simp.draw_text(font, x, y, display_text.text, rgba(0,0,0,1));
+                        Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width, cast(float)y + display_text.font.character_height, color);
+                        Simp.draw_text(display_text.font, x, y, display_text.text, rgba(0,0,0,1));
                     } else {
-                        Simp.draw_text(font, x, y, display_text.text, rgba(1,1,1,1));
+                        Simp.draw_text(display_text.font, x, y, display_text.text, rgba(1,1,1,1));
                     }
 
-                    y -= TEXT_PADDING_Y + font.character_height;
+                    y -= TEXT_PADDING_Y + display_text.font.character_height;
                 }
                 x += column_width;
             }
@@ -502,7 +519,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
 
     if inputting_search_query {
         // TODO: need to ensure the x/y here won't overlap with anything else
-        Simp.draw_text(font, X_MARGIN_SIZE, Y_MARGIN_SIZE, tprint("Search: %", search_query.str), rgba(1,1,1,1));
+        Simp.draw_text(fonts.regular, X_MARGIN_SIZE, Y_MARGIN_SIZE, tprint("Search: %", search_query.str), rgba(1,1,1,1));
     }
 
     return inputting_search_query;
