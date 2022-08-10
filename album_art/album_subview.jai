@@ -79,13 +79,15 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
             return;
         }
 
-        id, song_in_queue := table_find(*queue.queued_URIs, `album.songs[`cursor.song_position].uri);
-        if song_in_queue {
-            MPD.run_delete_id(mpd_connection, id);
-        }
-        if !song_in_queue {
+        ids := table_find_multiple(*queue.queued_URIs, `album.songs[`cursor.song_position].uri);
+        if ids.count {
+            for id: ids {
+                MPD.run_delete_id(mpd_connection, id);
+                handle_errors("Deleting song from queue");
+            }
+        } else {
             MPD.run_add_id(mpd_connection, to_c_string(`album.songs[`cursor.song_position].uri));
-            handle_errors("Adding song to queue from album view");
+            handle_errors("Adding song to queue");
         }
 
         Queue.update(`mpd_connection, `library, `queue);
