@@ -48,22 +48,15 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
         `cursor.song_position = 0;
     }
 
-    ensure_selected_song_is_in_queue_and_play :: () #expand {
+    add_selected_song_to_queue_and_play :: () #expand {
         if !mpd_connection {
             log("No connection to MPD, cannot add song to queue", flags=.ERROR);
             return;
         }
 
         song_uri := `album.songs[`cursor.song_position].uri;
-
-        id: int;
-        song_in_queue: bool;
-        id, song_in_queue = table_find(*queue.queued_URIs, song_uri);
-        if !song_in_queue { // song is already in queue, play it
-            id = MPD.run_add_id(mpd_connection, to_c_string(song_uri));
-            handle_errors(tprint("Adding song to queue from album view, URI '%'", song_uri));
-        }
-
+        id := MPD.run_add_id(mpd_connection, to_c_string(song_uri));
+        handle_errors(tprint("Adding song to queue from album view, URI '%'", song_uri));
         if id > 0 {
             MPD.run_play_id(mpd_connection, cast(u32)id);
             handle_errors("Playing song added to queue");
@@ -220,7 +213,7 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
                       case .ENTER;
                         table_set(*key_pressed_on_frame, .ENTER, frame);
                         last_key_pressed = .ENTER;
-                        ensure_selected_song_is_in_queue_and_play();
+                        add_selected_song_to_queue_and_play();
                         break it;
 
                       case .FORWARD_SLASH;
@@ -251,7 +244,7 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D)  move_cursor_one_page_down();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U)  move_cursor_one_page_up();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)   toggle_selected_song_in_queue_and_shift_cursor();
-        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .ENTER)   ensure_selected_song_is_in_queue_and_play();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .ENTER)   add_selected_song_to_queue_and_play();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .N)       move_cursor_to_next_search_result();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_N) move_cursor_to_prev_search_result();
     } else {
