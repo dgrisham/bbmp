@@ -124,11 +124,11 @@ main :: () {
 
         context.logger_data = *log_data;
 
-        if queue && current_time() > status_update_timer + 1000 {
-            Queue.update(mpd_connection, library, queue);
+        frame_start := current_time();
+
+        if queue && current_time() > status_update_timer + 500 {
             update_status(Queue.get_current_song(mpd_connection, queue));
         }
-        frame_start := current_time();
 
         check_album_art_creation_jobs();
 

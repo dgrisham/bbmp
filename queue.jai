@@ -33,7 +33,7 @@ log_data :: Log_Data.{"queue", false};
 Data :: struct {
     songs       : [..] *Song;
     version     : u32;
-    queued_URIs : Table(string, bool);
+    queued_URIs : Table(string, u32);
 }
 
 load :: (mpd_connection: *MPD.connection, library: Library_Data) -> *Data {
@@ -48,7 +48,10 @@ load :: (mpd_connection: *MPD.connection, library: Library_Data) -> *Data {
 
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
-    if !status { log("Status is null, not loading queue"); return queue; }
+    if !status {
+        log("Status is null, not loading queue");
+        return queue;
+    }
     mpd_queue_length := MPD.status_get_queue_length(status);
     queue.version = MPD.status_get_queue_version(status);
     MPD.status_free(status);
@@ -72,13 +75,15 @@ load :: (mpd_connection: *MPD.connection, library: Library_Data) -> *Data {
 
             mpd_song := MPD.entity_get_song(entity);
             uri := copy_temp_from_c_string(MPD.song_get_uri(mpd_song));
-            song_ptr, success := table_find(*library.songs_by_uri, uri);
-            if !success {
+            song_ptr, found := table_find(*library.songs_by_uri, uri);
+            if !found {
                 log("Queue song URI not found in library: '%'", uri, flags=.WARNING);
                 continue;
             }
             array_add(*queue.songs, song_ptr);
-            table_add(*queue.queued_URIs, song_ptr.uri, true);
+
+            queue_song_id := MPD.song_get_id(mpd_song);
+            table_add(*queue.queued_URIs, song_ptr.uri, queue_song_id);
         }
     }
 
@@ -95,54 +100,48 @@ update :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data)
 
     status := MPD.run_status(mpd_connection);
     handle_errors("Getting MPD status");
-    // TODO: this check is okay to make but is also mainly a workaround for the mpd connection dying bug
-    if !status { log("Status is null, not refreshing queue"); return; }
-    mpd_queue_length := MPD.status_get_queue_length(status);
-    queue_changed := mpd_queue_length != queue.songs.count;
-
-    array_reserve(*queue.songs, mpd_queue_length);
-    if mpd_queue_length < queue.songs.count {
-        array_resize(*queue.songs, mpd_queue_length);
+    if !status {
+        log("Status is null, not refreshing queue", flags=.ERROR);
+        return;
     }
-
     defer MPD.status_free(status);
 
     old_version := queue.version;
     queue.version = MPD.status_get_queue_version(status);
     if queue.version == old_version return;
 
-    MPD.send_queue_changes_meta(mpd_connection, old_version);
+    mpd_queue_length := MPD.status_get_queue_length(status);
+
+    array_reset(*queue.songs);
+    array_reserve(*queue.songs, mpd_queue_length);
+    table_reset(*queue.queued_URIs);
+
+    MPD.send_list_queue_meta(mpd_connection);
     handle_errors("Retrieving MPD metadata");
 
-    mpd_song := MPD.recv_song(mpd_connection);
-    handle_errors("Receiving first updated queue song");
+    entity := MPD.recv_entity(mpd_connection);
+    handle_errors("Receiving first entity");
 
-    if mpd_song queue_changed = true;
-    while mpd_song {
-        defer {
-            MPD.song_free(mpd_song);
-            mpd_song = MPD.recv_song(mpd_connection);
-            handle_errors("Receiving updated queue song");
-        }
+    while entity {
+        if MPD.entity_get_type(entity) == .SONG {
+            defer {
+                MPD.entity_free(entity);
+                entity = MPD.recv_entity(mpd_connection);
+                handle_errors("Receiving entity");
+            }
 
-        uri := copy_temp_from_c_string(MPD.song_get_uri(mpd_song));
-        song_ptr, success := table_find(*library.songs_by_uri, uri);
-        if !success continue;
+            mpd_song := MPD.entity_get_song(entity);
+            uri := copy_temp_from_c_string(MPD.song_get_uri(mpd_song));
 
-        queue_song_position := MPD.song_get_pos(mpd_song);
-        assert(queue_song_position < mpd_queue_length);
-
-        if queue_song_position < queue.songs.count {
-            queue.songs[queue_song_position] = song_ptr;
-        } else {
+            song_ptr, found := table_find(*library.songs_by_uri, uri);
+            if !found {
+                log("Queue song URI not found in library: '%'", uri, flags=.WARNING);
+                continue;
+            }
             array_add(*queue.songs, song_ptr);
-        }
-    }
 
-    if queue_changed {
-        table_reset(*queue.queued_URIs);
-        for song: queue.songs {
-            table_add(*queue.queued_URIs, song.uri, true);
+            queue_song_id := MPD.song_get_id(mpd_song);
+            table_add(*queue.queued_URIs, song_ptr.uri, queue_song_id);
         }
     }
 }
