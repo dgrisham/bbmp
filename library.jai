@@ -220,7 +220,6 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
         }
 
         Queue.update(`mpd_connection, `library, `queue);
-        `cursor.positions[cursor.selected] += 1;
     }
 
     move_cursor_to_next_search_result :: () #expand {
