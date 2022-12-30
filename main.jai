@@ -119,8 +119,7 @@ main :: () {
     table_add(*global_key_pressed_on_frame, .EQUALS_SIGN,         0);
     table_add(*global_key_pressed_on_frame, .DASH,                0);
 
-    quit := false;
-    while !quit {
+    while program_loop := true {
 
         context.logger_data = *log_data;
 
@@ -186,15 +185,13 @@ main :: () {
 
         for Input.events_this_frame {
             if it.type == .QUIT {
-                quit = true;
-                break;
+                break program_loop;
             }
             if !user_input_active && it.type == .KEYBOARD && it.key_pressed {
                 if it.key_code == {
                   case KEY_Q;
                     if it.shift_pressed {
-                        quit = true;
-                        break it;
+                        break program_loop;
                     }
 
                   case .NUMBER_1;
