@@ -233,14 +233,18 @@ main :: () {
                     break it;
 
                   case .LEFT_ANGLE_BRACKET;
-                    last_global_key_pressed = .LEFT_ANGLE_BRACKET;
-                    table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
-                    play_previous_song();
+                    if it.shift_pressed {
+                        last_global_key_pressed = .LEFT_ANGLE_BRACKET;
+                        table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
+                        play_previous_song();
+                    }
                     break it;
                   case .RIGHT_ANGLE_BRACKET;
-                    last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
-                    table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
-                    play_next_song();
+                    if it.shift_pressed {
+                        last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
+                        table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
+                        play_next_song();
+                    }
                     break it;
 
                   case .EQUALS_SIGN;
