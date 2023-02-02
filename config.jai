@@ -207,8 +207,9 @@ parse_line :: (text: *string, config: *Config) -> *Error {
         return New_Error(original_count - text.count + 1, "reached end of file while parsing config key");
     }
 
-    if (<<text)[0] != #char "=" // =
+    if (<<text)[0] != #char "=" { // =
         return New_Error(original_count - text.count + 1, tprint("Expected '=', got '%'", to_string(*(<<text)[0], 1)));
+    }
     advance(text, 1);
 
     while <<text { // eat spaces
