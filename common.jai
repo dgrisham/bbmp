@@ -539,8 +539,14 @@ key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pr
     else #if key == .ENTER               key_code = .ENTER;
     else #if key == .SPACE               key_code = .SPACEBAR;
     else #if key == .BACKSPACE           key_code = .BACKSPACE;
-    else #if key == .LEFT_ANGLE_BRACKET  key_code = .LEFT_ANGLE_BRACKET;
-    else #if key == .RIGHT_ANGLE_BRACKET key_code = .RIGHT_ANGLE_BRACKET;
+    else #if key == .LEFT_ANGLE_BRACKET {
+        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
+        key_code = .LEFT_ANGLE_BRACKET;
+    }
+    else #if key == .RIGHT_ANGLE_BRACKET {
+        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
+        key_code = .RIGHT_ANGLE_BRACKET;
+    }
     else #if key == .SHIFT_J {
         if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
         key_code = KEY_J;

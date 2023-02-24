@@ -129,6 +129,7 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
         if file_exists(job_info.thumbnail_path) {
             lock(*job_info.library_album_ptr.mutex);
             defer unlock(*job_info.library_album_ptr.mutex);
+
             job_info.library_album_ptr.thumbnail_bitmap = New(Simp.Bitmap);
             if !Simp.bitmap_load(job_info.library_album_ptr.thumbnail_bitmap, job_info.thumbnail_path) {
                 log("Failed to load thumbnail for % - %", job_info.artist_name, job_info.album_name, flags=.ERROR);
@@ -165,6 +166,7 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
                 work.cover_path        = copy_string(album.cover_path);
                 work.thumbnail_path    = copy_string(thumbnail_path);
                 work.library_album_ptr = album;
+
                 if !file_exists(thumbnail_path) {
                     work.create_thumbnail = true;
                     work.thumbnail_width  = THUMBNAIL_WIDTH;
@@ -174,6 +176,7 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
                     work.display_art_path   = copy_string(display_art_path);
                     work.display_art_width  = LARGE_ALBUM_ART_WIDTH;
                 }
+
                 array_add(*work_list, work);
             }
         }

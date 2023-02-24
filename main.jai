@@ -119,8 +119,7 @@ main :: () {
     table_add(*global_key_pressed_on_frame, .EQUALS_SIGN,         0);
     table_add(*global_key_pressed_on_frame, .DASH,                0);
 
-    quit := false;
-    while !quit {
+    while program_loop := true {
 
         context.logger_data = *log_data;
 
@@ -186,15 +185,13 @@ main :: () {
 
         for Input.events_this_frame {
             if it.type == .QUIT {
-                quit = true;
-                break;
+                break program_loop;
             }
             if !user_input_active && it.type == .KEYBOARD && it.key_pressed {
                 if it.key_code == {
                   case KEY_Q;
                     if it.shift_pressed {
-                        quit = true;
-                        break it;
+                        break program_loop;
                     }
 
                   case .NUMBER_1;
@@ -236,14 +233,18 @@ main :: () {
                     break it;
 
                   case .LEFT_ANGLE_BRACKET;
-                    last_global_key_pressed = .LEFT_ANGLE_BRACKET;
-                    table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
-                    play_previous_song();
+                    if it.shift_pressed {
+                        last_global_key_pressed = .LEFT_ANGLE_BRACKET;
+                        table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
+                        play_previous_song();
+                    }
                     break it;
                   case .RIGHT_ANGLE_BRACKET;
-                    last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
-                    table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
-                    play_next_song();
+                    if it.shift_pressed {
+                        last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
+                        table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
+                        play_next_song();
+                    }
                     break it;
 
                   case .EQUALS_SIGN;
