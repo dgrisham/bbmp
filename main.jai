@@ -217,7 +217,7 @@ main :: () {
                     thumbnail_slot_width  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 15);
                     thumbnail_slot_height = thumbnail_slot_width;
                     init_fonts();
-                    msaa.init(*msaa, window_width, window_height);
+                    if ENABLE_MSAA  msaa.init(*msaa, window_width, window_height);
                     break;
                 }
             }
