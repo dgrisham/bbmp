@@ -752,7 +752,6 @@ left_pad :: (t: $T, pad_char: u8, total_length: int, allocator := temp) -> strin
     #if T == string str := t;
     else            str := tprint("%", t);
 
-    if total_length <= 0 return str;
     result := alloc_string(total_length, allocator);
     pad_count := result.count - str.count;
     for 0..(pad_count - 1) result[it] = pad_char;

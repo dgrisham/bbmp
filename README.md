@@ -74,11 +74,13 @@ There are a few global keybindings, then each view has its own keybindings.
 
 ### Global
 
--   `1`: Go to the Queue
--   `2`: Go to the Library
--   `3`: Go to the Library Album Art
--   `4`: Go to the Config Viewer
--   `5`: Go to the Debug Logs
+-   `1`: Go to the Now Playing view
+-   `2`: Go to the Queue
+-   `3`: Go to the Library
+-   `4`: Go to the Library Album Art
+-   `5`: Go to the Playlists view
+-   `6`: Go to the Config Viewer
+-   `7`: Go to the Debug Logs
 -   `p`: Toggle pause
 -   `b`: Rewind
 -   `f`: Fast forward
@@ -88,6 +90,11 @@ There are a few global keybindings, then each view has its own keybindings.
 -   `-`: Volume down
 -   `c`: Clear the queue
 -   `Q`: Quit the program
+-   `Ctrl-h`: Toggle hiding the view titles in the header
+
+### Now Playing View
+
+There are no additional keybindings in this view.
 
 ### Queue View
 
