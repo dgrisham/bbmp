@@ -101,8 +101,8 @@ Simp :: #import "Simp";
 View :: enum {
     NOW_PLAYING;
     QUEUE;
-    LIBRARY;
     ALBUM_ART;
+    LIBRARY;
     PLAYLIST;
     CONFIG_EDITOR;
     LOG;
@@ -278,10 +278,10 @@ main :: () {
                     Queue.update(mpd_connection, library, queue);
                     break it;
                   case .NUMBER_3;
-                    current_view = .LIBRARY;
+                    current_view = .ALBUM_ART;
                     break it;
                   case .NUMBER_4;
-                    current_view = .ALBUM_ART;
+                    current_view = .LIBRARY;
                     break it;
                   case .NUMBER_5;
                     current_view = .PLAYLIST;
@@ -382,10 +382,10 @@ main :: () {
             Now_Playing.event_loop(albums_sorted_by_artist_and_year, window_width, header_bottom);
           case .QUEUE;
             user_input_active = Queue.event_loop(mpd_connection, library, queue, frame, fonts, cast(s32)display_width(), header_bottom);
-          case .LIBRARY;
-            user_input_active = Library.event_loop(mpd_connection, library, queue, frame, fonts, cast(s32)display_width(), header_bottom);
           case .ALBUM_ART;
             user_input_active = Album_Art.event_loop(mpd_connection, albums_sorted_by_artist_and_year, library, queue, frame, fonts, cast(s32)display_width(), header_bottom, thumbnail_slot_width, thumbnail_slot_height);
+          case .LIBRARY;
+            user_input_active = Library.event_loop(mpd_connection, library, queue, frame, fonts, cast(s32)display_width(), header_bottom);
           case .PLAYLIST;
             user_input_active = Playlist.event_loop(mpd_connection, playlists, library, queue, frame, fonts, cast(s32)display_width(), header_bottom);
           case .LOG;
@@ -485,7 +485,7 @@ draw_header :: () -> int {
     }
 
     if !hide_view_titles {
-        VIEW_TITLES :: string.["Now Playing", "Queue", "Library", "Library Album Art", "Playlists", "Config Viewer", "Debug Logs"];
+        VIEW_TITLES :: string.["Now Playing", "Queue", "Library Album Art", "Library", "Playlists", "Config Viewer", "Debug Logs"];
         x := cast(s64)X_MARGIN_SIZE;
         y := header_bottom - Y_MARGIN_SIZE;
         for title: VIEW_TITLES {

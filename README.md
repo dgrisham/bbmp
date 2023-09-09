@@ -76,8 +76,8 @@ There are a few global keybindings, then each view has its own keybindings.
 
 -   `1`: Go to the Now Playing view
 -   `2`: Go to the Queue
--   `3`: Go to the Library
--   `4`: Go to the Library Album Art
+-   `3`: Go to the Library Album Art
+-   `4`: Go to the Library
 -   `5`: Go to the Playlists view
 -   `6`: Go to the Config Viewer
 -   `7`: Go to the Debug Logs
@@ -113,24 +113,6 @@ There are no additional keybindings in this view.
     -   `Enter`/`Escape`: Submit the search
 -   `n`: Move the cursor to the next search result
 -   `N`: Move the cursor to the previous search result
-
-### Library View
-
--   `j`: Move the cursor down
--   `k`: Move the cursor up
--   `j`: Move the cursor left
--   `l`: Move the cursor right
--   `Ctrl-d`: Move the cursor half a page down
--   `Ctrl-u`: Move the cursor half a page up
--   `g`: Move the cursor to the top of the current column
--   `G`: Move the cursor to the bottom of the current column
--   `o`: Move the cursor to the currently playing song
--   `Space`: Add the selected song to the queue
--   `Enter`: Add the selected song to the queue and play it
--   `/`: Start a search
-    -   `Enter`/`Escape`: Submit the search
--   `n`: Move the cursor to the next search result in the current column
--   `N`: Move the cursor to the previous search result in the current column
 
 ### Library Album Art View
 
@@ -169,6 +151,24 @@ There are no additional keybindings in this view.
 -   `n`: Move the cursor to the next search result
 -   `N`: Move the cursor to the previous search result
 -   `i`: Go back to the Library Subview
+
+### Library View
+
+-   `j`: Move the cursor down
+-   `k`: Move the cursor up
+-   `j`: Move the cursor left
+-   `l`: Move the cursor right
+-   `Ctrl-d`: Move the cursor half a page down
+-   `Ctrl-u`: Move the cursor half a page up
+-   `g`: Move the cursor to the top of the current column
+-   `G`: Move the cursor to the bottom of the current column
+-   `o`: Move the cursor to the currently playing song
+-   `Space`: Add the selected song to the queue
+-   `Enter`: Add the selected song to the queue and play it
+-   `/`: Start a search
+    -   `Enter`/`Escape`: Submit the search
+-   `n`: Move the cursor to the next search result in the current column
+-   `N`: Move the cursor to the previous search result in the current column
 
 ### Playlist View
 
