@@ -69,10 +69,25 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
         }
     } else {
         for Input.events_this_frame {
-            if it.type == {
-              case .KEYBOARD;
-                if it.key_pressed {
+            if it.type == .KEYBOARD && it.key_pressed {
+                if it.ctrl_pressed {
                     if it.key_code == {
+
+                      case KEY_D;
+                        table_set(*key_pressed_on_frame, .CTRL_D, frame);
+                        last_key_pressed = .CTRL_D;
+                        move_cursor_half_page_down();
+                        break it;
+                      case KEY_U;
+                        table_set(*key_pressed_on_frame, .CTRL_U, frame);
+                        last_key_pressed = .CTRL_U;
+                        move_cursor_half_page_up();
+                        break it;
+
+                    }
+                } else {
+                    if it.key_code == {
+
                       case KEY_J;
                         table_set(*key_pressed_on_frame, .J, frame);
                         last_key_pressed = .J;
@@ -82,21 +97,6 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
                         table_set(*key_pressed_on_frame, .K, frame);
                         last_key_pressed = .K;
                         move_cursor_up();
-                        break it;
-
-                      case KEY_D;
-                        if it.ctrl_pressed {
-                            table_set(*key_pressed_on_frame, .CTRL_D, frame);
-                            last_key_pressed = .CTRL_D;
-                            move_cursor_half_page_down();
-                        }
-                        break it;
-                      case KEY_U;
-                        if it.ctrl_pressed {
-                            table_set(*key_pressed_on_frame, .CTRL_U, frame);
-                            last_key_pressed = .CTRL_U;
-                            move_cursor_half_page_up();
-                        }
                         break it;
 
                       case KEY_G;
@@ -115,6 +115,7 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
                       case .ESCAPE;
                         follow_log = true;
                         break it;
+
                     }
                 }
             }

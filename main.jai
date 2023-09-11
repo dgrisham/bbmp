@@ -53,7 +53,7 @@ OpenGL_MSAA :: struct {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
     glGenTextures(1, *tex);
-   glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, tex);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, tex);
     glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, msaa_samples, GL_RGB, xx window_width, xx window_height, GL_TRUE);
     glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -264,89 +264,96 @@ main :: () {
                 break program_loop;
             }
             if !user_input_active && it.type == .KEYBOARD && it.key_pressed {
-                if it.key_code == {
-                  case KEY_Q;
-                    if it.shift_pressed {
-                        break program_loop;
+                if it.ctrl_pressed {
+                    if it.key_code == {
+
+                      case KEY_H; // CTRL_h
+                        hide_view_titles = !hide_view_titles;;
+
                     }
+                } else {
+                    if it.key_code == {
 
-                  case .NUMBER_1;
-                    current_view = .NOW_PLAYING;
-                    break it;
-                  case .NUMBER_2;
-                    current_view = .QUEUE;
-                    Queue.update(mpd_connection, library, queue);
-                    break it;
-                  case .NUMBER_3;
-                    current_view = .ALBUM_ART;
-                    break it;
-                  case .NUMBER_4;
-                    current_view = .LIBRARY;
-                    break it;
-                  case .NUMBER_5;
-                    current_view = .PLAYLIST;
-                    break it;
-                  case .NUMBER_6;
-                    current_view = .CONFIG_EDITOR;
-                    break it;
-                  case .NUMBER_7;
-                    current_view = .LOG;
-                    break it;
+                      case KEY_Q;
+                        if it.shift_pressed {
+                            break program_loop;
+                        }
 
-                  case KEY_P;
-                    MPD.run_toggle_pause(mpd_connection);
-                    handle_errors("Toggling pause");
-                    break it;
+                      case .NUMBER_1;
+                        current_view = .NOW_PLAYING;
+                        break it;
+                      case .NUMBER_2;
+                        current_view = .QUEUE;
+                        Queue.update(mpd_connection, library, queue);
+                        break it;
+                      case .NUMBER_3;
+                        current_view = .ALBUM_ART;
+                        break it;
+                      case .NUMBER_4;
+                        current_view = .LIBRARY;
+                        break it;
+                      case .NUMBER_5;
+                        current_view = .PLAYLIST;
+                        break it;
+                      case .NUMBER_6;
+                        current_view = .CONFIG_EDITOR;
+                        break it;
+                      case .NUMBER_7;
+                        current_view = .LOG;
+                        break it;
 
-                  case KEY_B;
-                    last_global_key_pressed = .B;
-                    table_set(*global_key_pressed_on_frame, .B, frame);
-                    seek_backward();
-                    break it;
-                  case KEY_F;
-                    if !it.shift_pressed {
-                        last_global_key_pressed = .F;
-                        table_set(*global_key_pressed_on_frame, .F, frame);
-                        seek_forward();
+                      case KEY_P;
+                        MPD.run_toggle_pause(mpd_connection);
+                        handle_errors("Toggling pause");
+                        break it;
+
+                      case KEY_B;
+                        last_global_key_pressed = .B;
+                        table_set(*global_key_pressed_on_frame, .B, frame);
+                        seek_backward();
+                        break it;
+                      case KEY_F;
+                        if !it.shift_pressed {
+                            last_global_key_pressed = .F;
+                            table_set(*global_key_pressed_on_frame, .F, frame);
+                            seek_forward();
+                        }
+                        break it;
+
+                      case .LEFT_ANGLE_BRACKET;
+                        if it.shift_pressed {
+                            last_global_key_pressed = .LEFT_ANGLE_BRACKET;
+                            table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
+                            play_previous_song();
+                        }
+                        break it;
+                      case .RIGHT_ANGLE_BRACKET;
+                        if it.shift_pressed {
+                            last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
+                            table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
+                            play_next_song();
+                        }
+                        break it;
+
+                      case .EQUALS_SIGN;
+                        last_global_key_pressed = .EQUALS_SIGN;
+                        table_set(*global_key_pressed_on_frame, .EQUALS_SIGN, frame);
+                        increment_volume();
+                        break it;
+                      case .DASH;
+                        last_global_key_pressed = .DASH;
+                        table_set(*global_key_pressed_on_frame, .DASH, frame);
+                        decrement_volume();
+                        break it;
+
+                      case KEY_C;
+                        MPD.run_clear(mpd_connection);
+                        handle_errors("Clearing queue");
+                        Queue.update(mpd_connection, library, queue);
+                        update_status(Queue.get_current_song(mpd_connection, queue));
+                        break it;
+
                     }
-                    break it;
-
-                  case .LEFT_ANGLE_BRACKET;
-                    if it.shift_pressed {
-                        last_global_key_pressed = .LEFT_ANGLE_BRACKET;
-                        table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
-                        play_previous_song();
-                    }
-                    break it;
-                  case .RIGHT_ANGLE_BRACKET;
-                    if it.shift_pressed {
-                        last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
-                        table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
-                        play_next_song();
-                    }
-                    break it;
-
-                  case .EQUALS_SIGN;
-                    last_global_key_pressed = .EQUALS_SIGN;
-                    table_set(*global_key_pressed_on_frame, .EQUALS_SIGN, frame);
-                    increment_volume();
-                    break it;
-                  case .DASH;
-                    last_global_key_pressed = .DASH;
-                    table_set(*global_key_pressed_on_frame, .DASH, frame);
-                    decrement_volume();
-                    break it;
-
-                  case KEY_C;
-                    MPD.run_clear(mpd_connection);
-                    handle_errors("Clearing queue");
-                    Queue.update(mpd_connection, library, queue);
-                    update_status(Queue.get_current_song(mpd_connection, queue));
-                    break it;
-
-                  case KEY_H; // CTRL_h
-                    if !(Input.input_button_states[Input.Key_Code.CTRL] & .DOWN) break it;
-                    hide_view_titles = !hide_view_titles;;
                 }
             }
         }

@@ -246,95 +246,98 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
             if it.type == {
               case .KEYBOARD;
                 if it.key_pressed {
-                    if it.key_code == {
+                    if it.ctrl_pressed {
+                        if it.key_code == {
 
-                      case KEY_J;
-                        if it.shift_pressed {
-                            table_set(*key_pressed_on_frame, .SHIFT_J, frame);
-                            last_key_pressed = .SHIFT_J;
-                            shift_selected_item_down();
-                        } else {
-                            table_set(*key_pressed_on_frame, .J, frame);
-                            last_key_pressed = .J;
-                            move_cursor_down();
-                        }
-                        break it;
-                      case KEY_K;
-                        if it.shift_pressed {
-                            table_set(*key_pressed_on_frame, .SHIFT_K, frame);
-                            last_key_pressed = .SHIFT_K;
-                            shift_selected_item_up();
-                        } else {
-                            table_set(*key_pressed_on_frame, .K, frame);
-                            last_key_pressed = .K;
-                            move_cursor_up();
-                        }
-                        break it;
-
-                      case KEY_D;
-                        if it.ctrl_pressed {
+                          case KEY_D;
                             table_set(*key_pressed_on_frame, .CTRL_D, frame);
                             last_key_pressed = .CTRL_D;
                             move_cursor_half_page_down();
-                        }
-                        break it;
-                      case KEY_U;
-                        if it.ctrl_pressed {
+                            break it;
+                          case KEY_U;
                             table_set(*key_pressed_on_frame, .CTRL_U, frame);
                             last_key_pressed = .CTRL_U;
                             move_cursor_half_page_up();
+                            break it;
+
                         }
-                        break it;
+                    } else {
+                        if it.key_code == {
 
-                      case KEY_G;
-                        if it.shift_pressed {
-                            cursor.position = queue.songs.count - 1;
-                        } else {
-                            cursor.position = 0;
-                        }
-                        break it;
-
-                      case KEY_X;
-                        table_set(*key_pressed_on_frame, .X, frame);
-                        last_key_pressed = .X;
-                        remove_selected_song();
-                        break it;
-
-                      case KEY_O; // move cursor to currently playing song
-                        mpd_current_song := MPD.run_current_song(mpd_connection);
-                        handle_errors("Getting current song");
-                        if !mpd_current_song break;
-                        uri := to_string(MPD.song_get_uri(mpd_current_song));
-
-                        for song: queue.songs {
-                            if song.uri == uri {
-                                cursor.position = it_index;
+                          case KEY_J;
+                            if it.shift_pressed {
+                                table_set(*key_pressed_on_frame, .SHIFT_J, frame);
+                                last_key_pressed = .SHIFT_J;
+                                shift_selected_item_down();
+                            } else {
+                                table_set(*key_pressed_on_frame, .J, frame);
+                                last_key_pressed = .J;
+                                move_cursor_down();
                             }
+                            break it;
+                          case KEY_K;
+                            if it.shift_pressed {
+                                table_set(*key_pressed_on_frame, .SHIFT_K, frame);
+                                last_key_pressed = .SHIFT_K;
+                                shift_selected_item_up();
+                            } else {
+                                table_set(*key_pressed_on_frame, .K, frame);
+                                last_key_pressed = .K;
+                                move_cursor_up();
+                            }
+                            break it;
+
+                          case KEY_G;
+                            if it.shift_pressed {
+                                cursor.position = queue.songs.count - 1;
+                            } else {
+                                cursor.position = 0;
+                            }
+                            break it;
+
+                          case KEY_X;
+                            table_set(*key_pressed_on_frame, .X, frame);
+                            last_key_pressed = .X;
+                            remove_selected_song();
+                            break it;
+
+                          case KEY_O; // move cursor to currently playing song
+                            mpd_current_song := MPD.run_current_song(mpd_connection);
+                            handle_errors("Getting current song");
+                            if !mpd_current_song break;
+                            uri := to_string(MPD.song_get_uri(mpd_current_song));
+
+                            for song: queue.songs {
+                                if song.uri == uri {
+                                    cursor.position = it_index;
+                                }
+                            }
+                            break it;
+
+                          case .ENTER; // play selected song
+                            table_set(*key_pressed_on_frame, .ENTER, frame);
+                            last_key_pressed = .ENTER;
+                            play_selected_song();
+                            break it;
+
+                          case .FORWARD_SLASH;
+                            inputting_search_query = true;
+                            search_query.str.count = 0;
+                            break it;
+
+                          case KEY_N;
+                            if it.shift_pressed {
+                                last_key_pressed = .SHIFT_N;
+                                table_set(*key_pressed_on_frame, .SHIFT_N, frame);
+                                move_cursor_to_prev_search_result();
+                            } else {
+                                last_key_pressed = .N;
+                                table_set(*key_pressed_on_frame, .N, frame);
+                                move_cursor_to_next_search_result();
+                            }
+                            break it;
+
                         }
-                        break it;
-
-                      case .ENTER; // play selected song
-                        table_set(*key_pressed_on_frame, .ENTER, frame);
-                        last_key_pressed = .ENTER;
-                        play_selected_song();
-                        break it;
-
-                      case .FORWARD_SLASH;
-                        inputting_search_query = true;
-                        search_query.str.count = 0;
-                        break it;
-
-                      case KEY_N;
-                        if it.shift_pressed {
-                            last_key_pressed = .SHIFT_N;
-                            table_set(*key_pressed_on_frame, .SHIFT_N, frame);
-                            move_cursor_to_prev_search_result();
-                        } else {
-                            last_key_pressed = .N;
-                            table_set(*key_pressed_on_frame, .N, frame);
-                            move_cursor_to_next_search_result();
-                        }
-                        break it;
                     }
                 }
             }

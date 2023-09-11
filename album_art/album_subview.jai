@@ -135,103 +135,106 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
             if it.type == {
               case .KEYBOARD;
                 if it.key_pressed {
-                    if it.key_code == {
+                    if it.ctrl_pressed {
+                        if it.key_code == {
 
-                      case KEY_I;
-                        current_album_art_subview = .LIBRARY;
-                        cursor.song_position = 0;
-                        break it;
-
-                      case KEY_J;
-                        table_set(*key_pressed_on_frame, .J, frame);
-                        last_key_pressed = .J;
-                        move_cursor_to_next_song();
-                        break it;
-                      case KEY_K;
-                        table_set(*key_pressed_on_frame, .K, frame);
-                        last_key_pressed = .K;
-                        move_cursor_to_prev_song();
-                        break it;
-
-                      case KEY_H;
-                        table_set(*key_pressed_on_frame, .H, frame);
-                        last_key_pressed = .H;
-                        move_cursor_to_prev_album_and_reset_song_position();
-                        break it;
-                      case KEY_L;
-                        table_set(*key_pressed_on_frame, .L, frame);
-                        last_key_pressed = .L;
-                        move_cursor_to_next_album_and_reset_song_position();
-                        break it;
-
-                      case KEY_D;
-                        if it.ctrl_pressed {
+                          case KEY_D;
                             table_set(*key_pressed_on_frame, .CTRL_D, frame);
                             last_key_pressed = .CTRL_D;
                             move_cursor_one_page_down();
-                        }
-                        break it;
-                      case KEY_U;
-                        if it.ctrl_pressed {
+                            break it;
+                          case KEY_U;
                             table_set(*key_pressed_on_frame, .CTRL_U, frame);
                             last_key_pressed = .CTRL_U;
                             move_cursor_one_page_up();
+                            break it;
                         }
-                        break it;
 
-                      case KEY_G;
-                        if it.shift_pressed {
-                            cursor.song_position = album.songs.count - 1;
-                        } else {
+                    } else {
+
+                        if it.key_code == {
+                          case KEY_I;
+                            current_album_art_subview = .LIBRARY;
                             cursor.song_position = 0;
-                        }
-                        break it;
+                            break it;
 
-                      case KEY_O;
-                        mpd_current_song := MPD.run_current_song(mpd_connection);
-                        handle_errors("Getting current song");
-                        if !mpd_current_song break;
-                        uri := to_string(MPD.song_get_uri(mpd_current_song));
-                        for album, album_index: albums {
-                            for song, song_index: album.songs {
-                                if song.uri == uri {
-                                    // @Cleanup This is the first time we're updating cursor for another 'view'.
-                                    cursor.album_position = album_index;
-                                    cursor.song_position  = song_index;
-                                    break;
+                          case KEY_J;
+                            table_set(*key_pressed_on_frame, .J, frame);
+                            last_key_pressed = .J;
+                            move_cursor_to_next_song();
+                            break it;
+                          case KEY_K;
+                            table_set(*key_pressed_on_frame, .K, frame);
+                            last_key_pressed = .K;
+                            move_cursor_to_prev_song();
+                            break it;
+
+                          case KEY_H;
+                            table_set(*key_pressed_on_frame, .H, frame);
+                            last_key_pressed = .H;
+                            move_cursor_to_prev_album_and_reset_song_position();
+                            break it;
+                          case KEY_L;
+                            table_set(*key_pressed_on_frame, .L, frame);
+                            last_key_pressed = .L;
+                            move_cursor_to_next_album_and_reset_song_position();
+                            break it;
+
+                          case KEY_G;
+                            if it.shift_pressed {
+                                cursor.song_position = album.songs.count - 1;
+                            } else {
+                                cursor.song_position = 0;
+                            }
+                            break it;
+
+                          case KEY_O;
+                            mpd_current_song := MPD.run_current_song(mpd_connection);
+                            handle_errors("Getting current song");
+                            if !mpd_current_song break;
+                            uri := to_string(MPD.song_get_uri(mpd_current_song));
+                            for album, album_index: albums {
+                                for song, song_index: album.songs {
+                                    if song.uri == uri {
+                                        // @Cleanup This is the first time we're updating cursor for another 'view'.
+                                        cursor.album_position = album_index;
+                                        cursor.song_position  = song_index;
+                                        break;
+                                    }
                                 }
                             }
+                            break it;
+
+                          case .SPACEBAR;
+                            table_set(*key_pressed_on_frame, .SPACE, frame);
+                            last_key_pressed = .SPACE;
+                            toggle_selected_song_in_queue_and_increment_cursor();
+                            break it;
+
+                          case .ENTER;
+                            table_set(*key_pressed_on_frame, .ENTER, frame);
+                            last_key_pressed = .ENTER;
+                            add_selected_song_to_queue_and_play();
+                            break it;
+
+                          case .FORWARD_SLASH;
+                            inputting_search_query = true;
+                            search_query.str.count = 0;
+                            break it;
+
+                          case KEY_N;
+                            if it.shift_pressed {
+                                last_key_pressed = .SHIFT_N;
+                                table_set(*key_pressed_on_frame, .SHIFT_N, frame);
+                                move_cursor_to_prev_search_result();
+                            } else {
+                                last_key_pressed = .N;
+                                table_set(*key_pressed_on_frame, .N, frame);
+                                move_cursor_to_next_search_result();
+                            }
+                            break it;
                         }
-                        break it;
 
-                      case .SPACEBAR;
-                        table_set(*key_pressed_on_frame, .SPACE, frame);
-                        last_key_pressed = .SPACE;
-                        toggle_selected_song_in_queue_and_increment_cursor();
-                        break it;
-
-                      case .ENTER;
-                        table_set(*key_pressed_on_frame, .ENTER, frame);
-                        last_key_pressed = .ENTER;
-                        add_selected_song_to_queue_and_play();
-                        break it;
-
-                      case .FORWARD_SLASH;
-                        inputting_search_query = true;
-                        search_query.str.count = 0;
-                        break it;
-
-                      case KEY_N;
-                        if it.shift_pressed {
-                            last_key_pressed = .SHIFT_N;
-                            table_set(*key_pressed_on_frame, .SHIFT_N, frame);
-                            move_cursor_to_prev_search_result();
-                        } else {
-                            last_key_pressed = .N;
-                            table_set(*key_pressed_on_frame, .N, frame);
-                            move_cursor_to_next_search_result();
-                        }
-                        break it;
                     }
                 }
             }
@@ -281,27 +284,32 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
 
               case .KEYBOARD;
                 if it.key_pressed {
-                    if it.key_code == {
+                    if it.ctrl_pressed {
+                        if it.key_code == {
 
-                      case .BACKSPACE;
-                        last_search_query_key_pressed = .BACKSPACE;
-                        table_set(*search_query_key_pressed_on_frame, .BACKSPACE, frame);
-                        backspace_search_query(*search_query);
-                        move_cursor_to_first_search_result();
-                        break it;
-
-                      case KEY_U;
-                        if it.ctrl_pressed {
+                          case KEY_U;
                             last_search_query_key_pressed = .CTRL_U;
                             search_query.str.count = 0;
                             break it;
-                        }
 
-                      case .ENTER; #through;
-                      case .ESCAPE;
-                        last_search_query_key_pressed = .ESCAPE;
-                        inputting_search_query = false;
-                        break it;
+                        }
+                    } else {
+                        if it.key_code == {
+
+                          case .BACKSPACE;
+                            last_search_query_key_pressed = .BACKSPACE;
+                            table_set(*search_query_key_pressed_on_frame, .BACKSPACE, frame);
+                            backspace_search_query(*search_query);
+                            move_cursor_to_first_search_result();
+                            break it;
+
+                          case .ENTER; #through;
+                          case .ESCAPE;
+                            last_search_query_key_pressed = .ESCAPE;
+                            inputting_search_query = false;
+                            break it;
+
+                        }
                     }
                 }
             }

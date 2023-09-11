@@ -301,9 +301,23 @@ event_loop :: (mpd_connection: *MPD.connection, using playlist_data: Data, libra
 
     if !inputting_search_query {
         for Input.events_this_frame {
-            if it.type == {
-              case .KEYBOARD;
-                if it.key_pressed {
+            if it.type == .KEYBOARD && it.key_pressed {
+                if it.ctrl_pressed {
+                    if it.key_code == {
+
+                      case KEY_D;
+                        last_key_pressed = .CTRL_D;
+                        table_set(*key_pressed_on_frame, .CTRL_D, frame);
+                        move_selected_cursor_half_page_down();
+                        break it;
+                      case KEY_U;
+                        last_key_pressed = .CTRL_U;
+                        table_set(*key_pressed_on_frame, .CTRL_U, frame);
+                        move_selected_cursor_half_page_up();
+                        break it;
+
+                    }
+                } else {
                     if it.key_code == {
 
                       case KEY_H;
@@ -327,21 +341,6 @@ event_loop :: (mpd_connection: *MPD.connection, using playlist_data: Data, libra
                         table_set(*key_pressed_on_frame, .K, frame);
                         move_selected_cursor_up();
                         break it;
-
-                      case KEY_D;
-                        if it.ctrl_pressed {
-                            last_key_pressed = .CTRL_D;
-                            table_set(*key_pressed_on_frame, .CTRL_D, frame);
-                            move_selected_cursor_half_page_down();
-                            break it;
-                        }
-                      case KEY_U;
-                        if it.ctrl_pressed {
-                            last_key_pressed = .CTRL_U;
-                            table_set(*key_pressed_on_frame, .CTRL_U, frame);
-                            move_selected_cursor_half_page_up();
-                            break it;
-                        }
 
                       case KEY_G;
                         if cursor.selected == {
@@ -391,6 +390,7 @@ event_loop :: (mpd_connection: *MPD.connection, using playlist_data: Data, libra
                             move_cursor_to_next_search_result();
                         }
                         break it;
+
                     }
                 }
             }
