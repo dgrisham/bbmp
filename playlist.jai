@@ -48,9 +48,9 @@ load :: (library: Library_Data) -> *Data {
 
     initialize_search_query(*search_query);
 
-    data := New(Data);
+    playlist_data := New(Data);
 
-    if !mpd_connection return data;
+    if !mpd_connection return playlist_data;
 
     playlist_paths: [..] *u8;
 
@@ -69,7 +69,7 @@ load :: (library: Library_Data) -> *Data {
         handle_errors("Listing playlists");
     }
 
-    array_reserve(*data.playlist_names_sorted, playlist_paths.count);
+    array_reserve(*playlist_data.playlist_names_sorted, playlist_paths.count);
     for playlist_path: playlist_paths {
         if MPD.send_list_playlist(mpd_connection, playlist_path) {
             entity := MPD.recv_entity(mpd_connection);
@@ -88,24 +88,24 @@ load :: (library: Library_Data) -> *Data {
                 entity = MPD.recv_entity(mpd_connection);
                 handle_errors(tprint("Receiving entity for playlist '%'", playlist.name));
             }
-            table_set(*data.playlists, playlist.name, playlist);
+            table_set(*playlist_data.playlists, playlist.name, playlist);
 
             index := 0;
-            for data.playlist_names_sorted {
+            for playlist_data.playlist_names_sorted {
                 if compare_nocase(playlist.name, it) < 0 break;
                 index += 1;
             }
-            array_insert_at(*data.playlist_names_sorted, playlist.name, index);
+            array_insert_at(*playlist_data.playlist_names_sorted, playlist.name, index);
         } else {
             handle_errors(tprint("Listing playlist '%'", playlist_path));
         }
     }
     array_free(playlist_paths);
 
-    return data;
+    return playlist_data;
 }
 
-event_loop :: (mpd_connection: *MPD.connection, using data: Data, library: Library_Data, queue: *Queue.Data, frame: u64, fonts: Fonts, display_width: s32, header_bottom: int) -> bool {
+event_loop :: (mpd_connection: *MPD.connection, using playlist_data: Data, library: Library_Data, queue: *Queue.Data, frame: u64, fonts: Fonts, display_width: s32, header_bottom: int) -> bool {
 
     max_items_in_page := (header_bottom - Y_MARGIN_SIZE) / (fonts.regular.character_height + TEXT_PADDING_Y);
 
@@ -125,6 +125,63 @@ event_loop :: (mpd_connection: *MPD.connection, using data: Data, library: Libra
     move_selected_cursor_left  :: () #expand { `cursor.selected -= 1; }
     move_selected_cursor_right :: () #expand { `cursor.selected += 1; }
 
+    add_selection_to_queue_and_increment_cursor :: () -> s32 #expand {
+        if !mpd_connection {
+            log("No connection to MPD, cannot add song to queue", flags=.ERROR);
+            return -1;
+        }
+
+        playlist_name := `playlist_names_sorted[cursor.positions[0]];
+        playlist, found := table_find(*`playlists, playlist_name);
+        assert(found, "Failed to find playlist '%'", playlist_name);
+
+        if cursor.selected == {
+          case 0;
+            add_playlist_to_queue(playlist);
+          case 1;
+            song_uri := playlist.song_URIs[cursor.positions[1]];
+            ids := table_find_multiple(*queue.queued_URIs, song_uri);
+            if ids.count {
+                for id: ids {
+                    MPD.run_delete_id(mpd_connection, id);
+                    handle_errors("Deleting song from queue");
+                }
+            } else {
+                MPD.run_add_id(mpd_connection, to_c_string(song_uri));
+                handle_errors("Adding song to queue");
+            }
+        }
+
+        Queue.update(`mpd_connection, `library, `queue);
+        `cursor.positions[cursor.selected] += 1;
+    }
+
+    add_selection_to_queue_and_play :: () #expand {
+        if !mpd_connection {
+            log("No connection to MPD, cannot add song to queue", flags=.ERROR);
+            return;
+        }
+
+        playlist_name := playlist_names_sorted[cursor.positions[0]];
+        playlist, success := table_find(*`playlists, playlist_name);
+        assert(success, "Failed to find playlist '%'", playlist_name);
+
+        first_song_id_added: s32;
+        if cursor.selected == {
+          case 0;
+            first_song_id_added = add_playlist_to_queue(playlist);
+          case 1;
+            first_song_id_added = MPD.run_add_id(mpd_connection, temp_c_string(playlist.song_URIs[cursor.positions[1]]));
+        }
+
+        if first_song_id_added >= 0 {
+            MPD.run_play_id(mpd_connection, cast(u32)first_song_id_added);
+            handle_errors("Playing first song in group added to queue");
+            Queue.update(`mpd_connection, library, `queue);
+            update_status(Queue.get_current_song(`mpd_connection, `queue));
+        }
+    }
+
     add_playlist_to_queue :: (playlist: Playlist) -> s32 #expand {
         first_id_added: s32;
         for song_uri, song_index: playlist.song_URIs {
@@ -137,53 +194,14 @@ event_loop :: (mpd_connection: *MPD.connection, using data: Data, library: Libra
         return first_id_added;
     }
 
-    add_selection_to_queue_and_increment_cursor :: (using data: Data) -> s32 #expand {
-        first_song_id_added := add_selection_to_queue(data);
-        if first_song_id_added >= 0 `cursor.positions[cursor.selected] += 1;
-        return first_song_id_added;
-    }
-
-    add_selection_to_queue :: (using data: Data) -> s32 #expand {
-        if !mpd_connection {
-            log("No connection to MPD, cannot add song to queue", flags=.ERROR);
-            return -1;
-        }
-
-        first_song_id_added: s32;
-        if cursor.selected == {
-          case 0;
-            playlist_name := playlist_names_sorted[cursor.positions[0]];
-            playlist, success := table_find(*playlists, playlist_name);
-            assert(success, "Failed to find playlist '%' to add to the queue", playlist_name);
-            first_song_id_added = add_playlist_to_queue(playlist);
-          case 1;
-            playlist_name := playlist_names_sorted[cursor.positions[0]];
-            playlist, success := table_find(*playlists, playlist_name);
-            assert(success, "Failed to find playlist '%' to add one of its songs to the queue", playlist_name);
-            first_song_id_added = MPD.run_add_id(mpd_connection, temp_c_string(playlist.song_URIs[cursor.positions[1]]));
-        }
-
-        return first_song_id_added;
-    }
-
-    add_selection_to_queue_and_play :: (using data: Data) #expand {
-        song_id_to_play := add_selection_to_queue(data);
-        if song_id_to_play >= 0 {
-            MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
-            handle_errors("Playing first song in group added to queue");
-            Queue.update(`mpd_connection, library, `queue);
-            update_status(Queue.get_current_song(`mpd_connection, `queue));
-        }
-    }
-
-    move_cursor_to_next_search_result :: (using data: Data) #expand {
+    move_cursor_to_next_search_result :: () #expand {
         if search_query.str == "" return;
 
         if cursor.selected == {
           case 0;
-            for i: 0..(playlist_names_sorted.count - 1) {
-                playlist_index := (i + cursor.positions[0] + 1) % playlist_names_sorted.count;
-                playlist_name := playlist_names_sorted[playlist_index];
+            for i: 0..(`playlist_names_sorted.count - 1) {
+                playlist_index := (i + cursor.positions[0] + 1) % `playlist_names_sorted.count;
+                playlist_name := `playlist_names_sorted[playlist_index];
                 match := true;
                 for s: split(search_query.str, SPACE) {
                     if !contains_nocase(playlist_name, s) {
@@ -198,8 +216,8 @@ event_loop :: (mpd_connection: *MPD.connection, using data: Data, library: Libra
                 }
             }
           case 1;
-            playlist_name := playlist_names_sorted[cursor.positions[0]];
-            playlist, found := table_find(*playlists, playlist_name);
+            playlist_name := `playlist_names_sorted[cursor.positions[0]];
+            playlist, found := table_find(*`playlists, playlist_name);
             assert(found, "Expected to find playlist during playlist song search query");
             for i: 0..(playlist.song_URIs.count - 1) {
                 song_index := (i + cursor.positions[1] + 1) % playlist.song_URIs.count;
@@ -348,13 +366,13 @@ event_loop :: (mpd_connection: *MPD.connection, using data: Data, library: Libra
                       case .SPACEBAR;
                         last_key_pressed = .SPACE;
                         table_set(*key_pressed_on_frame, .SPACE, frame);
-                        add_selection_to_queue_and_increment_cursor(data);
+                        add_selection_to_queue_and_increment_cursor();
                         break it;
 
                       case .ENTER;
                         last_key_pressed = .ENTER;
                         table_set(*key_pressed_on_frame, .ENTER, frame);
-                        add_selection_to_queue_and_play(data);
+                        add_selection_to_queue_and_play();
                         break it;
 
                       case .FORWARD_SLASH;
@@ -370,7 +388,7 @@ event_loop :: (mpd_connection: *MPD.connection, using data: Data, library: Libra
                         } else {
                             last_key_pressed = .N;
                             table_set(*key_pressed_on_frame, .N, frame);
-                            move_cursor_to_next_search_result(data);
+                            move_cursor_to_next_search_result();
                         }
                         break it;
                     }
@@ -384,8 +402,8 @@ event_loop :: (mpd_connection: *MPD.connection, using data: Data, library: Libra
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .L)       move_selected_cursor_right();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D)  move_selected_cursor_half_page_down();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U)  move_selected_cursor_half_page_up();
-        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)   add_selection_to_queue_and_increment_cursor(data);
-        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .N)       move_cursor_to_next_search_result(data);
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)   add_selection_to_queue_and_increment_cursor();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .N)       move_cursor_to_next_search_result();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_N) move_cursor_to_prev_search_result();
     } else {
 
