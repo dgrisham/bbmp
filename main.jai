@@ -15,6 +15,7 @@ Process :: #import "Process";
 Input   :: #import "Input";
 MPD     :: #import "libmpdclient";
 
+Now_Playing   :: #import "now_playing";
 Library       :: #import "library";
 Queue         :: #import "queue";
 Album_Art     :: #import "album_art";
@@ -52,7 +53,7 @@ OpenGL_MSAA :: struct {
     glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
     glGenTextures(1, *tex);
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, tex);
+   glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, tex);
     glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, msaa_samples, GL_RGB, xx window_width, xx window_height, GL_TRUE);
     glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
@@ -98,6 +99,7 @@ OpenGL_MSAA :: struct {
 Simp :: #import "Simp";
 
 View :: enum {
+    NOW_PLAYING;
     QUEUE;
     LIBRARY;
     ALBUM_ART;
@@ -127,6 +129,7 @@ frame: u64 = 0;
 frame_rate: float64;
 TARGET_FPS :: 30;
 
+hide_view_titles := false;
 user_input_active := false;
 
 main :: () {
@@ -230,10 +233,10 @@ main :: () {
             update_status_time();
         }
         SEEK_SECONDS :: 0.5;
-        seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(+2 * seconds); }
-        seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(-2 * seconds); } // TODO: this is too slow on some machines
-        // seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) + 5 * seconds); }
-        // seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) - 5 * seconds); }
+        // seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(+1 * seconds); }
+        // seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(-2.5 * seconds); } // TODO: this is too slow on some machines
+        seek_forward  :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) + 5 * seconds); }
+        seek_backward :: (seconds: float = SEEK_SECONDS) #expand { seek(- (5.0 / TARGET_FPS) - 5 * seconds); }
 
         play_previous_song :: () #expand {
             last_global_key_pressed = .LEFT_ANGLE_BRACKET;
@@ -268,22 +271,25 @@ main :: () {
                     }
 
                   case .NUMBER_1;
+                    current_view = .NOW_PLAYING;
+                    break it;
+                  case .NUMBER_2;
                     current_view = .QUEUE;
                     Queue.update(mpd_connection, library, queue);
                     break it;
-                  case .NUMBER_2;
+                  case .NUMBER_3;
                     current_view = .LIBRARY;
                     break it;
-                  case .NUMBER_3;
+                  case .NUMBER_4;
                     current_view = .ALBUM_ART;
                     break it;
-                  case .NUMBER_4;
+                  case .NUMBER_5;
                     current_view = .PLAYLIST;
                     break it;
-                  case .NUMBER_5;
+                  case .NUMBER_6;
                     current_view = .CONFIG_EDITOR;
                     break it;
-                  case .NUMBER_6;
+                  case .NUMBER_7;
                     current_view = .LOG;
                     break it;
 
@@ -337,6 +343,10 @@ main :: () {
                     Queue.update(mpd_connection, library, queue);
                     update_status(Queue.get_current_song(mpd_connection, queue));
                     break it;
+
+                  case KEY_H; // CTRL_h
+                    if !(Input.input_button_states[Input.Key_Code.CTRL] & .DOWN) break it;
+                    hide_view_titles = !hide_view_titles;;
                 }
             }
         }
@@ -368,6 +378,8 @@ main :: () {
         Simp.clear_render_target(0,0,0,1);
         header_bottom := draw_header();
         if current_view == {
+          case .NOW_PLAYING;
+            Now_Playing.event_loop(albums_sorted_by_artist_and_year, window_width, header_bottom);
           case .QUEUE;
             user_input_active = Queue.event_loop(mpd_connection, library, queue, frame, fonts, cast(s32)display_width(), header_bottom);
           case .LIBRARY;
@@ -472,8 +484,8 @@ draw_header :: () -> int {
         );
     }
 
-    { // view titles
-        VIEW_TITLES :: string.["Queue", "Library", "Library Album Art", "Playlists", "Config Viewer", "Debug Logs"];
+    if !hide_view_titles {
+        VIEW_TITLES :: string.["Now Playing", "Queue", "Library", "Library Album Art", "Playlists", "Config Viewer", "Debug Logs"];
         x := cast(s64)X_MARGIN_SIZE;
         y := header_bottom - Y_MARGIN_SIZE;
         for title: VIEW_TITLES {
