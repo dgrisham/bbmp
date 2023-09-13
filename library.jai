@@ -450,7 +450,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                         song_index_found := false;
                         for album_ptr.songs {
                             if it.uri == song.uri {
-                                song_index = it_index + 1;
+                                song_index = it_index;
                                 song_index_found = true;
                             }
                         }
