@@ -163,6 +163,23 @@ There are a few global keybindings, then each view has its own keybindings.
 -   `N`: Move the cursor to the previous search result
 -   `i`: Go back to the Library Subview
 
+### Playlist View
+
+-   `j`: Move the cursor down
+-   `k`: Move the cursor up
+-   `j`: Move the cursor left
+-   `l`: Move the cursor right
+-   `Ctrl-d`: Move the cursor half a page down
+-   `Ctrl-u`: Move the cursor half a page up
+-   `g`: Move the cursor to the top of the current column
+-   `G`: Move the cursor to the bottom of the current column
+-   `Space`: Add the selected song to the queu
+-   `Enter`: Add the selected song to the queue and play it
+-   `/`: Start a search
+    -   `Enter`/`Escape`: Submit the search
+-   `n`: Move the cursor to the next search result in the current column
+-   `N`: Move the cursor to the previous search result in the current column
+
 ### Config Viewer
 
 No keybindings for now. Will eventually be a configuration editor.

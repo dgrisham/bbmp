@@ -48,16 +48,12 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
         `cursor.song_position = 0;
     }
 
-    add_selected_song_to_queue :: () -> int #expand {
-        if !mpd_connection {
-            log("No connection to MPD, cannot add song to queue", flags=.ERROR);
-            return -1;
-        }
-        id := MPD.run_add_id(mpd_connection, to_c_string(`album.songs[`cursor.song_position].uri));
-        handle_errors("Adding song to queue from album view");
-        move_cursor_to_next_song();
-        return id;
+    add_selected_song_to_queue_and_shift_cursor :: () -> int #expand {
+        first_song_id_added := add_selected_song_to_queue();
+        if first_song_id_added >= 0 move_cursor_to_next_song();
+        return first_song_id_added;
     }
+
     add_selected_song_to_queue_and_play :: () #expand {
         song_id_to_play := add_selected_song_to_queue();
         if song_id_to_play >= 0 {
@@ -66,6 +62,16 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
             Queue.update(`mpd_connection, `library, `queue);
             update_status(Queue.get_current_song(`mpd_connection, `queue));
         }
+    }
+
+    add_selected_song_to_queue :: () -> int #expand {
+        if !mpd_connection {
+            log("No connection to MPD, cannot add song to queue", flags=.ERROR);
+            return -1;
+        }
+        id := MPD.run_add_id(mpd_connection, to_c_string(`album.songs[`cursor.song_position].uri));
+        handle_errors("Adding song to queue from album view");
+        return id;
     }
 
     move_cursor_to_next_search_result :: () #expand {
@@ -186,7 +192,7 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
                       case .SPACEBAR;
                         table_set(*key_pressed_on_frame, .SPACE, frame);
                         last_key_pressed = .SPACE;
-                        add_selected_song_to_queue();
+                        add_selected_song_to_queue_and_shift_cursor();
                         break it;
 
                       case .ENTER;
@@ -222,7 +228,7 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .L)       move_cursor_to_next_album_and_reset_song_position();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D)  move_cursor_one_page_down();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U)  move_cursor_one_page_up();
-        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)   add_selected_song_to_queue();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)   add_selected_song_to_queue_and_shift_cursor();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .ENTER)   add_selected_song_to_queue_and_play();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .N)       move_cursor_to_next_search_result();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_N) move_cursor_to_prev_search_result();
@@ -299,7 +305,7 @@ loaded_album: struct {
     art_loaded  : bool = false;
 }
 
-draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dynamic_Font, total_width: s32, header_bottom: int, items_in_page: int) {
+draw_album_frame :: (album: *Album, queue: Queue.Data, load_current_album_art: bool, fonts: Fonts, total_width: s32, header_bottom: int, items_in_page: int) {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -370,7 +376,7 @@ draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dy
     text_x := cast(s64)(cover_x + cover_display_width + X_MARGIN_SIZE);
 
     rectangle_width := total_width - X_MARGIN_SIZE - text_x;
-    max_characters_in_column := rectangle_width / font.w_width - 2;
+    max_characters_in_column := rectangle_width / fonts.regular.w_width - 2;
 
     display_entries: []Display_Text;
     selected_song_index := cursor.song_position;
@@ -393,9 +399,12 @@ draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dy
             // subtract 3 here, again for the 3 spaces added between track_and_title and duration
             duration := left_pad(duration_time_string, #char " ", max_characters_in_column - get_unicode_length(track_and_title) - 3);
 
+            _, song_in_queue := table_find(*queue.queued_URIs, song.uri);
+
             display_text: Display_Text;
             display_text.text = tprint("%   %", track_and_title, duration);
             display_text.selected = selected_song_index == i;
+            display_text.font     = ifx song_in_queue then fonts.bold else fonts.regular;
             display_entries[i-index_start] = display_text;
         }
     }
@@ -409,7 +418,7 @@ draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dy
         cast(s64)(
             cover_y + cover_display_height * 1 / 2                                                              // album cover center
             + Y_MARGIN_SIZE                                                                                     // gap between album metadata and tracklist
-            + (3 + (display_entries.count - 1) / 2.0) * (font.character_height + TEXT_PADDING_Y) - 2 * TEXT_PADDING_Y // total height of text that we draw (the subtraction at the end is to adjust from double counting)
+            + (3 + (display_entries.count - 1) / 2.0) * (fonts.regular.character_height + TEXT_PADDING_Y) - 2 * TEXT_PADDING_Y // total height of text that we draw (the subtraction at the end is to adjust from double counting)
         ),
         // height limit based on the remaining screen size
         header_bottom - Y_MARGIN_SIZE,
@@ -417,38 +426,38 @@ draw_album_frame :: (album: *Album, load_current_album_art: bool, font: *Simp.Dy
 
     x_center := (total_width - X_MARGIN_SIZE + text_x) / 2;
     {
-        width := Simp.prepare_text(font, album.name);
-        Simp.draw_prepared_text(font, x_center - width / 2, text_y, rgba(1,1,1,1));
+        width := Simp.prepare_text(fonts.regular, album.name);
+        Simp.draw_prepared_text(fonts.regular, x_center - width / 2, text_y, rgba(1,1,1,1));
     }
-    text_y -= TEXT_PADDING_Y + font.character_height;
+    text_y -= TEXT_PADDING_Y + fonts.regular.character_height;
 
     {
-        width := Simp.prepare_text(font, album.artist_name);
-        Simp.draw_prepared_text(font, x_center - width / 2, text_y, rgba(1,1,1,1));
+        width := Simp.prepare_text(fonts.regular, album.artist_name);
+        Simp.draw_prepared_text(fonts.regular, x_center - width / 2, text_y, rgba(1,1,1,1));
     }
-    text_y -= TEXT_PADDING_Y + font.character_height;
+    text_y -= TEXT_PADDING_Y + fonts.regular.character_height;
 
     {
-        width := Simp.prepare_text(font, to_long_date_string(album.date));
-        Simp.draw_prepared_text(font, x_center - width / 2, text_y, rgba(1,1,1,1));
+        width := Simp.prepare_text(fonts.regular, to_long_date_string(album.date));
+        Simp.draw_prepared_text(fonts.regular, x_center - width / 2, text_y, rgba(1,1,1,1));
     }
-    text_y -= font.character_height;
+    text_y -= fonts.regular.character_height;
 
     text_y -= Y_MARGIN_SIZE;
 
     for display_text: display_entries {
         if display_text.selected {
             Simp.set_shader_for_color();
-            Simp.immediate_quad(cast(float)text_x - 10, cast(float)text_y - 5, cast(float)text_x + rectangle_width, cast(float)text_y + font.character_height, rgba(1,1,1,1));
-            Simp.draw_text(font, text_x, text_y, display_text.text, rgba(0,0,0,1));
+            Simp.immediate_quad(cast(float)text_x - 10, cast(float)text_y - 5, cast(float)text_x + rectangle_width, cast(float)text_y + display_text.font.character_height, rgba(1,1,1,1));
+            Simp.draw_text(display_text.font, text_x, text_y, display_text.text, rgba(0,0,0,1));
         } else {
-            Simp.draw_text(font, text_x, text_y, display_text.text, rgba(1,1,1,1));
+            Simp.draw_text(display_text.font, text_x, text_y, display_text.text, rgba(1,1,1,1));
         }
-        text_y -= TEXT_PADDING_Y + font.character_height;
+        text_y -= TEXT_PADDING_Y + display_text.font.character_height;
     }
 
     if inputting_search_query {
         // TODO: need to ensure the x/y here won't overlap with anything else
-        Simp.draw_text(font, X_MARGIN_SIZE, Y_MARGIN_SIZE, tprint("Search: %", search_query.str), rgba(1,1,1,1));
+        Simp.draw_text(fonts.regular, X_MARGIN_SIZE, Y_MARGIN_SIZE, tprint("Search: %", search_query.str), rgba(1,1,1,1));
     }
 }

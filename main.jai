@@ -16,6 +16,7 @@ MPD     :: #import "libmpdclient";
 Library       :: #import "library";
 Queue         :: #import "queue";
 Album_Art     :: #import "album_art";
+Playlist      :: #import "playlist";
 Log_View      :: #import "log_view";
 Config_Editor :: #import "config_editor";
 
@@ -33,6 +34,7 @@ View :: enum {
     QUEUE;
     LIBRARY;
     ALBUM_ART;
+    PLAYLIST;
     CONFIG_EDITOR;
     LOG;
 }
@@ -97,6 +99,7 @@ main :: () {
     library                          := Library.load(mpd_connection);
     queue                            := Queue.load(mpd_connection, library);
     albums_sorted_by_artist_and_year := Album_Art.load(library);
+    playlists                        := Playlist.load(library);
     Config_Editor.load();
 
     start_album_art_creation_thread_group(albums_sorted_by_artist_and_year);
@@ -204,9 +207,12 @@ main :: () {
                     current_view = .ALBUM_ART;
                     break it;
                   case .NUMBER_4;
-                    current_view = .CONFIG_EDITOR;
+                    current_view = .PLAYLIST;
                     break it;
                   case .NUMBER_5;
+                    current_view = .CONFIG_EDITOR;
+                    break it;
+                  case .NUMBER_6;
                     current_view = .LOG;
                     break it;
 
@@ -287,16 +293,17 @@ main :: () {
         header_bottom := draw_header();
         if current_view == {
           case .QUEUE;
-            user_input_active = Queue.event_loop(mpd_connection, library, queue, frame, font, cast(s32)display_width(), header_bottom);
+            user_input_active = Queue.event_loop(mpd_connection, library, queue, frame, fonts, cast(s32)display_width(), header_bottom);
           case .LIBRARY;
-            user_input_active = Library.event_loop(mpd_connection, library, queue, frame, font, cast(s32)display_width(), header_bottom);
+            user_input_active = Library.event_loop(mpd_connection, library, queue, frame, fonts, cast(s32)display_width(), header_bottom);
           case .ALBUM_ART;
-            user_input_active = Album_Art.event_loop(mpd_connection, albums_sorted_by_artist_and_year, library, queue, frame, font, cast(s32)display_width(), header_bottom, thumbnail_slot_width, thumbnail_slot_height);
+            user_input_active = Album_Art.event_loop(mpd_connection, albums_sorted_by_artist_and_year, library, queue, frame, fonts, cast(s32)display_width(), header_bottom, thumbnail_slot_width, thumbnail_slot_height);
+          case .PLAYLIST;
+            user_input_active = Playlist.event_loop(mpd_connection, playlists, library, queue, frame, fonts, cast(s32)display_width(), header_bottom);
           case .LOG;
-            Log_View.event_loop(font, frame, cast(s32)display_width(), header_bottom);
+            Log_View.event_loop(fonts.regular, frame, cast(s32)display_width(), header_bottom);
           case .CONFIG_EDITOR;
-            user_input_active = Config_Editor.event_loop(font, frame, cast(s32)display_width(), header_bottom);
-
+            user_input_active = Config_Editor.event_loop(fonts.regular, frame, cast(s32)display_width(), header_bottom);
         }
         reset_temporary_storage();
         Simp.swap_buffers(window);
@@ -330,9 +337,9 @@ draw_header :: () -> int {
 
     { // current / total track time
         x := X_MARGIN_SIZE;
-        y := top - TEXT_PADDING_Y - font.character_height / 2;
+        y := top - TEXT_PADDING_Y - fonts.regular.character_height / 2;
         Simp.draw_text(
-            font,
+            fonts.regular,
             x,
             y,
             tprint(
@@ -348,39 +355,39 @@ draw_header :: () -> int {
         x := cast(int)window_width / 2;
         y := top;
 
-        max_characters_in_column := (display_width() / 2) / font.w_width;
+        max_characters_in_column := (display_width() / 2) / fonts.regular.w_width;
         if status.song {
-            text_width := Simp.prepare_text(font, slice(status.song, 0, max_characters_in_column));
-            Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
+            text_width := Simp.prepare_text(fonts.regular, slice(status.song, 0, max_characters_in_column));
+            Simp.draw_prepared_text(fonts.regular, x - text_width / 2, y, rgba(1,1,1,1));
         }
-        y -= TEXT_PADDING_Y + font.character_height;
+        y -= TEXT_PADDING_Y + fonts.regular.character_height;
 
         if status.artist || status.album {
-            text_width := Simp.prepare_text(font, slice(tprint("% - %", status.artist, status.album), 0, max_characters_in_column));
-            Simp.draw_prepared_text(font, x - text_width / 2, y, rgba(1,1,1,1));
+            text_width := Simp.prepare_text(fonts.regular, slice(tprint("% - %", status.artist, status.album), 0, max_characters_in_column));
+            Simp.draw_prepared_text(fonts.regular, x - text_width / 2, y, rgba(1,1,1,1));
         }
 
-        header_bottom = y - font.character_height;
+        header_bottom = y - fonts.regular.character_height;
     } else {
         x := cast(int)window_width / 2;
-        y := top - TEXT_PADDING_Y - font.character_height / 2;
+        y := top - TEXT_PADDING_Y - fonts.regular.character_height / 2;
         msg :: "Not connected to MPD -- please ensure your config is pointing to a valid MPD server and restart.";
-        text_width := Simp.prepare_text(font, msg);
+        text_width := Simp.prepare_text(fonts.regular, msg);
         Simp.draw_prepared_text(
-            font,
+            fonts.regular,
             x - text_width / 2,
             y,
             rgba(1,0,0,1),
         );
-        header_bottom = y - font.character_height;
+        header_bottom = y - fonts.regular.character_height;
     }
 
     { // volume
-        x := display_width() + X_MARGIN_SIZE - font.w_width * 10;
-        y := top - TEXT_PADDING_Y - font.character_height / 2;
+        x := display_width() + X_MARGIN_SIZE - fonts.regular.w_width * 10;
+        y := top - TEXT_PADDING_Y - fonts.regular.character_height / 2;
         display_volume := ifx status.volume >= 0 then tprint("%1%%", left_pad(status.volume, #char " ", 3)) else "N/A";
         Simp.draw_text(
-            font,
+            fonts.regular,
             x,
             y,
             tprint("Vol: %", display_volume),
@@ -389,22 +396,22 @@ draw_header :: () -> int {
     }
 
     { // view titles
-        VIEW_TITLES :: string.["Queue", "Library", "Library Album Art", "Config Viewer", "Debug Logs"];
+        VIEW_TITLES :: string.["Queue", "Library", "Library Album Art", "Playlists", "Config Viewer", "Debug Logs"];
         x := cast(s64)X_MARGIN_SIZE;
         y := header_bottom - Y_MARGIN_SIZE;
         for title: VIEW_TITLES {
-            text_width := Simp.prepare_text(font, tprint("(%) %", it_index + 1, title));
+            text_width := Simp.prepare_text(fonts.regular, tprint("(%) %", it_index + 1, title));
             selected := cast(s64)current_view == it_index;
             if selected {
                 Simp.set_shader_for_color();
-                Simp.immediate_quad(cast(float)x - 5, cast(float)y - 5, cast(float)x + text_width + 5, cast(float)y + font.character_height, rgba(0.85,0.85,0.85,1));
-                Simp.draw_prepared_text(font, x, y, rgba(0,0,0,1));
+                Simp.immediate_quad(cast(float)x - 5, cast(float)y - 5, cast(float)x + text_width + 5, cast(float)y + fonts.regular.character_height, rgba(0.85,0.85,0.85,1));
+                Simp.draw_prepared_text(fonts.regular, x, y, rgba(0,0,0,1));
             } else {
-                Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
+                Simp.draw_prepared_text(fonts.regular, x, y, rgba(1,1,1,1));
             }
             x += text_width + X_PADDING_BETWEEN_VIEW_TITLES;
         }
-        header_bottom -= Y_MARGIN_SIZE + font.character_height;
+        header_bottom -= Y_MARGIN_SIZE + fonts.regular.character_height;
     }
 
     header_bottom -= Y_PADDING_BELOW_HEADER;
@@ -412,10 +419,8 @@ draw_header :: () -> int {
     return header_bottom;
 }
 
-font, font_bold : *Simp.Dynamic_Font;
+fonts: Fonts;
 init_fonts :: () {
-
-    font_data : [] u8 = #run load_font_data("./fonts/Inconsolata-Regular.ttf"); // load font at compile time
 
     load_font_data :: (filename: string) -> []u8 {
         s, success := read_entire_file(filename);
@@ -423,14 +428,16 @@ init_fonts :: () {
         return cast([]u8) s;
     }
 
+    font_data : [] u8 = #run load_font_data("./fonts/Inconsolata-Regular.ttf"); // load font at compile time
+
     pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
     // better size for streaming
     // pixel_height := window_height / 56;
 
-    font = Simp.get_font_at_size(font_data, pixel_height);
-    assert(font != null);
+    fonts.regular = Simp.get_font_at_size(font_data, pixel_height);
+    assert(fonts.regular != null);
 
-    // if (font_bold != null) free(font_bold);
-    // font_bold = Simp.get_font_at_size("/home/grish/src/jai/jai-mpd", "Inconsolata-SemiBold.ttf", pixel_height);
-    // assert(font_bold != null);
+    bold_font_data : [] u8 = #run load_font_data("./fonts/Inconsolata-Bold.ttf");
+    fonts.bold = Simp.get_font_at_size(bold_font_data, pixel_height);
+    assert(fonts.bold != null);
 }

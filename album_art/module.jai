@@ -67,7 +67,7 @@ load :: (library: Library_Data) -> [] *Album {
     return albums;
 }
 
-event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, font: *Simp.Dynamic_Font, total_width: s32, header_bottom: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32) -> bool {
+event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, fonts: Fonts, total_width: s32, header_bottom: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32) -> bool {
 
     original_logger_data := context.logger_data;
     context.logger_data = *log_data;
@@ -98,8 +98,8 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Libr
     }
 
     total_height := header_bottom - Y_MARGIN_SIZE;
-    footer_height := font.character_height + TEXT_PADDING_Y;
-    total_album_entry_height := thumbnail_slot_height + 2 * (font.character_height + TEXT_PADDING_Y + selected_cover_highlight_width);
+    footer_height := fonts.regular.character_height + TEXT_PADDING_Y;
+    total_album_entry_height := thumbnail_slot_height + 2 * (fonts.regular.character_height + TEXT_PADDING_Y + selected_cover_highlight_width);
 
     MAX_VERTICAL_PADDING_FACTOR : s32 : 10;
     rows := (total_height - footer_height + thumbnail_slot_height / MAX_VERTICAL_PADDING_FACTOR) / (total_album_entry_height + thumbnail_slot_height / MAX_VERTICAL_PADDING_FACTOR);
@@ -123,7 +123,7 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Libr
         }
     }
 
-    album_songs_in_page := cast(int)(ALBUM_ART_DISPLAY_WIDTH - font.character_height) / (font.character_height + TEXT_PADDING_Y);
+    album_songs_in_page := cast(int)(ALBUM_ART_DISPLAY_WIDTH - fonts.regular.character_height) / (fonts.regular.character_height + TEXT_PADDING_Y);
 
     original_subview := current_album_art_subview;
 
@@ -137,10 +137,10 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Libr
 
     if current_album_art_subview == {
         case .LIBRARY;
-            draw_library_frame(albums, font, header_bottom, rows, columns, total_width, total_height, thumbnail_slot_width, thumbnail_slot_height, horizontal_padding, vertical_padding, x_margin_offset, y_margin_offset, selected_cover_highlight_width);
+            draw_library_frame(albums, fonts.regular, header_bottom, rows, columns, total_width, total_height, thumbnail_slot_width, thumbnail_slot_height, horizontal_padding, vertical_padding, x_margin_offset, y_margin_offset, selected_cover_highlight_width);
         case .ALBUM;
             just_switched_to_album_subview := original_subview != .ALBUM;
-            draw_album_frame(albums[cursor.album_position], just_switched_to_album_subview, font, total_width, header_bottom, album_songs_in_page);
+            draw_album_frame(albums[cursor.album_position], queue, just_switched_to_album_subview, fonts, total_width, header_bottom, album_songs_in_page);
     }
 
     return user_input_active;
