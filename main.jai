@@ -127,6 +127,7 @@ main :: () {
         frame_start := current_time();
 
         if queue && current_time() > status_update_timer + 500 {
+            Queue.update(mpd_connection, library, queue);
             update_status(Queue.get_current_song(mpd_connection, queue));
         }
 

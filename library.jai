@@ -193,12 +193,15 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
 
             song_uri := album.songs[cursor.positions[2]].uri;
 
-            id, song_in_queue := table_find(*queue.queued_URIs, song_uri);
-            if song_in_queue {
-                MPD.run_delete_id(mpd_connection, id);
+            ids := table_find_multiple(*queue.queued_URIs, song_uri);
+            if ids.count {
+                for id: ids {
+                    MPD.run_delete_id(mpd_connection, id);
+                    handle_errors("Deleting song from queue");
+                }
             } else {
                 MPD.run_add_id(mpd_connection, to_c_string(song_uri));
-                handle_errors("Adding song to queue from album view");
+                handle_errors("Adding song to queue");
             }
         }
 
