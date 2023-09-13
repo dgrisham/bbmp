@@ -1,6 +1,8 @@
 APPLICATION_NAME :: "bbmp";
 #run (#import "Compiler").set_build_options_dc(.{output_executable_name = APPLICATION_NAME});
 
+ENABLE_MSAA :: true;
+
 #scope_file
 
 #import "Basic"()(MEMORY_DEBUGGER=false);
@@ -26,6 +28,71 @@ Config_Editor :: #import "config_editor";
 log_data :: Log_Data.{"main", false};
 
 #scope_module
+
+msaa: OpenGL_MSAA;
+
+// this MSAA implementation is entirely thanks to @cart in the jai beta
+OpenGL_MSAA :: struct {
+  #import "GL";
+
+  fbo, tex, rbo: GLuint;
+  msaa_samples: GLuint = 16;
+  initialized := false;
+
+  window_width, window_height: s32;
+
+  // Call after Simp.set_render_target, and whenever the window size changes.
+  init :: (using msaa: *OpenGL_MSAA, width: s32, height: s32) {
+    if initialized  deinit(msaa);
+
+    window_width = width;
+    window_height = height;
+
+    glGenFramebuffers(1, *fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    glGenTextures(1, *tex);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, tex);
+    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, msaa_samples, GL_RGB, xx window_width, xx window_height, GL_TRUE);
+    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, tex, 0);
+
+    glGenRenderbuffers(1, *rbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, msaa_samples, GL_DEPTH24_STENCIL8, xx window_width, xx window_height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+    fbo_status := glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if fbo_status != GL_FRAMEBUFFER_COMPLETE {
+      print("Error: Framebuffer status = %\n", fbo_status);
+      return;
+    }
+
+    initialized = true;
+  }
+
+  deinit :: (using msaa: *OpenGL_MSAA) {
+    glDeleteFramebuffers(1, *fbo);
+  }
+
+  // Call at the start of each frame
+  start_drawing :: (using msaa: *OpenGL_MSAA) {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+  }
+
+  // Call before swap_buffers
+  finish_drawing :: (using msaa: *OpenGL_MSAA) {
+    // Bind the MSAA and postprocessing framebuffers as read and draw
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBlitFramebuffer(0, 0, xx window_width, xx window_height,
+                      0, 0, xx window_width, xx window_height,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+  }
+}
 
 // share Simp with album art management file -- is this necessary?
 Simp :: #import "Simp";
@@ -84,6 +151,11 @@ main :: () {
     window_width, window_height = Simp.get_render_dimensions(window);
 
     Simp.set_render_target(window);
+    #if ENABLE_MSAA  {
+      msaa.init(*msaa, window_width, window_height);
+      defer msaa.deinit(*msaa);
+    }
+
     X_MARGIN_SIZE = window_width / 30;
     Y_MARGIN_SIZE = window_height / 25;
     Y_PADDING_BELOW_HEADER = Y_MARGIN_SIZE * 2;
@@ -145,6 +217,7 @@ main :: () {
                     thumbnail_slot_width  = cast(s32) max(MIN_THUMBNAIL_DISPLAY_WIDTH, window_width / 15);
                     thumbnail_slot_height = thumbnail_slot_width;
                     init_fonts();
+                    msaa.init(*msaa, window_width, window_height);
                     break;
                 }
             }
@@ -291,6 +364,7 @@ main :: () {
             if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .DASH)                decrement_volume();
         }
 
+        #if ENABLE_MSAA  msaa.start_drawing(*msaa);
         Simp.clear_render_target(0,0,0,1);
         header_bottom := draw_header();
         if current_view == {
@@ -308,6 +382,7 @@ main :: () {
             user_input_active = Config_Editor.event_loop(fonts.regular, frame, cast(s32)display_width(), header_bottom);
         }
         reset_temporary_storage();
+        #if ENABLE_MSAA  msaa.finish_drawing(*msaa);
         Simp.swap_buffers(window);
 
         frame += 1;
