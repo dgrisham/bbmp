@@ -158,6 +158,7 @@ Library_Data :: struct {
         number_of_albums  : int = 0;
         number_of_songs   : int = 0;
     }
+    songs_by_uri        : Table(string, *Song);
 }
 
 Artist  :: struct {

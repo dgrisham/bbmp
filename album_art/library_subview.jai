@@ -160,7 +160,7 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [] *Album, li
                     if song_id_to_play >= 0 {
                         MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
                         handle_errors("Playing first song in group added to queue");
-                        Queue.update(mpd_connection, queue);
+                        Queue.update(mpd_connection, library, queue);
                         update_status(Queue.get_current_song(mpd_connection, queue));
                     }
                     break it;
