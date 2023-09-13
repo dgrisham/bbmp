@@ -90,7 +90,7 @@ There are a few global keybindings, then each view has its own keybindings.
 -   `-`: Volume down
 -   `c`: Clear the queue
 -   `Q`: Quit the program
--   `Ctrl-h`: Toggle hiding the view titles in the header
+-   `Ctrl-t`: Toggle showing the view titles in the header
 
 ### Now Playing View
 

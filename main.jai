@@ -129,7 +129,7 @@ frame: u64 = 0;
 frame_rate: float64;
 TARGET_FPS :: 30;
 
-hide_view_titles := false;
+show_view_titles := false;
 user_input_active := false;
 
 main :: () {
@@ -267,8 +267,8 @@ main :: () {
                 if it.ctrl_pressed {
                     if it.key_code == {
 
-                      case KEY_H; // CTRL_h
-                        hide_view_titles = !hide_view_titles;;
+                      case KEY_T; // CTRL_t
+                        show_view_titles = !show_view_titles;;
 
                     }
                 } else {
@@ -491,7 +491,7 @@ draw_header :: () -> int {
         );
     }
 
-    if !hide_view_titles {
+    if show_view_titles {
         VIEW_TITLES :: string.["Now Playing", "Queue", "Library Album Art", "Library", "Playlists", "Config Viewer", "Debug Logs"];
         x := cast(s64)X_MARGIN_SIZE;
         y := header_bottom - Y_MARGIN_SIZE;
