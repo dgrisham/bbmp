@@ -105,10 +105,11 @@ update :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data)
         array_resize(*queue.songs, mpd_queue_length);
     }
 
+    defer MPD.status_free(status);
+
     old_version := queue.version;
     queue.version = MPD.status_get_queue_version(status);
-
-    MPD.status_free(status);
+    if queue.version == old_version return;
 
     MPD.send_queue_changes_meta(mpd_connection, old_version);
     handle_errors("Retrieving MPD metadata");
@@ -541,6 +542,6 @@ get_current_song :: (mpd_connection: *MPD.connection, queue: Data) -> *Song {
 
     queue_song_position := MPD.status_get_song_pos(mpd_status);
     if queue_song_position < 0 return null;
-    assert(queue_song_position < queue.songs.count);
+    assert(queue_song_position < queue.songs.count, "Queue song position was %, should be less than %", queue_song_position, queue.songs.count);
     return queue.songs[queue_song_position];
 }
