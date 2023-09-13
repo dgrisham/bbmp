@@ -598,10 +598,9 @@ expand_path :: (path_to_expand: string) -> string, success: bool {
         home_path.words          = new_words;
 
         return path_to_string(home_path), true;
-    } else {
-        // If no ~ in the first slot, we don't need to substitute. Just return the input.
-        return path_to_expand, true;
     }
+
+    return path_to_expand, true;
 }
 
 directory_exists :: (path: string) -> bool {
