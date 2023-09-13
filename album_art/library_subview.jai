@@ -369,7 +369,7 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
                     }
                 }
 
-                if entry.selected {
+                if entry.selected { // highlight album under cursor
                     for i: 0..selected_cover_highlight_width {
                         c := 1.0 - i / cast(float)selected_cover_highlight_width;
                         highlight_width := selected_cover_highlight_width - i + 4;
@@ -385,7 +385,7 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
                     Simp.set_shader_for_color();
                 }
 
-                if entry.texture {
+                if entry.texture { // draw the album cover thumbnail if we were able to load it
                     Simp.set_shader_for_images(entry.texture);
                     Simp.immediate_begin();
                     // scale the display height of the cover
@@ -398,7 +398,6 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
                         xy(cast(float)x, cast(float)y - height_difference / 2)
                     );
                     Simp.immediate_flush();
-
                 } else {
                     Simp.set_shader_for_color();
                     Simp.immediate_quad(cast(float)x, cast(float)y, cast(float)x + thumbnail_slot_width, cast(float)y - thumbnail_slot_height, rgba(0,0,0,1));
