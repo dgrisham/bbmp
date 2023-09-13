@@ -49,11 +49,11 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
 
     entity := MPD.recv_entity(mpd_connection);
     handle_errors("Receiving first entity");
-    if !entity { print("Failed retrieving MPD metadata\n"); return library; }
+    if !entity { log("No data loaded from MPD"); return library; }
 
     while entity {
         if MPD.entity_get_type(entity) == .SONG {
-            mpd_song  := MPD.entity_get_song(entity);
+            mpd_song := MPD.entity_get_song(entity);
 
             mpd_artist := MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0);
             if !mpd_artist {
@@ -121,14 +121,78 @@ load :: (mpd_connection: *MPD.connection) -> *Library_Data {
                 array_add(*album_ptr.songs, song);
 
                 library.stats.number_of_songs += 1;
-            } else {
-                // print("skipping:\nartist: '%'\nalbum:'%',\ntitle:'%'\n", to_string(mpd_artist), to_string(mpd_album), to_string(mpd_title));
             }
         }
 
         MPD.entity_free(entity);
         entity = MPD.recv_entity(mpd_connection);
         handle_errors("Receiving entity");
+    }
+
+    playlist_paths: [..] *u8;
+
+    if MPD.send_list_playlists(mpd_connection) {
+        mpd_playlist := MPD.recv_playlist(mpd_connection);
+        handle_errors("Receiving playlist");
+        while mpd_playlist {
+            mpd_playlist_path := MPD.playlist_get_path(mpd_playlist);
+            if mpd_playlist_path {
+                array_add(*playlist_paths, mpd_playlist_path);
+            }
+            // MPD.playlist_free(mpd_playlist);
+            mpd_playlist = MPD.recv_playlist(mpd_connection);
+            handle_errors("Receiving playlist");
+        }
+    } else {
+        handle_errors("Listing playlists");
+    }
+
+    playlists: [..] Playlist;
+    Playlist :: struct {
+        name: string;
+        songs: [..] *Song;
+    }
+
+    for playlist_path: playlist_paths {
+        if MPD.send_list_playlist_meta(mpd_connection, playlist_path) {
+            entity := MPD.recv_entity(mpd_connection);
+            handle_errors(tprint("Receiving first entity for playlist '%'", copy_from_c_string(playlist_path)));
+
+            playlist: Playlist;
+            playlist.name = copy_from_c_string(playlist_path);
+            while entity {
+                defer {
+                    MPD.entity_free(entity);
+                    entity = MPD.recv_entity(mpd_connection);
+                    handle_errors(tprint("Receiving entity for playlist '%'", playlist_path));
+                }
+                if MPD.entity_get_type(entity) == .SONG {
+                    mpd_song := MPD.entity_get_song(entity);
+                    mpd_artist := MPD.song_get_tag(mpd_song, .ALBUM_ARTIST, 0);
+                    if !mpd_artist {
+                        mpd_artist = MPD.song_get_tag(mpd_song, .ARTIST, 0);
+                    }
+                    mpd_album := MPD.song_get_tag(mpd_song, .ALBUM, 0);
+                    mpd_title := MPD.song_get_tag(mpd_song, .TITLE, 0);
+
+                    artist := table_find_pointer(*library.artists, copy_temp_from_c_string(mpd_artist));
+                    if !artist continue;
+                    album  := table_find_pointer(*artist.albums, copy_temp_from_c_string(mpd_album));
+                    if !album continue;
+
+                    title := copy_temp_from_c_string(mpd_title);
+                    for * album.songs {
+                        if it.name == title {
+                            array_add(*playlist.songs, it);
+                            break;
+                        }
+                    }
+                }
+            }
+            log("playlist: %", playlist);
+        } else {
+            handle_errors(tprint("Listing playlist '%'", playlist_path));
+        }
     }
 
     return library;
