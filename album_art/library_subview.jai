@@ -83,117 +83,120 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [] *Album, li
     if !inputting_search_query {
         for Input.events_this_frame {
             if it.type == .KEYBOARD && it.key_pressed {
-                if it.key_code == {
+                if it.ctrl_pressed {
+                    if it.key_code == {
 
-                  case KEY_J;
-                    table_set(*key_pressed_on_frame, .J, frame);
-                    last_key_pressed = .J;
-                    move_cursor_one_row_down();
-                    break it;
-                  case KEY_K;
-                    table_set(*key_pressed_on_frame, .K, frame);
-                    last_key_pressed = .K;
-                    move_cursor_one_row_up();
-                    break it;
-
-                  case KEY_H;
-                    table_set(*key_pressed_on_frame, .H, frame);
-                    last_key_pressed = .H;
-                    move_cursor_to_prev_album();
-                    break it;
-                  case KEY_L;
-                    table_set(*key_pressed_on_frame, .L, frame);
-                    last_key_pressed = .L;
-                    move_cursor_to_next_album();
-                    break it;
-
-                  case KEY_G;
-                    if it.shift_pressed {
-                        cursor.album_position = albums.count - 1;
-                    } else {
-                        cursor.album_position = 0;
-                    }
-                    break it;
-
-                  case KEY_D;
-                    if it.ctrl_pressed {
+                      case KEY_D;
                         table_set(*key_pressed_on_frame, .CTRL_D, frame);
                         last_key_pressed = .CTRL_D;
                         move_cursor_one_page_down();
-                    }
-                    break it;
-                  case KEY_U;
-                    if it.ctrl_pressed {
+                        break it;
+                      case KEY_U;
                         table_set(*key_pressed_on_frame, .CTRL_U, frame);
                         last_key_pressed = .CTRL_U;
                         move_cursor_one_page_up();
-                    }
-                    break it;
+                        break it;
 
-                  case KEY_O;
-                    mpd_current_song := MPD.run_current_song(mpd_connection);
-                    handle_errors("Getting current song");
-                    if !mpd_current_song break;
-                    uri := to_string(MPD.song_get_uri(mpd_current_song));
-                    for album, album_index: albums {
-                        for song: album.songs {
-                            if song.uri == uri {
-                                cursor.album_position = album_index;
-                                break;
+                    }
+                } else {
+                    if it.key_code == {
+
+                      case KEY_J;
+                        table_set(*key_pressed_on_frame, .J, frame);
+                        last_key_pressed = .J;
+                        move_cursor_one_row_down();
+                        break it;
+                      case KEY_K;
+                        table_set(*key_pressed_on_frame, .K, frame);
+                        last_key_pressed = .K;
+                        move_cursor_one_row_up();
+                        break it;
+
+                      case KEY_H;
+                        table_set(*key_pressed_on_frame, .H, frame);
+                        last_key_pressed = .H;
+                        move_cursor_to_prev_album();
+                        break it;
+                      case KEY_L;
+                        table_set(*key_pressed_on_frame, .L, frame);
+                        last_key_pressed = .L;
+                        move_cursor_to_next_album();
+                        break it;
+
+                      case KEY_G;
+                        if it.shift_pressed {
+                            cursor.album_position = albums.count - 1;
+                        } else {
+                            cursor.album_position = 0;
+                        }
+                        break it;
+
+                      case KEY_O;
+                        mpd_current_song := MPD.run_current_song(mpd_connection);
+                        handle_errors("Getting current song");
+                        if !mpd_current_song break;
+                        uri := to_string(MPD.song_get_uri(mpd_current_song));
+                        for album, album_index: albums {
+                            for song: album.songs {
+                                if song.uri == uri {
+                                    cursor.album_position = album_index;
+                                    break;
+                                }
                             }
                         }
+                        break it;
+
+                      // case KEY_R;
+                      //   album_index := cursor.position;
+                      //   album := albums[album_index];
+                      //   album.thumbnail_texture = load_thumbnail_if_exists(albums[album_index]);
+
+                      case .ENTER;
+                        last_key_pressed = .ENTER;
+                        table_set(*key_pressed_on_frame, .ENTER, frame);
+
+                        if albums.count == 0 break it;
+                        album := albums[cursor.album_position];
+                        song_id_to_play := add_album_to_queue(library, album.artist_name, album.name);
+                        if song_id_to_play >= 0 {
+                            MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
+                            handle_errors("Playing first song in group added to queue");
+                            Queue.update(mpd_connection, library, queue);
+                            update_status(Queue.get_current_song(mpd_connection, queue));
+                        }
+                        break it;
+
+                      case .SPACEBAR;
+                        last_key_pressed = .SPACE;
+                        table_set(*key_pressed_on_frame, .SPACE, frame);
+                        album := albums[cursor.album_position];
+                        add_album_to_queue(library, album.artist_name, album.name);
+                        break it;
+
+                      case .FORWARD_SLASH;
+                        inputting_search_query = true;
+                        search_query.str.count = 0;
+                        break it;
+
+                      case KEY_N;
+                        if it.shift_pressed {
+                            last_key_pressed = .SHIFT_N;
+                            table_set(*key_pressed_on_frame, .SHIFT_N, frame);
+                            move_cursor_to_prev_search_result();
+                        } else {
+                            last_key_pressed = .N;
+                            table_set(*key_pressed_on_frame, .N, frame);
+                            move_cursor_to_next_search_result();
+                        }
+                        break it;
+
+                      case KEY_I;
+                        if albums.count > 0 {
+                            current_album_art_subview = .ALBUM;
+                        }
+                        break it;
+
                     }
-                    break it;
-
-                  // case KEY_R;
-                  //   album_index := cursor.position;
-                  //   album := albums[album_index];
-                  //   album.thumbnail_texture = load_thumbnail_if_exists(albums[album_index]);
-
-                  case .ENTER;
-                    last_key_pressed = .ENTER;
-                    table_set(*key_pressed_on_frame, .ENTER, frame);
-
-                    if albums.count == 0 break it;
-                    album := albums[cursor.album_position];
-                    song_id_to_play := add_album_to_queue(library, album.artist_name, album.name);
-                    if song_id_to_play >= 0 {
-                        MPD.run_play_id(mpd_connection, cast(u32)song_id_to_play);
-                        handle_errors("Playing first song in group added to queue");
-                        Queue.update(mpd_connection, library, queue);
-                        update_status(Queue.get_current_song(mpd_connection, queue));
-                    }
-                    break it;
-
-                  case .SPACEBAR;
-                    last_key_pressed = .SPACE;
-                    table_set(*key_pressed_on_frame, .SPACE, frame);
-                    album := albums[cursor.album_position];
-                    add_album_to_queue(library, album.artist_name, album.name);
-                    break it;
-
-                  case .FORWARD_SLASH;
-                    inputting_search_query = true;
-                    search_query.str.count = 0;
-                    break it;
-
-                  case KEY_N;
-                    if it.shift_pressed {
-                        last_key_pressed = .SHIFT_N;
-                        table_set(*key_pressed_on_frame, .SHIFT_N, frame);
-                        move_cursor_to_prev_search_result();
-                    } else {
-                        last_key_pressed = .N;
-                        table_set(*key_pressed_on_frame, .N, frame);
-                        move_cursor_to_next_search_result();
-                    }
-                    break it;
-
-                  case KEY_I;
-                    if albums.count > 0 {
-                        current_album_art_subview = .ALBUM;
-                    }
-                    break it;
                 }
             }
         }
@@ -240,27 +243,32 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [] *Album, li
 
               case .KEYBOARD;
                 if it.key_pressed {
-                    if it.key_code == {
+                    if it.ctrl_pressed {
+                        if it.key_code == {
 
-                      case .BACKSPACE;
-                        last_search_query_key_pressed = .BACKSPACE;
-                        table_set(*search_query_key_pressed_on_frame, .BACKSPACE, frame);
-                        backspace_search_query(*search_query);
-                        move_cursor_to_first_search_result();
-                        break it;
+                          case KEY_U;
+                                last_search_query_key_pressed = .CTRL_U;
+                                search_query.str.count = 0;
+                                break it;
 
-                      case KEY_U;
-                        if it.ctrl_pressed {
-                            last_search_query_key_pressed = .CTRL_U;
-                            search_query.str.count = 0;
-                            break it;
                         }
+                    } else {
+                        if it.key_code == {
 
-                      case .ENTER; #through;
-                      case .ESCAPE;
-                        last_search_query_key_pressed = .ESCAPE;
-                        inputting_search_query = false;
-                        break it;
+                          case .BACKSPACE;
+                            last_search_query_key_pressed = .BACKSPACE;
+                            table_set(*search_query_key_pressed_on_frame, .BACKSPACE, frame);
+                            backspace_search_query(*search_query);
+                            move_cursor_to_first_search_result();
+                            break it;
+
+                          case .ENTER; #through;
+                          case .ESCAPE;
+                            last_search_query_key_pressed = .ESCAPE;
+                            inputting_search_query = false;
+                            break it;
+
+                        }
                     }
                 }
             }

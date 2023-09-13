@@ -526,45 +526,83 @@ key_held_passed_threshold :: (key_pressed_on_frame: Table(Key, u64), last_key_pr
 
     key_code: Input.Key_Code;
 
-         #if key == .B                   key_code = KEY_B;
-    else #if key == .F                   key_code = KEY_F;
-    else #if key == .H                   key_code = KEY_H;
-    else #if key == .J                   key_code = KEY_J;
-    else #if key == .K                   key_code = KEY_K;
-    else #if key == .L                   key_code = KEY_L;
-    else #if key == .N                   key_code = KEY_N;
-    else #if key == .X                   key_code = KEY_X;
-    else #if key == .EQUALS_SIGN         key_code = .EQUALS_SIGN;
-    else #if key == .DASH                key_code = .DASH;
-    else #if key == .ENTER               key_code = .ENTER;
-    else #if key == .SPACE               key_code = .SPACEBAR;
-    else #if key == .BACKSPACE           key_code = .BACKSPACE;
+    #if key == .B {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = KEY_B;
+    } else #if key == .F {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = KEY_F;
+    }
+    else #if key == .H {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = KEY_H;
+    }
+    else #if key == .J {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = KEY_J;
+    }
+    else #if key == .K {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = KEY_K;
+    }
+    else #if key == .L {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = KEY_L;
+    }
+    else #if key == .N {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = KEY_N;
+    }
+    else #if key == .X {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = KEY_X;
+    }
+    else #if key == .EQUALS_SIGN {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = .EQUALS_SIGN;
+    }
+    else #if key == .DASH {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = .DASH;
+    }
+    else #if key == .ENTER {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = .ENTER;
+    }
+    else #if key == .SPACE {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = .SPACEBAR;
+    }
+    else #if key == .BACKSPACE {
+        if Input.input_button_states[Input.Key_Code.CTRL] & .DOWN || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
+        key_code = .BACKSPACE;
+    }
     else #if key == .LEFT_ANGLE_BRACKET {
-        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
+        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) || Input.input_button_states[Input.Key_Code.CTRL] & .DOWN return false;
         key_code = .LEFT_ANGLE_BRACKET;
     }
     else #if key == .RIGHT_ANGLE_BRACKET {
-        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
+        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) || Input.input_button_states[Input.Key_Code.CTRL] & .DOWN return false;
         key_code = .RIGHT_ANGLE_BRACKET;
     }
     else #if key == .SHIFT_J {
-        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
+        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) || Input.input_button_states[Input.Key_Code.CTRL] & .DOWN return false;
         key_code = KEY_J;
     }
     else #if key == .SHIFT_K {
-        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
+        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) || Input.input_button_states[Input.Key_Code.CTRL] & .DOWN return false;
         key_code = KEY_K;
     }
     else #if key == .SHIFT_N {
-        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) return false;
+        if !(Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN) || Input.input_button_states[Input.Key_Code.CTRL] & .DOWN return false;
         key_code = KEY_N;
     }
     else #if key == .CTRL_D {
-        if !(Input.input_button_states[Input.Key_Code.CTRL] & .DOWN) return false;
+        if !(Input.input_button_states[Input.Key_Code.CTRL] & .DOWN) || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
         key_code = KEY_D;
     }
     else #if key == .CTRL_U {
-        if !(Input.input_button_states[Input.Key_Code.CTRL] & .DOWN) return false;
+        if !(Input.input_button_states[Input.Key_Code.CTRL] & .DOWN) || Input.input_button_states[Input.Key_Code.SHIFT] & .DOWN return false;
         key_code = KEY_U;
     }
     else #assert(false);
