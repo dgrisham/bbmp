@@ -154,24 +154,6 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
     move_selected_cursor_left  :: () #expand { `cursor.selected -= 1; }
     move_selected_cursor_right :: () #expand { `cursor.selected += 1; }
 
-    toggle_song_in_queue :: (library: Library_Data, queue: Queue.Data) -> s32 #expand {
-
-        if cursor.selected == {
-          case 0;
-            first_song_id_added = add_artist_to_queue(library, library.artist_names_sorted[cursor.positions[0]]);
-          case 1;
-            artist := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
-            assert(artist_found, "Artist not found while adding queue album");
-            first_song_id_added = add_album_to_queue(library, artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
-          case 2;
-            artist, artist_found := table_find(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
-            assert(artist_found, "Artist not found while toggling queue song");
-            album, album_found := table_find(*artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
-            assert(album_found, "Album not found while toggling queue song");
-            first_song_id_added = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[cursor.positions[2]].uri));
-        }
-    }
-
     add_selection_to_queue_and_shift_cursor :: (library: Library_Data, queue: *Queue.Data) -> s32 #expand {
         if !mpd_connection {
             log("No connection to MPD, cannot add song to queue", flags=.ERROR);
@@ -230,18 +212,13 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             assert(album_found, "Album not found while toggling queue song");
 
             song_uri := album.songs[cursor.positions[2]].uri;
-
-            song_in_queue: bool;
-            id, song_in_queue = table_find(*queue.queued_URIs, song_uri);
-            if !song_in_queue {
-                id = MPD.run_add_id(mpd_connection, to_c_string(song_uri));
-            }
+            id = MPD.run_add_id(mpd_connection, to_c_string(song_uri));
         }
-
         if id > 0 {
             MPD.run_play_id(mpd_connection, cast(u32)id);
             handle_errors("Playing song added to queue");
         }
+
         Queue.update(`mpd_connection, library, queue);
         `cursor.positions[cursor.selected] += 1;
     }
