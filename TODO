@@ -39,3 +39,21 @@ without resizing (just loading):
 
 resizing 600x:
  5 threads -- RES: 369 MB (VIRT: 580 MB)
+
+---------------------------------------------------------------------------------------------------
+
+song was added to queue, then removed from library, then upon reopening bbmp:
+```
+[queue] Queue song URI not found in library: 'disturbed/2008_04-indestructible/1_06-haunted.mp3'
+[album_art_thread] This machine reports 6 CPUs for 1798 jobs; starting 5 threads.
+/home/grish/src/jai/bbmp/queue.jai:544,5: Assertion failed: Queue song position was 5, should be less than 5
+
+Stack trace:
+/home/grish/src/jai/jai/modules/Preload.jai:334: default_assertion_failed
+/home/grish/src/jai/jai/modules/Basic/module.jai:74: assert
+/home/grish/src/jai/bbmp/queue.jai:544: get_current_song
+/home/grish/src/jai/bbmp/main.jai:131: main
+zsh: trace trap (core dumped)  bbmp
+```
+
+it's probably that the queue length returned by mpd isn't reliable in these cases, as it seems to only count valid songs.
