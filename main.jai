@@ -429,12 +429,11 @@ init_fonts :: () {
         return cast([]u8) s;
     }
 
-    font_data : [] u8 = #run load_font_data("./fonts/Inconsolata-Regular.ttf"); // load font at compile time
-
     pixel_height := window_height / (ifx window_height > 1080 then 96 else 72);
     // better size for streaming
     // pixel_height := window_height / 56;
 
+    font_data : [] u8 = #run load_font_data("./fonts/Inconsolata-Regular.ttf"); // load font at compile time
     fonts.regular = Simp.get_font_at_size(font_data, pixel_height);
     assert(fonts.regular != null);
 

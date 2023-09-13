@@ -154,7 +154,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
     move_selected_cursor_left  :: () #expand { `cursor.selected -= 1; }
     move_selected_cursor_right :: () #expand { `cursor.selected += 1; }
 
-    add_selection_to_queue_and_shift_cursor :: (library: Library_Data, queue: *Queue.Data) -> s32 #expand {
+    add_selection_to_queue_and_increment_cursor :: () -> s32 #expand {
         if !mpd_connection {
             log("No connection to MPD, cannot add song to queue", flags=.ERROR);
             return -1;
@@ -162,20 +162,20 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
 
         if cursor.selected == {
           case 0;
-            add_artist_to_queue(library, library.artist_names_sorted[cursor.positions[0]]);
+            add_artist_to_queue(`library, `library.artist_names_sorted[cursor.positions[0]]);
           case 1;
-            artist, artist_found := table_find(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            artist, artist_found := table_find(*`library.artists, `library.artist_names_sorted[cursor.positions[0]]);
             assert(artist_found, "Artist not found while adding queue album");
-            add_album_to_queue(library, artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
+            add_album_to_queue(`library, artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
           case 2;
-            artist, artist_found := table_find(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            artist, artist_found := table_find(*`library.artists, `library.artist_names_sorted[cursor.positions[0]]);
             assert(artist_found, "Artist not found while toggling queue song");
             album, album_found := table_find(*artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
             assert(album_found, "Album not found while toggling queue song");
 
             song_uri := album.songs[cursor.positions[2]].uri;
 
-            ids := table_find_multiple(*queue.queued_URIs, song_uri);
+            ids := table_find_multiple(*`queue.queued_URIs, song_uri);
             if ids.count {
                 for id: ids {
                     MPD.run_delete_id(mpd_connection, id);
@@ -187,11 +187,11 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             }
         }
 
-        Queue.update(`mpd_connection, library, queue);
+        Queue.update(`mpd_connection, `library, `queue);
         `cursor.positions[cursor.selected] += 1;
     }
 
-    add_selection_to_queue_and_play :: (library: Library_Data, queue: *Queue.Data) #expand {
+    add_selection_to_queue_and_play :: () #expand {
         if !mpd_connection {
             log("No connection to MPD, cannot add song to queue", flags=.ERROR);
             return;
@@ -200,13 +200,13 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
         id: int;
         if cursor.selected == {
           case 0;
-            id = add_artist_to_queue(library, library.artist_names_sorted[cursor.positions[0]]);
+            id = add_artist_to_queue(`library, `library.artist_names_sorted[cursor.positions[0]]);
           case 1;
-            artist, artist_found := table_find(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            artist, artist_found := table_find(*`library.artists, `library.artist_names_sorted[cursor.positions[0]]);
             assert(artist_found, "Artist not found while adding queue album");
-            id = add_album_to_queue(library, artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
+            id = add_album_to_queue(`library, artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
           case 2;
-            artist, artist_found := table_find(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
+            artist, artist_found := table_find(*`library.artists, `library.artist_names_sorted[cursor.positions[0]]);
             assert(artist_found, "Artist not found while toggling queue song");
             album, album_found := table_find(*artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
             assert(album_found, "Album not found while toggling queue song");
@@ -219,34 +219,8 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             handle_errors("Playing song added to queue");
         }
 
-        Queue.update(`mpd_connection, library, queue);
+        Queue.update(`mpd_connection, `library, `queue);
         `cursor.positions[cursor.selected] += 1;
-    }
-
-    add_selection_to_queue :: (library: Library_Data, queue: Queue.Data) -> s32 #expand {
-        if !mpd_connection {
-            log("No connection to MPD, cannot add song to queue", flags=.ERROR);
-            return -1;
-        }
-
-        first_song_id_added: s32;
-        if cursor.selected == {
-          case 0;
-            first_song_id_added = add_artist_to_queue(library, library.artist_names_sorted[cursor.positions[0]]);
-          case 1;
-            artist, artist_found := table_find(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
-            assert(artist_found, "Artist not found while adding queue album");
-            first_song_id_added = add_album_to_queue(library, artist.name, artist.album_names_sorted_by_date[cursor.positions[1]]);
-          case 2;
-            artist, artist_found := table_find(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
-            assert(artist_found, "Artist not found while toggling queue song");
-            album, album_found := table_find(*artist.albums, artist.album_names_sorted_by_date[cursor.positions[1]]);
-            assert(album_found, "Album not found while toggling queue song");
-
-            first_song_id_added = MPD.run_add_id(mpd_connection, temp_c_string(album.songs[cursor.positions[2]].uri));
-        }
-
-        return first_song_id_added;
     }
 
     move_cursor_to_next_search_result :: () #expand {
@@ -492,13 +466,13 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                       case .SPACEBAR;
                         last_key_pressed = .SPACE;
                         table_set(*key_pressed_on_frame, .SPACE, frame);
-                        add_selection_to_queue_and_shift_cursor(library, queue);
+                        add_selection_to_queue_and_increment_cursor();
                         break it;
 
                       case .ENTER;
                         last_key_pressed = .ENTER;
                         table_set(*key_pressed_on_frame, .ENTER, frame);
-                        add_selection_to_queue_and_play(library, queue);
+                        add_selection_to_queue_and_play();
                         break it;
 
                       case .FORWARD_SLASH;
@@ -528,7 +502,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .L)       move_selected_cursor_right();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D)  move_selected_cursor_half_page_down();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U)  move_selected_cursor_half_page_up();
-        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)   add_selection_to_queue_and_shift_cursor(library, queue);
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)   add_selection_to_queue_and_increment_cursor();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .N)       move_cursor_to_next_search_result();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_N) move_cursor_to_prev_search_result();
     } else {

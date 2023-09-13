@@ -66,7 +66,7 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
         update_status(Queue.get_current_song(`mpd_connection, `queue));
     }
 
-    toggle_selected_song_in_queue_and_shift_cursor :: () #expand {
+    toggle_selected_song_in_queue_and_increment_cursor :: () #expand {
         if !mpd_connection {
             log("No connection to MPD, cannot add song to queue", flags=.ERROR);
             return;
@@ -207,7 +207,7 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
                       case .SPACEBAR;
                         table_set(*key_pressed_on_frame, .SPACE, frame);
                         last_key_pressed = .SPACE;
-                        toggle_selected_song_in_queue_and_shift_cursor();
+                        toggle_selected_song_in_queue_and_increment_cursor();
                         break it;
 
                       case .ENTER;
@@ -243,7 +243,7 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .L)       move_cursor_to_next_album_and_reset_song_position();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D)  move_cursor_one_page_down();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U)  move_cursor_one_page_up();
-        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)   toggle_selected_song_in_queue_and_shift_cursor();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)   toggle_selected_song_in_queue_and_increment_cursor();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .ENTER)   add_selected_song_to_queue_and_play();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .N)       move_cursor_to_next_search_result();
         if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_N) move_cursor_to_prev_search_result();
