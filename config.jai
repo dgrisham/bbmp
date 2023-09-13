@@ -77,8 +77,8 @@ load_config :: () -> Config, bool {
         remainder_string := path_to_string(remainder);
 
         // TODO: output this in the actual program (not just the console)
-        print_color("%/",  partial_string,   color=FOREGROUND_GREEN);
-        print_color("%\n", remainder_string, color=FOREGROUND_RED);
+        print_color("%/",  partial_string,   color=Console_Color.GREEN);
+        print_color("%\n", remainder_string, color=Console_Color.RED);
 
         log("Config file does not exist at '%'", config_filename, flags=.WARNING);
 
@@ -207,8 +207,9 @@ parse_line :: (text: *string, config: *Config) -> *Error {
         return New_Error(original_count - text.count + 1, "reached end of file while parsing config key");
     }
 
-    if (<<text)[0] != #char "=" // =
+    if (<<text)[0] != #char "=" { // =
         return New_Error(original_count - text.count + 1, tprint("Expected '=', got '%'", to_string(*(<<text)[0], 1)));
+    }
     advance(text, 1);
 
     while <<text { // eat spaces
