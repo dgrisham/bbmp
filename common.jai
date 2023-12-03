@@ -305,55 +305,63 @@ Client_Error :: struct {
 handle_errors :: (message: string) -> bool {
     if !mpd_connection return false;
 
-    check_connection_errors :: () -> *MPD_Error {
-        error_code := MPD.connection_get_error(mpd_connection);
-        if (error_code != .SUCCESS) {
-            msg := copy_temp_from_c_string(MPD.connection_get_error_message(mpd_connection));
-
-            if error_code == .SERVER {
-                error := New(Server_Error, allocator=temp);
-                error.code      = MPD.connection_get_server_error(mpd_connection);
-                error.message   = msg;
-                error.recovered = MPD.connection_clear_error(mpd_connection);
-                return error;
-            } else {
-                error := New(Client_Error, allocator=temp);
-                error.message   = msg;
-                error.recovered = MPD.connection_clear_error(mpd_connection);
-                return error;
-            }
-        }
-
-        return null;
-    }
-
     error := check_connection_errors();
     if error {
         log("%: MPD % error, code=%, message='%', recovered=%", message, error.type, error.code, error.message, error.recovered, flags=.ERROR);
         if !error.recovered {
             log("Failed to recover from error, attempting to reconnect to MPD", flags=.ERROR);
 
-            MPD.run_clear(mpd_connection);
-            mpd_connection = null;
-            mpd_connection = MPD.connection_new(temp_c_string(config.mpd_host), config.mpd_port, 15000);
-            if !mpd_connection {
-                log("Failed to connect to MPD: out of memory", flags=.ERROR);
-                return false;
-            }
-
-            // TODO: if we get 'connection refused', wait a second before restarting (goes wayy to fast for my laptop)
-            new_connection_error := check_connection_errors();
-            if new_connection_error {
-                MPD.run_clear(mpd_connection);
-                mpd_connection = null;
-                log("Failed to reconnect: % error: code=%, message='%', recovered=%", new_connection_error.type, new_connection_error.code, new_connection_error.message, new_connection_error.recovered, flags=.ERROR);
-                return false;
-            }
-            log("Successfully reconnected to MPD");
-            return true;
+            return reconnect_to_mpd();
         }
     }
     return false;
+}
+
+reconnect_to_mpd :: () -> bool {
+    log("Attempting to reconnect to MPD host % on port %", config.mpd_host, config.mpd_port);
+
+    MPD.run_clear(mpd_connection);
+    mpd_connection = null;
+
+    mpd_connection = MPD.connection_new(temp_c_string(config.mpd_host), config.mpd_port, 15000);
+    if !mpd_connection {
+        log("Failed to connect to MPD: out of memory", flags=.ERROR);
+        return false;
+    }
+
+    // TODO: if we get 'connection refused', wait a second before restarting (goes wayy to fast for my laptop)
+    new_connection_error := check_connection_errors();
+    if new_connection_error {
+        MPD.run_clear(mpd_connection);
+        mpd_connection = null;
+        log("Failed to reconnect: % error: code=%, message='%', recovered=%", new_connection_error.type, new_connection_error.code, new_connection_error.message, new_connection_error.recovered, flags=.ERROR);
+        return false;
+    }
+
+    log("Successfully reconnected to MPD");
+    return true;
+}
+
+check_connection_errors :: () -> *MPD_Error {
+    error_code := MPD.connection_get_error(mpd_connection);
+    if (error_code != .SUCCESS) {
+        msg := copy_temp_from_c_string(MPD.connection_get_error_message(mpd_connection));
+
+        if error_code == .SERVER {
+            error := New(Server_Error, allocator=temp);
+            error.code      = MPD.connection_get_server_error(mpd_connection);
+            error.message   = msg;
+            error.recovered = MPD.connection_clear_error(mpd_connection);
+            return error;
+        } else {
+            error := New(Client_Error, allocator=temp);
+            error.message   = msg;
+            error.recovered = MPD.connection_clear_error(mpd_connection);
+            return error;
+        }
+    }
+
+    return null;
 }
 
 /******************

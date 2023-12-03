@@ -171,13 +171,33 @@ main :: () {
     }
     handle_errors(tprint("Initializing connection MPD server at %:%", config.mpd_host, config.mpd_port));
 
-    library                          := Library.load(mpd_connection);
-    queue                            := Queue.load(mpd_connection, library);
-    albums_sorted_by_artist_and_year := Album_Art.load(library);
-    playlists                        := Playlist.load(library);
-    Config_Editor.load();
+    library: Library_Data;
+    queue: *Queue.Data;
+    albums_sorted_by_artist_and_year: [] *Album;
+    playlists: Playlist.Data;
 
-    start_album_art_creation_thread_group(albums_sorted_by_artist_and_year);
+    music_library_pool: Pool;
+    set_allocators(*music_library_pool);
+    load_context := context;
+    load_context.allocator.proc = pool_allocator_proc;
+    load_context.allocator.data = *music_library_pool;
+
+    load_everything :: () #expand {
+        push_context load_context {
+            `library                          = Library.load(mpd_connection);
+            `queue                            = Queue.load(mpd_connection, library);
+            `albums_sorted_by_artist_and_year = Album_Art.load(library);
+            `playlists                        = Playlist.load(library);
+            Config_Editor.load();
+        }
+        start_album_art_creation_thread_group(albums_sorted_by_artist_and_year);
+    }
+    reload_everything :: () #expand {
+        MPD.run_update(mpd_connection, null);
+        release(*`music_library_pool);
+        load_everything();
+    }
+    load_everything();
 
     frame: u64 = 0;
 
@@ -300,6 +320,12 @@ main :: () {
                         break it;
                       case .NUMBER_7;
                         current_view = .LOG;
+                        break it;
+
+                      case KEY_R;
+                        if it.shift_pressed {
+                            reload_everything();
+                        }
                         break it;
 
                       case KEY_P;

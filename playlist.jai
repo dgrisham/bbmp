@@ -44,11 +44,11 @@ log_data :: Log_Data.{"playlist", false};
 
 #scope_export
 
-load :: (library: Library_Data) -> *Data {
+load :: (library: Library_Data) -> Data {
 
     initialize_search_query(*search_query);
 
-    playlist_data := New(Data);
+    playlist_data: Data;
 
     if !mpd_connection return playlist_data;
 

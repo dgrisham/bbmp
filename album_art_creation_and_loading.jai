@@ -65,7 +65,6 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
     }
 
     thread_proc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
-
         original_logger_data := context.logger_data;
         context.logger_data = *log_data;
         defer context.logger_data = original_logger_data;
@@ -182,9 +181,12 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
         }
     }
 
+    log("work_list.count: %", work_list.count);
     if work_list.count > 0 { // only start threads if we have any work to do
-        init_thread_group(cast(s32)work_list.count);
-        start(*album_art_creation_thread_group);
+        if !album_art_creation_thread_group.initted {
+            init_thread_group(cast(s32)work_list.count);
+            start(*album_art_creation_thread_group);
+        }
 
         for work_list {
             add_work(*album_art_creation_thread_group, it, tprint("Work item to create thumbnail from cover at %", it.cover_path));
@@ -229,7 +231,7 @@ check_album_art_creation_jobs :: () {
             if REMAINING_ALBUM_ART_JOBS == 0 {
                 log("No more remaining thumbnail jobs, shutting down thread group", flags=.VERBOSE_ONLY);
                 release(*pool);
-                shutdown(*album_art_creation_thread_group);
+                // shutdown(*album_art_creation_thread_group);
             }
         }
     }
