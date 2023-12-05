@@ -106,12 +106,9 @@ load :: (library: Library_Data) -> Data {
 }
 
 event_loop :: (mpd_connection: *MPD.connection, using playlist_data: Data, library: Library_Data, queue: *Queue.Data, frame: u64, fonts: Fonts, display_width: s32, header_bottom: int) -> bool {
+    context.logger_data = *log_data;
 
     max_items_in_page := (header_bottom - Y_MARGIN_SIZE) / (fonts.regular.character_height + TEXT_PADDING_Y);
-
-    original_logger_data := context.logger_data;
-    context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     move_selected_cursor :: (amount: int) #expand {
         `cursor.positions[cursor.selected] += amount;

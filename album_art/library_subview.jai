@@ -29,9 +29,7 @@ library_search_query :: *search_query;
 
 process_library_input :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, rows: int, columns: int) -> bool {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     move_cursor_one_row_up   :: () #expand { move_cursor_by_n_albums(`albums.count, -columns); }
     move_cursor_one_row_down :: () #expand { move_cursor_by_n_albums(`albums.count, +columns); }
@@ -282,9 +280,7 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [] *Album, li
 
 draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32, horizontal_padding: s32, vertical_padding: s32, x_margin_offset: s32, y_margin_offset: s32, selected_cover_highlight_width: s32) {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     if albums.count > 0 {
 
@@ -434,9 +430,7 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
 
 load_thumbnail_if_exists :: (album: *Album) -> *Simp.Texture {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     lock(*album.mutex);
     defer unlock(*album.mutex);

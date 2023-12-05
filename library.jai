@@ -36,9 +36,7 @@ log_data :: Log_Data.{"library", false};
 
 load :: (mpd_connection: *MPD.connection) -> Library_Data {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     library := New(Library_Data);
     initialize_search_query(*search_query);
@@ -135,9 +133,7 @@ load :: (mpd_connection: *MPD.connection) -> Library_Data {
 
 event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Queue.Data, frame: u64, fonts: Fonts, display_width: s32, header_bottom: int) -> bool {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     items_in_page := (header_bottom - Y_MARGIN_SIZE) / (fonts.regular.character_height + TEXT_PADDING_Y);
 

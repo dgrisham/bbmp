@@ -38,9 +38,7 @@ Data :: struct {
 
 load :: (mpd_connection: *MPD.connection, library: Library_Data) -> *Data {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     queue := New(Data);
     initialize_search_query(*search_query);
@@ -92,9 +90,7 @@ load :: (mpd_connection: *MPD.connection, library: Library_Data) -> *Data {
 
 update :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data) {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     if !mpd_connection return;
 
@@ -148,9 +144,7 @@ update :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data)
 
 event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data, frame: u64, fonts: Fonts, display_width: s32, header_bottom: int) -> bool {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     items_in_page := (header_bottom - Y_MARGIN_SIZE) / (fonts.regular.character_height + TEXT_PADDING_Y);
 
@@ -532,9 +526,7 @@ get_current_song :: (mpd_connection: *MPD.connection, queue: Data) -> *Song {
 
     if !mpd_connection return null;
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     mpd_status := MPD.run_status(mpd_connection);
     handle_errors("Retrieving MPD status");

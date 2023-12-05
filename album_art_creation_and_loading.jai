@@ -38,9 +38,7 @@ log_data :: Log_Data.{"album_art_thread", false};
 
 start_album_art_creation_thread_group :: (albums: [] *Album) {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     if !directory_exists(config.album_cover_directory) {
         log("Album cover directory doesn't exist at '%', skipping album art + thumbnail creation", config.album_cover_directory, flags=.ERROR);
@@ -56,7 +54,7 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
         num_threads := min(num_jobs, max(num_cpus - 1, 1));
         plural_cpus := ifx num_cpus != 1 then "s" else ""
         plural_jobs := ifx num_jobs != 1 then "s" else ""
-        log("This machine reports % CPU% for % job%; starting % threads.", num_cpus, plural_cpus, num_jobs, plural_jobs, num_threads, flags=.VERBOSE_ONLY);
+        log("This machine reports % CPU% for % job%; starting % threads.", num_cpus, plural_cpus, num_jobs, plural_jobs, num_threads, flags=.VERY_VERBOSE_ONLY);
 
         init(*album_art_creation_thread_group, num_threads, thread_proc);
 
@@ -65,9 +63,7 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
     }
 
     thread_proc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
-        original_logger_data := context.logger_data;
         context.logger_data = *log_data;
-        defer context.logger_data = original_logger_data;
 
         job_info := cast(*Album_Art_Job_Info) work;
 
@@ -76,7 +72,7 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
         ************************************************************/
 
         if job_info.create_thumbnail || job_info.create_display_art {
-            log("Attempting to load cover at path %", job_info.cover_path, flags=.VERBOSE_ONLY);
+            log("Attempting to load cover at path %", job_info.cover_path, flags=.VERY_VERBOSE_ONLY);
 
             bitmap: Simp.Bitmap;
             defer Simp.deinit(*bitmap);
@@ -98,7 +94,7 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
                     return false;
                 }
 
-                log("Saved resized album art bitmap to '%'", output_path);
+                log("Saved resized album art bitmap to '%'", output_path, flags=.VERY_VERBOSE_ONLY);
 
                 return true;
             }
@@ -181,7 +177,6 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
         }
     }
 
-    log("work_list.count: %", work_list.count);
     if work_list.count > 0 { // only start threads if we have any work to do
         if !album_art_creation_thread_group.initted {
             init_thread_group(cast(s32)work_list.count);
@@ -198,9 +193,7 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
 
 check_album_art_creation_jobs :: () {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     if REMAINING_ALBUM_ART_JOBS > 0 {
         results := get_completed_work(*album_art_creation_thread_group);
@@ -224,12 +217,11 @@ check_album_art_creation_jobs :: () {
             }
 
             REMAINING_ALBUM_ART_JOBS -= results.count;
-            log("create thumbnail jobs finished: % successes, % failures", create_thumbnail_successes, create_thumbnail_failures, flags=.VERBOSE_ONLY);
-            log("create display art jobs finished: % successes, % failures", create_display_art_successes, create_display_art_failures, flags=.VERBOSE_ONLY);
-            log("load thumbnail jobs finished: % successes, % failures", load_thumbnail_successes, load_thumbnail_failures, flags=.VERBOSE_ONLY);
+            log("create thumbnail jobs finished: % successes, % failures", create_thumbnail_successes, create_thumbnail_failures, flags=.VERY_VERBOSE_ONLY);
+            log("create display art jobs finished: % successes, % failures", create_display_art_successes, create_display_art_failures, flags=.VERY_VERBOSE_ONLY);
+            log("load thumbnail jobs finished: % successes, % failures", load_thumbnail_successes, load_thumbnail_failures, flags=.VERY_VERBOSE_ONLY);
             log("% remaining cover jobs", REMAINING_ALBUM_ART_JOBS, flags=.VERBOSE_ONLY);
             if REMAINING_ALBUM_ART_JOBS == 0 {
-                log("No more remaining thumbnail jobs, shutting down thread group", flags=.VERBOSE_ONLY);
                 release(*pool);
                 // shutdown(*album_art_creation_thread_group);
             }

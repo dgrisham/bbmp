@@ -23,10 +23,7 @@ loaded_album: struct {
 #scope_export
 
 event_loop :: (albums: [] *Album, total_width: s32, header_bottom: int) {
-
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     if loaded_album.art_texture == null { // initialize loaded art texture, should only happen on the first album view frame
         loaded_album.art_texture = New(Simp.Texture);

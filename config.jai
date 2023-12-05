@@ -3,7 +3,6 @@
 #import "Basic";
 #import "File";
 #import "File_Utilities";
-#import "Hash_Table";
 #import "POSIX";
 #import "String";
 
@@ -37,9 +36,7 @@ Config :: struct {
 
 load_config :: () -> Config, bool {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     config_file_loaded := false;
 

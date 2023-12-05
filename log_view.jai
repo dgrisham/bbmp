@@ -31,9 +31,7 @@ log_data :: Log_Data.{"log_view", false};
 
 event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_bottom: int) {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     move_cursor_down :: () #expand {
         `cursor.position += 1;

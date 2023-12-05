@@ -54,9 +54,7 @@ load :: () {
 
 event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_bottom: int) -> bool {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     max_items_in_page := (header_bottom - Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
 

@@ -41,9 +41,7 @@ current_album_art_subview := Subview.LIBRARY;
 
 load :: (library: Library_Data) -> [] *Album {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     albums: [] *Album;
 
@@ -69,9 +67,7 @@ load :: (library: Library_Data) -> [] *Album {
 
 event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, fonts: Fonts, total_width: s32, header_bottom: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32) -> bool {
 
-    original_logger_data := context.logger_data;
     context.logger_data = *log_data;
-    defer context.logger_data = original_logger_data;
 
     selected_cover_highlight_width : s32 = thumbnail_slot_width / 25;
 
