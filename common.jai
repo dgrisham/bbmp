@@ -34,16 +34,28 @@ log_history: struct {
     entries     : [..] Log_Entry;
     first_entry : int = 0;
     max_entries : u32 = 1000;
+
+    allocator: Allocator;
 }
 
 Log_Entry :: struct {
-    message: string;
-    flags:   Log_Flags;
+    module  : string;
+    message : string;
+    flags   : Log_Flags;
+}
+
+init_logger :: () {
+    remember_allocators(*log_history);
+    remember_allocators(*log_history.entries);
 }
 
 reserve_log_history :: (count: u32) {
     array_reserve(*log_history.entries, count);
     log_history.max_entries = count;
+}
+
+to_string :: (using entry: Log_Entry) -> string {
+    return tprint("[%] %", module, message);
 }
 
 OUTPUT_DEBUG_LOGS_TO_CONSOLE :: true;
@@ -52,13 +64,14 @@ logger :: (message: string, data: *void, info: Log_Info) {
     if log_data.disable_logging return;
 
     entry: Log_Entry;
-    entry.message = sprint("[%] %", log_data.module, message);
-    entry.flags = info.common_flags;
+    entry.module  = log_data.module;
+    entry.message = copy_string(message, log_history.allocator);
+    entry.flags   = info.common_flags;
 
     if log_history.entries.count == log_history.max_entries {
         old_first_entry := log_history.entries[log_history.first_entry];
         log_history.entries[log_history.first_entry] = entry;
-        free(old_first_entry.message);
+        free(old_first_entry.message, log_history.allocator);
         log_history.first_entry += 1;
         if log_history.first_entry == log_history.entries.count {
             log_history.first_entry = 0;
@@ -67,7 +80,12 @@ logger :: (message: string, data: *void, info: Log_Info) {
         array_add(*log_history.entries, entry);
     }
     #if OUTPUT_DEBUG_LOGS_TO_CONSOLE {
-        message := entry.message;
+        if context.log_level < .VERY_VERBOSE && entry.flags & .VERY_VERBOSE_ONLY {
+            return;
+        } else if context.log_level < .VERBOSE && entry.flags & .VERBOSE_ONLY {
+            return;
+        }
+        message := to_string(entry);
         write_string(message);
         if message.count > 0 && message[message.count - 1] != #char "\n" {
             write_string("\n");

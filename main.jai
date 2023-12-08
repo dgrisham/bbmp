@@ -5,7 +5,7 @@ ENABLE_MSAA :: true;
 
 #scope_file
 
-#import "Basic"()(MEMORY_DEBUGGER=false);
+#import "Basic"()(MEMORY_DEBUGGER=true);
 #import "File";
 #import "Math";
 #import "String";
@@ -31,69 +31,6 @@ log_data :: Log_Data.{"main", false};
 #scope_module
 
 msaa: OpenGL_MSAA;
-
-// this MSAA implementation is entirely thanks to @cart in the jai beta
-OpenGL_MSAA :: struct {
-  #import "GL";
-
-  fbo, tex, rbo: GLuint;
-  msaa_samples: GLuint = 16;
-  initialized := false;
-
-  window_width, window_height: s32;
-
-  // Call after Simp.set_render_target, and whenever the window size changes.
-  init :: (using msaa: *OpenGL_MSAA, width: s32, height: s32) {
-    if initialized  deinit(msaa);
-
-    window_width = width;
-    window_height = height;
-
-    glGenFramebuffers(1, *fbo);
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-
-    glGenTextures(1, *tex);
-    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, tex);
-    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, msaa_samples, GL_RGB, xx window_width, xx window_height, GL_TRUE);
-    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, tex, 0);
-
-    glGenRenderbuffers(1, *rbo);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-    glRenderbufferStorageMultisample(GL_RENDERBUFFER, msaa_samples, GL_DEPTH24_STENCIL8, xx window_width, xx window_height);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
-
-    fbo_status := glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if fbo_status != GL_FRAMEBUFFER_COMPLETE {
-      print("Error: Framebuffer status = %\n", fbo_status);
-      return;
-    }
-
-    initialized = true;
-  }
-
-  deinit :: (using msaa: *OpenGL_MSAA) {
-    glDeleteFramebuffers(1, *fbo);
-  }
-
-  // Call at the start of each frame
-  start_drawing :: (using msaa: *OpenGL_MSAA) {
-    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-  }
-
-  // Call before swap_buffers
-  finish_drawing :: (using msaa: *OpenGL_MSAA) {
-    // Bind the MSAA and postprocessing framebuffers as read and draw
-    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-    glBlitFramebuffer(0, 0, xx window_width, xx window_height,
-                      0, 0, xx window_width, xx window_height,
-                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
-  }
-}
 
 // share Simp with album art management file -- is this necessary?
 Simp :: #import "Simp";
@@ -134,10 +71,11 @@ user_input_active := false;
 
 main :: () {
 
+    init_logger();
     context.logger      = logger;
     context.logger_data = *log_data;
 
-    reserve_log_history(1000); // default log history in case we need to log config errors
+    reserve_log_history(100); // default log history in case we need to log config errors
 
     success: bool;
     config, success = load_config();
@@ -146,6 +84,7 @@ main :: () {
     }
     reset_temporary_storage();
 
+    context.log_level = config.log_level;
     reserve_log_history(config.max_log_size);
 
     init_fonts();
@@ -561,4 +500,67 @@ init_fonts :: () {
     bold_font_data : [] u8 = #run load_font_data("./fonts/Inconsolata-Bold.ttf");
     fonts.bold = Simp.get_font_at_size(bold_font_data, pixel_height);
     assert(fonts.bold != null);
+}
+
+// this MSAA implementation is entirely thanks to @cart in the jai beta
+OpenGL_MSAA :: struct {
+  #import "GL";
+
+  fbo, tex, rbo: GLuint;
+  msaa_samples: GLuint = 16;
+  initialized := false;
+
+  window_width, window_height: s32;
+
+  // Call after Simp.set_render_target, and whenever the window size changes.
+  init :: (using msaa: *OpenGL_MSAA, width: s32, height: s32) {
+    if initialized  deinit(msaa);
+
+    window_width = width;
+    window_height = height;
+
+    glGenFramebuffers(1, *fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    glGenTextures(1, *tex);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, tex);
+    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, msaa_samples, GL_RGB, xx window_width, xx window_height, GL_TRUE);
+    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D_MULTISAMPLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, tex, 0);
+
+    glGenRenderbuffers(1, *rbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, msaa_samples, GL_DEPTH24_STENCIL8, xx window_width, xx window_height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+    fbo_status := glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if fbo_status != GL_FRAMEBUFFER_COMPLETE {
+      print("Error: Framebuffer status = %\n", fbo_status);
+      return;
+    }
+
+    initialized = true;
+  }
+
+  deinit :: (using msaa: *OpenGL_MSAA) {
+    glDeleteFramebuffers(1, *fbo);
+  }
+
+  // Call at the start of each frame
+  start_drawing :: (using msaa: *OpenGL_MSAA) {
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+  }
+
+  // Call before swap_buffers
+  finish_drawing :: (using msaa: *OpenGL_MSAA) {
+    // Bind the MSAA and postprocessing framebuffers as read and draw
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+    glBlitFramebuffer(0, 0, xx window_width, xx window_height,
+                      0, 0, xx window_width, xx window_height,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+  }
 }
