@@ -39,6 +39,9 @@ load :: (mpd_connection: *MPD.connection) -> Library_Data {
     context.logger_data = *log_data;
 
     library := New(Library_Data);
+    init(*library.artists);
+    init(*library.songs_by_uri);
+
     initialize_search_query(*search_query);
     if !mpd_connection return library;
 
@@ -73,6 +76,7 @@ load :: (mpd_connection: *MPD.connection) -> Library_Data {
                 if !artist_ptr {
                     artist: Artist;
                     artist.name = song.artist;
+                    init(*artist.albums);
                     artist_ptr = table_add(*library.artists, song.artist, artist);
                     {
                         index := 0;

@@ -49,6 +49,7 @@ load :: (library: Library_Data) -> Data {
     initialize_search_query(*search_query);
 
     playlist_data: Data;
+    init(*playlist_data.playlists);
 
     if !mpd_connection return playlist_data;
 

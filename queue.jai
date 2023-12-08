@@ -41,6 +41,8 @@ load :: (mpd_connection: *MPD.connection, library: Library_Data) -> *Data {
     context.logger_data = *log_data;
 
     queue := New(Data);
+    init(*queue.queued_URIs); // this calls remember_allocators on the table for us
+
     initialize_search_query(*search_query);
     if !mpd_connection return queue;
 
