@@ -529,18 +529,17 @@ event_loop :: (mpd_connection: *MPD.connection, using playlist_data: Data, libra
         * determine the playlists and songs to show *
         ********************************************/
 
-        display_columns: [2] struct {
-            width           : s32;
-            rectangle_width : s32;
-            entries         : [] Display_Text;
-        };
-
         Display_Text :: struct {
             text     : string;
             selected : bool;
             font     : *Simp.Dynamic_Font;
             color    : Vector4;
         }
+        display_columns: [2] struct {
+            width           : s32;
+            rectangle_width : s32;
+            entries         : [] Display_Text;
+        };
 
         if playlists.count > 0 {
             display_columns[0].width = cast(s32)(1 / 3.0 * display_width);

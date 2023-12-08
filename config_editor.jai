@@ -76,8 +76,6 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
         key := ORDERED_CONFIG_KEYS[cursor.position];
         value_ptr := table_find_pointer(*input_config, key);
         assert(value_ptr != null);
-        backspace_one_character(value_ptr);
-        cursor.text_input_position -= 1;
 
         backspace_one_character :: (s: *string) {
             if <<s == "" return;
@@ -92,6 +90,9 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
             is_space = bytes_in_last_utf8 == 1 && (<<s)[s.count - 1] == SPACE;
             s.count -= bytes_in_last_utf8;
         }
+        backspace_one_character(value_ptr);
+
+        cursor.text_input_position -= 1;
     }
 
     #if ENABLE_CONFIG_EDITOR {
