@@ -138,7 +138,7 @@ Error :: struct {
 }
 
 New_Error :: (position: int, message: string) -> *Error {
-    error := New(Error, allocator=temp);
+    error := New(Error,, temp);
     error.position = position;
     error.message = message;
     return error;

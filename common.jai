@@ -65,13 +65,13 @@ logger :: (message: string, data: *void, info: Log_Info) {
 
     entry: Log_Entry;
     entry.module  = log_data.module;
-    entry.message = copy_string(message, log_history.allocator);
+    entry.message = copy_string(message,, log_history.allocator);
     entry.flags   = info.common_flags;
 
     if log_history.entries.count == log_history.max_entries {
         old_first_entry := log_history.entries[log_history.first_entry];
         log_history.entries[log_history.first_entry] = entry;
-        free(old_first_entry.message, log_history.allocator);
+        free(old_first_entry.message,, log_history.allocator);
         log_history.first_entry += 1;
         if log_history.first_entry == log_history.entries.count {
             log_history.first_entry = 0;
@@ -181,6 +181,8 @@ Library_Data :: struct {
         number_of_songs   : int = 0;
     };
     songs_by_uri        : Table(string, *Song);
+
+    allocator: Allocator;
 }
 
 Artist :: struct {
@@ -197,7 +199,6 @@ Album :: struct {
     directory         : string;
     cover_path        : string;
     thumbnail_texture : *Simp.Texture;
-    thumbnail_bitmap  : *Simp.Bitmap;
     mutex             : Mutex;
 };
 
@@ -366,13 +367,13 @@ check_connection_errors :: () -> *MPD_Error {
         msg := copy_temp_from_c_string(MPD.connection_get_error_message(mpd_connection));
 
         if error_code == .SERVER {
-            error := New(Server_Error, allocator=temp);
+            error := New(Server_Error,, temp);
             error.code      = MPD.connection_get_server_error(mpd_connection);
             error.message   = msg;
             error.recovered = MPD.connection_clear_error(mpd_connection);
             return error;
         } else {
-            error := New(Client_Error, allocator=temp);
+            error := New(Client_Error,, temp);
             error.message   = msg;
             error.recovered = MPD.connection_clear_error(mpd_connection);
             return error;
@@ -718,7 +719,7 @@ create_temp_display_string_of_max_length :: (s: string, max_character_count: int
     }
 
     num_bytes_to_copy := num_bytes_in_string_to_hit_char_limit - num_bytes_in_last_unicode_char;
-    result := alloc_string(num_bytes_to_copy + ELLIPSIS.count, temp);
+    result := alloc_string(num_bytes_to_copy + ELLIPSIS.count,, temp);
     memcpy(result.data, s.data, num_bytes_to_copy);
     memcpy(result.data + num_bytes_to_copy, ELLIPSIS.data, ELLIPSIS.count);
     return result;
@@ -743,7 +744,7 @@ create_temp_display_string_of_max_length_truncate_left :: (s: string, max_charac
     }
 
     num_bytes_to_copy := s.count - bytes_to_skip;
-    result := alloc_string(num_bytes_to_copy + ELLIPSIS.count, temp);
+    result := alloc_string(num_bytes_to_copy + ELLIPSIS.count,, temp);
     memcpy(result.data, ELLIPSIS.data, ELLIPSIS.count);
     memcpy(result.data + ELLIPSIS.count, s.data + bytes_to_skip, num_bytes_to_copy);
     return result;
@@ -770,7 +771,7 @@ aprint:: (format_string: string, args: .. Any, allocator: Allocator) -> string {
 
     print_to_builder(*builder, format_string, ..args);
 
-    return builder_to_string(*builder, allocator);
+    return builder_to_string(*builder,, allocator);
 }
 
 slice_unicode :: (s: string, index: s64, count: s64) -> string {
@@ -817,7 +818,7 @@ left_pad :: (t: $T, pad_char: u8, total_length: int, allocator := temp) -> strin
     #if T == string str := t;
     else            str := tprint("%", t);
 
-    result := alloc_string(total_length, allocator);
+    result := alloc_string(total_length,, allocator);
     pad_count := result.count - str.count;
     for 0..(pad_count - 1) result[it] = pad_char;
     memcpy(result.data + pad_count, str.data, str.count);

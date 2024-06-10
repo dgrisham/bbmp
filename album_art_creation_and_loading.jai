@@ -52,8 +52,8 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
             num_cpus /= 2;
         }
         num_threads := min(num_jobs, max(num_cpus - 1, 1));
-        plural_cpus := ifx num_cpus != 1 then "s" else ""
-        plural_jobs := ifx num_jobs != 1 then "s" else ""
+        plural_cpus := ifx num_cpus != 1 then "s" else "";
+        plural_jobs := ifx num_jobs != 1 then "s" else "";
         log("This machine reports % CPU% for % job%; starting % threads.", num_cpus, plural_cpus, num_jobs, plural_jobs, num_threads, flags=.VERY_VERBOSE_ONLY);
 
         init(*album_art_creation_thread_group, num_threads, thread_proc);
@@ -64,6 +64,7 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
 
     thread_proc :: (group: *Thread_Group, thread: *Thread, work: *void) -> Thread_Continue_Status {
         context.logger_data = *log_data;
+        context.allocator = group.allocator;
 
         job_info := cast(*Album_Art_Job_Info) work;
 
@@ -75,32 +76,15 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
             log("Attempting to load cover at path %", job_info.cover_path, flags=.VERY_VERBOSE_ONLY);
 
             bitmap: Simp.Bitmap;
-            defer Simp.deinit(*bitmap);
             if !Simp.bitmap_load(*bitmap, job_info.cover_path) {
                 log("Failed to load album art file %", job_info.cover_path, flags=.ERROR);
                 return .CONTINUE;
             }
-
-            resize_and_save_bitmap :: (bitmap: *Simp.Bitmap, output_path: string, width: s32) -> bool {
-                resized_bitmap := New(Simp.Bitmap);
-                if !Simp.bitmap_resize(bitmap, width, cast(s32)(bitmap.height * cast(float64)width / bitmap.width), resized_bitmap) {
-                    log("Failed to resize bitmap", flags=.ERROR);
-                    return false;
-                }
-                defer { Simp.deinit(resized_bitmap); free(resized_bitmap); };
-
-                if !Simp.bitmap_save(resized_bitmap, output_path) {
-                    log("Failed to save resized album art bitmap to '%'", output_path, flags=.ERROR);
-                    return false;
-                }
-
-                log("Saved resized album art bitmap to '%'", output_path, flags=.VERY_VERBOSE_ONLY);
-
-                return true;
-            }
+            defer Simp.deinit(*bitmap);
 
             if job_info.create_thumbnail {
-                if !resize_and_save_bitmap(*bitmap, job_info.thumbnail_path, job_info.thumbnail_width) {
+                width := job_info.thumbnail_width;
+                if !Simp.bitmap_resize_and_save(*bitmap, job_info.thumbnail_path, width, cast(s32)(bitmap.height * cast(float64)width / bitmap.width)) {
                     log("Failed to convert cover % to thumbnail at %", job_info.cover_path, job_info.thumbnail_path);
                     job_info.create_thumbnail_success = false;
                 } else {
@@ -108,7 +92,8 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
                 }
             }
             if job_info.create_display_art {
-                if !resize_and_save_bitmap(*bitmap, job_info.display_art_path, job_info.display_art_width) {
+                width := job_info.display_art_width;
+                if !Simp.bitmap_resize_and_save(*bitmap, job_info.display_art_path, width, cast(s32)(bitmap.height * cast(float64)width / bitmap.width)) {
                     log("Failed to convert cover % to display art bitmap at %", job_info.cover_path, job_info.display_art_path);
                     job_info.create_display_art_success = false;
                 } else {
@@ -117,32 +102,16 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
             }
         }
 
-        /*****************
-        * load thumbnail *
-        *****************/
-
-        if file_exists(job_info.thumbnail_path) {
-            lock(*job_info.library_album_ptr.mutex);
-            defer unlock(*job_info.library_album_ptr.mutex);
-
-            job_info.library_album_ptr.thumbnail_bitmap = New(Simp.Bitmap);
-            if !Simp.bitmap_load(job_info.library_album_ptr.thumbnail_bitmap, job_info.thumbnail_path) {
-                log("Failed to load thumbnail for % - %", job_info.artist_name, job_info.album_name, flags=.ERROR);
-                free(job_info.library_album_ptr.thumbnail_bitmap);
-                job_info.load_thumbnail_success = false;
-            } else {
-                job_info.load_thumbnail_success = true;
-            }
-        }
-
         return .CONTINUE;
     }
 
-    set_allocators(*pool);
-
+    #if DEBUG_BUILD  pool.overwrite_memory = true;
     thread_proc_context: Context;
     thread_proc_context.allocator.proc = pool_allocator_proc;
     thread_proc_context.allocator.data = *pool;
+    if !album_art_creation_thread_group.initted {
+        set_allocators(*pool);
+    }
 
     work_list: [..] *Album_Art_Job_Info;
 
@@ -191,6 +160,100 @@ start_album_art_creation_thread_group :: (albums: [] *Album) {
     array_free(work_list);
 }
 
+// start_album_art_creation_on_main_thread :: (albums: [] *Album) {
+
+//     context.logger_data = *log_data;
+
+//     if !directory_exists(config.album_cover_directory) {
+//         log("Album cover directory doesn't exist at '%', skipping album art + thumbnail creation", config.album_cover_directory, flags=.ERROR);
+//         return;
+//     }
+
+//     work_list: [..] *Album_Art_Job_Info;
+
+//     // find all albums that don't have a thumbnail but do have a cover we can use to create one
+//     for album: albums {
+//         if album.cover_path && file_exists(album.cover_path) {
+//             album_hash       := get_hash(tprint("%-%", album.artist_name, album.name));
+//             thumbnail_path   := tprint("%/%-%x.bmp", config.album_cover_directory, album_hash, THUMBNAIL_WIDTH);
+//             display_art_path := tprint("%/%-%x.bmp", config.album_cover_directory, album_hash, LARGE_ALBUM_ART_WIDTH);
+
+//             work := New(Album_Art_Job_Info);
+//             work.artist_name       = copy_string(album.artist_name);
+//             work.album_name        = copy_string(album.name);
+//             work.cover_path        = copy_string(album.cover_path);
+//             work.thumbnail_path    = copy_string(thumbnail_path);
+//             work.library_album_ptr = album;
+
+//             if !file_exists(thumbnail_path) {
+//                 work.create_thumbnail = true;
+//                 work.thumbnail_width  = THUMBNAIL_WIDTH;
+//             }
+//             if !file_exists(display_art_path) {
+//                 work.create_display_art = true;
+//                 work.display_art_path   = copy_string(display_art_path);
+//                 work.display_art_width  = LARGE_ALBUM_ART_WIDTH;
+//             }
+
+//             array_add(*work_list, work);
+//         }
+//     }
+//     defer array_free(work_list);
+//     REMAINING_ALBUM_ART_JOBS = work_list.count;
+
+//     for job_info: work_list {
+//         /************************************************************
+//         * create missing thumbnail and/or large display art bitmaps *
+//         ************************************************************/
+
+//         if job_info.create_thumbnail || job_info.create_display_art {
+//             log("Attempting to load cover at path %", job_info.cover_path, flags=.VERY_VERBOSE_ONLY);
+
+//             bitmap: Simp.Bitmap;
+//             defer Simp.deinit(*bitmap);
+//             if !Simp.bitmap_load(*bitmap, job_info.cover_path) {
+//                 log("Failed to load album art file %", job_info.cover_path, flags=.ERROR);
+//                 continue;
+//             }
+
+//             resize_and_save_bitmap :: (bitmap: *Simp.Bitmap, output_path: string, width: s32) -> bool {
+//                 resized_bitmap := New(Simp.Bitmap);
+//                 if !Simp.bitmap_resize(bitmap, width, cast(s32)(bitmap.height * cast(float64)width / bitmap.width), resized_bitmap) {
+//                     log("Failed to resize bitmap", flags=.ERROR);
+//                     return false;
+//                 }
+//                 defer { Simp.deinit(resized_bitmap); free(resized_bitmap); };
+
+//                 if !Simp.bitmap_save(resized_bitmap, output_path) {
+//                     log("Failed to save resized album art bitmap to '%'", output_path, flags=.ERROR);
+//                     return false;
+//                 }
+
+//                 log("Saved resized album art bitmap to '%'", output_path, flags=.VERY_VERBOSE_ONLY);
+
+//                 return true;
+//             }
+
+//             if job_info.create_thumbnail {
+//                 if !resize_and_save_bitmap(*bitmap, job_info.thumbnail_path, job_info.thumbnail_width) {
+//                     log("Failed to convert cover % to thumbnail at %", job_info.cover_path, job_info.thumbnail_path);
+//                     job_info.create_thumbnail_success = false;
+//                 } else {
+//                     job_info.create_thumbnail_success = true;
+//                 }
+//             }
+//             if job_info.create_display_art {
+//                 if !resize_and_save_bitmap(*bitmap, job_info.display_art_path, job_info.display_art_width) {
+//                     log("Failed to convert cover % to display art bitmap at %", job_info.cover_path, job_info.display_art_path);
+//                     job_info.create_display_art_success = false;
+//                 } else {
+//                     job_info.create_display_art_success = true;
+//                 }
+//             }
+//         }
+//     }
+// }
+
 check_album_art_creation_jobs :: () {
 
     context.logger_data = *log_data;
@@ -222,7 +285,14 @@ check_album_art_creation_jobs :: () {
             log("load thumbnail jobs finished: % successes, % failures", load_thumbnail_successes, load_thumbnail_failures, flags=.VERY_VERBOSE_ONLY);
             log("% remaining cover jobs", REMAINING_ALBUM_ART_JOBS, flags=.VERBOSE_ONLY);
             if REMAINING_ALBUM_ART_JOBS == 0 {
-                release(*pool);
+                reset(*pool);
+
+                // #if DEBUG_BUILD {
+                //     log("============ DONE ===============\n");
+                //     log_leak_report(make_leak_report());
+                //     log("============ DONE ===============\n");
+                // }
+
                 // shutdown(*album_art_creation_thread_group);
             }
         }

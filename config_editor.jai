@@ -43,6 +43,7 @@ ENABLE_CONFIG_EDITOR :: false;
 
 // should be called after the user's config is loaded
 load :: () {
+    init(*input_config);
     // initialize input text boxes to the originally loaded config
     table_set(*input_config, "mpd_host",              copy_string(config.mpd_host));
     table_set(*input_config, "mpd_port",              sprint("%", config.mpd_port));
@@ -224,8 +225,8 @@ event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_
             index_start := max(0, min(ORDERED_CONFIG_KEYS.count - max_items_in_page, cursor.position - max_items_in_page/ 2 + 1));
             index_end   := min(index_start + max_items_in_page, ORDERED_CONFIG_KEYS.count) - 1;
 
-            display_keys.entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
-            display_values.entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
+            display_keys.entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
+            display_values.entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
             selected_index := cursor.position;
 

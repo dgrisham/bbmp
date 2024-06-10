@@ -402,7 +402,7 @@ draw_album_frame :: (album: *Album, queue: Queue.Data, load_current_album_art: b
     {
         index_start := max(0, min(album.songs.count - items_in_page, selected_song_index - items_in_page / 2 + 1));
         index_end   := min(index_start + items_in_page, album.songs.count) - 1;
-        display_entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
+        display_entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
         for i: index_start..index_end {
             song := album.songs[i];

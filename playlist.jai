@@ -552,7 +552,7 @@ event_loop :: (mpd_connection: *MPD.connection, using playlist_data: Data, libra
             if playlists.count > 0 {
                 index_start := max(0, min(playlists.count - max_items_in_page, selected_playlist_index - max_items_in_page/ 2 + 1));
                 index_end   := min(index_start + max_items_in_page, playlists.count) - 1;
-                display_columns[0].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
+                display_columns[0].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
                 max_characters_in_column := display_columns[0].rectangle_width / fonts.regular.w_width - 2;
 
@@ -571,7 +571,7 @@ event_loop :: (mpd_connection: *MPD.connection, using playlist_data: Data, libra
             if selected_playlist.song_URIs.count > 0 {
                 index_start := max(0, min(selected_playlist.song_URIs.count - max_items_in_page, selected_song_index - max_items_in_page/ 2 + 1));
                 index_end   := min(index_start + max_items_in_page, selected_playlist.song_URIs.count) - 1;
-                display_columns[1].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
+                display_columns[1].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
                 max_characters_in_column := display_columns[1].rectangle_width / fonts.regular.w_width - 2;
 

@@ -39,6 +39,8 @@ load :: (mpd_connection: *MPD.connection) -> Library_Data {
     context.logger_data = *log_data;
 
     library := New(Library_Data);
+    library.allocator = context.allocator;
+
     init(*library.artists);
     init(*library.songs_by_uri);
 
@@ -676,7 +678,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             if library.artists.count > 0 {
                 index_start := max(0, min(library.artists.count - items_in_page, selected_artist_index  - items_in_page/ 2 + 1));
                 index_end   := min(index_start + items_in_page, library.artists.count) - 1;
-                display_columns[0].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
+                display_columns[0].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
                 max_characters_in_column := display_columns[0].rectangle_width / fonts.regular.w_width - 2;
 
@@ -694,7 +696,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             if selected_artist.albums.count > 0 {
                 index_start := max(0, min(selected_artist.albums.count - items_in_page, selected_album_index - items_in_page/ 2 + 1));
                 index_end   := min(index_start + items_in_page, selected_artist.albums.count) - 1;
-                display_columns[1].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
+                display_columns[1].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
                 max_characters_in_column := display_columns[1].rectangle_width / fonts.regular.w_width - 2;
 
@@ -716,7 +718,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
             if selected_album.songs.count > 0 {
                 index_start := max(0, min(selected_album.songs.count - items_in_page, selected_song_index - items_in_page / 2 + 1));
                 index_end   := min(index_start + items_in_page, selected_album.songs.count) - 1;
-                display_columns[2].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
+                display_columns[2].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
                 max_characters_in_column := display_columns[2].rectangle_width / fonts.regular.w_width - 2;
 

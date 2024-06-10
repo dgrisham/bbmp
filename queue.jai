@@ -435,10 +435,10 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
             index_start := max(0, min(queue.songs.count - items_in_page, cursor.position - items_in_page/ 2 + 1));
             index_end   := min(index_start + items_in_page, queue.songs.count) - 1;
 
-            display_columns[0].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
-            display_columns[1].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
-            display_columns[2].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
-            display_columns[3].entries = NewArray(index_end - index_start + 1, Display_Text, false, temp);
+            display_columns[0].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
+            display_columns[1].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
+            display_columns[2].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
+            display_columns[3].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
             display_columns[0].width = cast(s32)(8 / 20.0 * display_width);
             display_columns[1].width = cast(s32)(5 / 20.0 * display_width);

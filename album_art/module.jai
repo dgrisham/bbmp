@@ -133,7 +133,7 @@ event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Libr
 
     if current_album_art_subview == {
         case .LIBRARY;
-            draw_library_frame(albums, fonts.regular, header_bottom, rows, columns, total_width, total_height, thumbnail_slot_width, thumbnail_slot_height, horizontal_padding, vertical_padding, x_margin_offset, y_margin_offset, selected_cover_highlight_width);
+            draw_library_frame(albums, library.allocator, fonts.regular, header_bottom, rows, columns, total_width, total_height, thumbnail_slot_width, thumbnail_slot_height, horizontal_padding, vertical_padding, x_margin_offset, y_margin_offset, selected_cover_highlight_width);
         case .ALBUM;
             just_switched_to_album_subview := original_subview != .ALBUM;
             draw_album_frame(albums[cursor.album_position], queue, just_switched_to_album_subview, fonts, total_width, header_bottom, album_songs_in_page);

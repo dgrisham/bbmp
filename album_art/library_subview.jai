@@ -278,7 +278,7 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [] *Album, li
     return inputting_search_query;
 }
 
-draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32, horizontal_padding: s32, vertical_padding: s32, x_margin_offset: s32, y_margin_offset: s32, selected_cover_highlight_width: s32) {
+draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, font: *Simp.Dynamic_Font, header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32, horizontal_padding: s32, vertical_padding: s32, x_margin_offset: s32, y_margin_offset: s32, selected_cover_highlight_width: s32) {
 
     context.logger_data = *log_data;
 
@@ -311,7 +311,7 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
             }
 
             num_entries_to_draw := min(albums.count - album_index, rows * columns);
-            entries_to_draw = NewArray(num_entries_to_draw, Entry, false, temp);
+            entries_to_draw = NewArray(num_entries_to_draw, Entry, false,, temp);
 
             max_characters_in_column := thumbnail_slot_width / font.w_width;
             for i: 0..entries_to_draw.count-1 {
@@ -322,7 +322,7 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
                 entry.album_name  = create_temp_display_string_of_max_length(album.name,        max_characters_in_column);
 
                 if !album.thumbnail_texture {
-                    album.thumbnail_texture = load_thumbnail_if_exists(albums[album_index]);
+                    album.thumbnail_texture = load_thumbnail_if_exists(albums[album_index], library_allocator);
                 }
                 entry.texture  = album.thumbnail_texture;
                 entry.selected = album_index == cursor.album_position;
@@ -428,22 +428,30 @@ draw_library_frame :: (albums: [] *Album, font: *Simp.Dynamic_Font, header_botto
     }
 }
 
-load_thumbnail_if_exists :: (album: *Album) -> *Simp.Texture {
+load_thumbnail_if_exists :: (album: *Album, allocator: Allocator) -> *Simp.Texture {
 
     context.logger_data = *log_data;
 
     lock(*album.mutex);
     defer unlock(*album.mutex);
-    if !album.thumbnail_bitmap {
-        return null;
-    }
-    defer { Simp.deinit(album.thumbnail_bitmap); free(album.thumbnail_bitmap); };
 
-    texture := New(Simp.Texture);
-    if !Simp.texture_load_from_bitmap(texture, album.thumbnail_bitmap) {
-        log("Failed to load thumbnail from memory for % - %", album.artist_name, album.name);
-        free(texture);
-        return null;
+    /*****************
+    * load thumbnail *
+    *****************/
+
+    thumbnail_path := tprint("%/%-%x.bmp", config.album_cover_directory, get_hash(tprint("%-%", album.artist_name, album.name)), THUMBNAIL_WIDTH);
+    texture: *Simp.Texture;
+    if file_exists(thumbnail_path) {
+        texture_load_context := context;
+        texture_load_context.allocator = allocator;
+        push_context texture_load_context {
+            texture = New(Simp.Texture);
+            if !Simp.texture_load_from_file(texture, thumbnail_path) {
+                log("Failed to load thumbnail from memory for % - %", album.artist_name, album.name);
+                free(texture);
+                return null;
+            }
+        }
     }
 
     return texture;
