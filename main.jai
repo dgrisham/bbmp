@@ -1,7 +1,7 @@
 APPLICATION_NAME :: "bbmp";
 #run (#import "Compiler").set_build_options_dc(.{output_executable_name = APPLICATION_NAME});
 
-DEBUG_BUILD :: false;
+DEBUG_BUILD :: true;
 
 #scope_file
 
@@ -15,7 +15,7 @@ DEBUG_BUILD :: false;
 
 RL      :: #import "raylib";
 Process :: #import "Process";
-// Input   :: #import "Input";
+Input   :: #import "Input";
 MPD     :: #import "libmpdclient";
 
 Now_Playing   :: #import "now_playing";
@@ -58,8 +58,8 @@ TCP_NODELAY  : s32 : LONG + xx 121;
 thumbnail_slot_width  : s32 = 200;
 thumbnail_slot_height : s32 = 200;
 
-window_width  : s32 = 2560;
-window_height : s32 = 1440;
+window_width  : s32 = 1920;
+window_height : s32 = 1080;
 
 display_width  :: inline () -> float { return window_width  - 2 * X_MARGIN_SIZE; }
 
@@ -89,10 +89,8 @@ main :: () {
 
     // TARGET_MSAA_SAMPLE_COUNT :: 16;
 
-    RL.SetTraceLogLevel(xx RL.TraceLogLevel.LOG_ERROR); // TODO: test if this works (+ maybe 4x should be 16x ?)
-    // RL.SetConfigFlags(xx RL.ConfigFlags.FLAG_MSAA_4X_HINT); // TODO: test if this works (+ maybe 4x should be 16x ?)
+    RL.SetConfigFlags(xx RL.FLAG_MSAA_4X_HINT); // TODO: test if this works (+ maybe 4x should be 16x ?)
     RL.InitWindow(window_width, window_height, APPLICATION_NAME);
-    RL.SetTargetFPS(30);
 
     init_fonts();
 
@@ -175,8 +173,6 @@ main :: () {
     table_add(*global_key_pressed_on_frame, .DASH,                0);
 
     while program_loop := true {
-        if RL.WindowShouldClose() break program_loop;
-
         context.logger_data = *log_data;
 
         frame_start := current_time();
@@ -243,7 +239,133 @@ main :: () {
         increment_volume :: () #expand { change_volume( VOLUME_CHANGE_AMOUNT); }
         decrement_volume :: () #expand { change_volume(-VOLUME_CHANGE_AMOUNT); }
 
-        RL.SetExitKey(0);
+        for Input.events_this_frame {
+            if it.type == .QUIT {
+                break program_loop;
+            }
+            if !user_input_active && it.type == .KEYBOARD && it.key_pressed {
+                if it.ctrl_pressed {
+                    if it.key_code == {
+
+                      case KEY_T; // CTRL_t
+                        show_view_titles = !show_view_titles;;
+
+                    }
+                } else {
+                    if it.key_code == {
+
+                      case KEY_Q;
+                        if it.shift_pressed {
+                            break program_loop;
+                        }
+
+                      case .NUMBER_1;
+                        current_view = .NOW_PLAYING;
+                        break it;
+                      case .NUMBER_2;
+                        current_view = .QUEUE;
+                        Queue.update(mpd_connection, library, queue);
+                        break it;
+                      case .NUMBER_3;
+                        current_view = .ALBUM_ART;
+                        break it;
+                      case .NUMBER_4;
+                        current_view = .LIBRARY;
+                        break it;
+                      case .NUMBER_5;
+                        current_view = .PLAYLIST;
+                        break it;
+                      case .NUMBER_6;
+                        current_view = .CONFIG_EDITOR;
+                        break it;
+                      case .NUMBER_7;
+                        current_view = .LOG;
+                        break it;
+
+                      case KEY_R;
+                        if it.shift_pressed {
+                            reload_everything();
+                        }
+                        break it;
+
+                      case KEY_P;
+                        MPD.run_toggle_pause(mpd_connection);
+                        handle_errors("Toggling pause");
+                        break it;
+
+                      case KEY_B;
+                        last_global_key_pressed = .B;
+                        table_set(*global_key_pressed_on_frame, .B, frame);
+                        seek_backward();
+                        break it;
+                      case KEY_F;
+                        if !it.shift_pressed {
+                            last_global_key_pressed = .F;
+                            table_set(*global_key_pressed_on_frame, .F, frame);
+                            seek_forward();
+                        }
+                        break it;
+
+                      case .LEFT_ANGLE_BRACKET;
+                        if it.shift_pressed {
+                            last_global_key_pressed = .LEFT_ANGLE_BRACKET;
+                            table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
+                            play_previous_song();
+                        }
+                        break it;
+                      case .RIGHT_ANGLE_BRACKET;
+                        if it.shift_pressed {
+                            last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
+                            table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
+                            play_next_song();
+                        }
+                        break it;
+
+                      case .EQUALS_SIGN;
+                        last_global_key_pressed = .EQUALS_SIGN;
+                        table_set(*global_key_pressed_on_frame, .EQUALS_SIGN, frame);
+                        increment_volume();
+                        break it;
+                      case .DASH;
+                        last_global_key_pressed = .DASH;
+                        table_set(*global_key_pressed_on_frame, .DASH, frame);
+                        decrement_volume();
+                        break it;
+
+                      case KEY_C;
+                        MPD.run_clear(mpd_connection);
+                        handle_errors("Clearing queue");
+                        Queue.update(mpd_connection, library, queue);
+                        update_status(Queue.get_current_song(mpd_connection, queue));
+                        break it;
+
+                    }
+                }
+            }
+        }
+
+        if !user_input_active {
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B, threshold=8*KEY_HOLD_DELAY) seek_backward(6*SEEK_SECONDS);
+            else
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B, threshold=6*KEY_HOLD_DELAY) seek_backward(4*SEEK_SECONDS);
+            else
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B, threshold=4*KEY_HOLD_DELAY) seek_backward(2*SEEK_SECONDS);
+            else
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .B)                             seek_backward();
+
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F, threshold=8*KEY_HOLD_DELAY) seek_forward(6*SEEK_SECONDS);
+            else
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F, threshold=6*KEY_HOLD_DELAY) seek_forward(4*SEEK_SECONDS);
+            else
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F, threshold=4*KEY_HOLD_DELAY) seek_forward(2*SEEK_SECONDS);
+            else
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .F)                             seek_forward();
+
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .LEFT_ANGLE_BRACKET)  play_previous_song();
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .RIGHT_ANGLE_BRACKET) play_next_song();
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .EQUALS_SIGN)         increment_volume();
+            if key_held_passed_threshold(global_key_pressed_on_frame, last_global_key_pressed, frame, .DASH)                decrement_volume();
+        }
 
         RL.BeginDrawing();
             RL.ClearBackground(.{0, 0, 0, 255});
@@ -274,80 +396,6 @@ main :: () {
             reset_temporary_storage();
             // Simp.swap_buffers(window);
         RL.EndDrawing();
-
-        {
-            using RL.KeyboardKey;
-
-            ctrl_pressed  := RL.IsKeyDown(xx LEFT_CONTROL)
-                          || RL.IsKeyDown(xx RIGHT_CONTROL)
-                          || RL.IsKeyDown(xx CAPS_LOCK);
-            shift_pressed := RL.IsKeyDown(xx LEFT_SHIFT)
-                          || RL.IsKeyDown(xx RIGHT_SHIFT);
-
-            if RL.IsKeyPressed(xx P) {
-                MPD.run_toggle_pause(mpd_connection);
-                handle_errors("Toggling pause");
-            } else
-            if RL.IsKeyPressed(xx B) {
-                last_global_key_pressed = .B;
-                table_set(*global_key_pressed_on_frame, .B, frame);
-                seek_backward();
-            } else
-            if RL.IsKeyPressed(xx F) {
-                last_global_key_pressed = .F;
-                table_set(*global_key_pressed_on_frame, .F, frame);
-                seek_forward();
-            } else
-            if RL.IsKeyPressed(xx ONE) {
-                current_view = .NOW_PLAYING;
-            } else
-            if RL.IsKeyPressed(xx TWO) {
-                current_view = .QUEUE;
-            } else
-            if RL.IsKeyPressed(xx THREE) {
-                current_view = .ALBUM_ART;
-            } else
-            if RL.IsKeyPressed(xx FOUR) {
-                current_view = .LIBRARY;
-            } else
-            if RL.IsKeyPressed(xx FIVE) {
-                current_view = .PLAYLIST;
-            } else
-            if RL.IsKeyPressed(xx SIX) {
-                current_view = .CONFIG_EDITOR;
-            } else
-            if RL.IsKeyPressed(xx SEVEN) {
-                current_view = .LOG;
-            }
-
-            if ctrl_pressed {
-                if RL.IsKeyPressed(xx T) {
-                    show_view_titles = !show_view_titles;
-                }
-            }
-
-            if shift_pressed {
-                if RL.IsKeyPressed(xx Q) {
-                    break program_loop;
-                } else
-                if RL.IsKeyPressed(xx LESS_THAN) {
-                    last_global_key_pressed = .LEFT_ANGLE_BRACKET;
-                    table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
-                    play_previous_song();
-                } else
-                if RL.IsKeyPressed(xx GREATER_THAN) {
-                    last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
-                    table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
-                    play_next_song();
-                } else
-                if RL.IsKeyPressed(xx C) {
-                    MPD.run_clear(mpd_connection);
-                    handle_errors("Clearing queue");
-                    Queue.update(mpd_connection, library, queue);
-                    update_status(Queue.get_current_song(mpd_connection, queue));
-                }
-            }
-        }
 
         // memory_visualizer_per_frame_update();
 
@@ -473,8 +521,8 @@ draw_header :: () -> float {
             if selected {
                 RL.DrawRectangleRec(
                     .{
-                        x      = x - X_PADDING_BETWEEN_VIEW_TITLES / 3, // highlight box looks better when skewed to the right
-                        y      = y - TEXT_PADDING_Y / 2,
+                        x      = x - (highlight_width - text_size.x) / 3, // highlight box looks better when skewed to the right
+                        y      = y - (highlight_height - font.size) / 2,
                         width  = highlight_width,
                         height = highlight_height,
                     },
@@ -525,7 +573,6 @@ init_fonts :: () {
         // }
         fonts.regular = New(Font);
         // fonts.regular.base = RL.LoadFontFromMemory("ttf", font_data, size, cast(s32)pixel_height, null, 0);
-        // fonts.regular.base = RL.LoadFontEx("./fonts/Inconsolata-Regular.ttf", cast(s32)fonts.regular.size, null, 65536);
         fonts.regular.base = RL.LoadFontEx("./fonts/Inconsolata-Regular.ttf", cast(s32)fonts.regular.size, null, 65536);
         assert(RL.IsFontReady(fonts.regular));
         fonts.regular.w_width = RL.GetGlyphInfo(fonts.regular.base, #char "W").advanceX;

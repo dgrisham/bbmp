@@ -28,7 +28,7 @@ search_query: Search_Query;
 inputting_search_query := false;
 
 cursor: struct {
-    positions := int.[0, 0, 0];
+    positions := int.[341, 0, 0];
     selected  := 0;
 };
 
@@ -354,288 +354,164 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
         }
     }
 
-    move_cursor_to_current_track :: () #expand {
-        mpd_current_song := MPD.run_current_song(mpd_connection);
-        handle_errors("Getting current song");
-        if !mpd_current_song return;
-
-        uri := to_string(MPD.song_get_uri(mpd_current_song));
-        song, song_found := table_find(*library.songs_by_uri, uri);
-        if !song_found return;
-
-        artist_index_found, artist_index := array_find(library.artist_names_sorted, song.artist);
-        if !artist_index_found return;
-
-        artist_ptr, artist_found := table_find(*library.artists, song.artist);
-        if !artist_found return;
-
-        album_index_found, album_index := array_find(artist_ptr.album_names_sorted_by_date, song.album);
-        if !album_index_found return;
-
-        album_ptr, album_found := table_find(*artist_ptr.albums, song.album);
-        if !album_found return;
-
-        song_index: int;
-        song_index_found := false;
-        for album_ptr.songs {
-            if it.uri == song.uri {
-                song_index = it_index;
-                song_index_found = true;
-            }
-        }
-        if !song_index_found return;
-
-        `cursor.positions[0] = artist_index;
-        `cursor.positions[1] = album_index;
-        `cursor.positions[2] = song_index;
-        `cursor.selected     = 2;
-    }
-
     if !inputting_search_query {
-        using RL.KeyboardKey;
+        for Input.events_this_frame {
+            if it.type == {
+              case .KEYBOARD;
+                if it.key_pressed {
+                    if it.ctrl_pressed {
+                        if it.key_code == {
 
-        ctrl_pressed  := RL.IsKeyDown(xx LEFT_CONTROL)
-                      || RL.IsKeyDown(xx RIGHT_CONTROL)
-                      || RL.IsKeyDown(xx CAPS_LOCK);
-        shift_pressed := RL.IsKeyDown(xx LEFT_SHIFT)
-                      || RL.IsKeyDown(xx RIGHT_SHIFT);
+                          case KEY_D;
+                            last_key_pressed = .CTRL_D;
+                            table_set(*key_pressed_on_frame, .CTRL_D, frame);
+                            move_selected_cursor_half_page_down();
+                            break it;
+                          case KEY_U;
+                            last_key_pressed = .CTRL_U;
+                            table_set(*key_pressed_on_frame, .CTRL_U, frame);
+                            move_selected_cursor_half_page_up();
+                            break it;
+                        }
 
-        if RL.IsKeyPressed(xx H) {
-            last_key_pressed = .H;
-            table_set(*key_pressed_on_frame, .H, frame);
-            move_selected_cursor_left();
-        } else
-        if RL.IsKeyPressed(xx L) {
-            last_key_pressed = .L;
-            table_set(*key_pressed_on_frame, .L, frame);
-            move_selected_cursor_right();
-        } else
-        if RL.IsKeyPressed(xx J) {
-            last_key_pressed = .J;
-            table_set(*key_pressed_on_frame, .J, frame);
-            move_selected_cursor_down();
-        } else
-        if RL.IsKeyPressed(xx K) {
-            last_key_pressed = .K;
-            table_set(*key_pressed_on_frame, .K, frame);
-            move_selected_cursor_up();
-        } else
-        if RL.IsKeyPressed(xx G) {
-            if cursor.selected == {
-                case 0;
-                  if shift_pressed {
-                      cursor.positions[0] = max(0, library.artists.count - 1);
-                  } else {
-                      cursor.positions[0] = 0;
-                  }
-                  cursor.positions[1] = 0;
-                  cursor.positions[2] = 0;
-                case 1;
-                  if shift_pressed {
-                      artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
-                      assert(artist_ptr != null);
-                      cursor.positions[1] = max(0, artist_ptr.albums.count - 1);
-                  } else {
-                    cursor.positions[1] = 0;
-                  }
-                  cursor.positions[2] = 0;
-                case 2;
-                  if shift_pressed {
-                      artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
-                      assert(artist_ptr != null);
-                      album_ptr := table_find_pointer(*artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
-                      cursor.positions[2] = max(0, album_ptr.songs.count - 1);
-                  } else {
-                      cursor.positions[2] = 0;
-                  }
-            }
-        } else
-        if RL.IsKeyPressed(xx O) {
-            move_cursor_to_current_track();
-        } else
-        if RL.IsKeyPressed(xx SPACE) {
-            last_key_pressed = .SPACE;
-            table_set(*key_pressed_on_frame, .SPACE, frame);
-            add_selection_to_queue_and_increment_cursor();
-        } else
-        if RL.IsKeyPressed(xx ENTER) {
-            last_key_pressed = .ENTER;
-            table_set(*key_pressed_on_frame, .ENTER, frame);
-            add_selection_to_queue_and_play();
-        } else
-        if RL.IsKeyPressed(xx SLASH) {
-            inputting_search_query = true;
-            search_query.str.count = 0;
-        } else
-        if RL.IsKeyPressed(xx N) {
-            if shift_pressed {
-                last_key_pressed = .SHIFT_N;
-                table_set(*key_pressed_on_frame, .SHIFT_N, frame);
-                move_cursor_to_prev_search_result();
-            } else {
-                last_key_pressed = .N;
-                table_set(*key_pressed_on_frame, .N, frame);
-                move_cursor_to_next_search_result();
+                    } else {
+                        if it.key_code == {
+
+                          case KEY_H;
+                            last_key_pressed = .H;
+                            table_set(*key_pressed_on_frame, .H, frame);
+                            move_selected_cursor_left();
+                            break it;
+                          case KEY_L;
+                            last_key_pressed = .L;
+                            table_set(*key_pressed_on_frame, .L, frame);
+                            move_selected_cursor_right();
+                            break it;
+
+                          case KEY_J;
+                            last_key_pressed = .J;
+                            table_set(*key_pressed_on_frame, .J, frame);
+                            move_selected_cursor_down();
+                            break it;
+                          case KEY_K;
+                            last_key_pressed = .K;
+                            table_set(*key_pressed_on_frame, .K, frame);
+                            move_selected_cursor_up();
+                            break it;
+
+                          case KEY_G;
+                            if cursor.selected == {
+                                case 0;
+                                  if it.shift_pressed {
+                                      cursor.positions[0] = max(0, library.artists.count - 1);
+                                  } else {
+                                      cursor.positions[0] = 0;
+                                  }
+                                  cursor.positions[1] = 0;
+                                  cursor.positions[2] = 0;
+                                case 1;
+                                  if it.shift_pressed {
+                                      artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
+                                      assert(artist_ptr != null);
+                                      cursor.positions[1] = max(0, artist_ptr.albums.count - 1);
+                                  } else {
+                                    cursor.positions[1] = 0;
+                                  }
+                                  cursor.positions[2] = 0;
+                                case 2;
+                                  if it.shift_pressed {
+                                      artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
+                                      assert(artist_ptr != null);
+                                      album_ptr := table_find_pointer(*artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
+                                      cursor.positions[2] = max(0, album_ptr.songs.count - 1);
+                                  } else {
+                                      cursor.positions[2] = 0;
+                                  }
+                            }
+                            break it;
+
+                          case KEY_O;
+                            mpd_current_song := MPD.run_current_song(mpd_connection);
+                            handle_errors("Getting current song");
+                            if !mpd_current_song break;
+
+                            uri := to_string(MPD.song_get_uri(mpd_current_song));
+                            song, song_found := table_find(*library.songs_by_uri, uri);
+                            if !song_found break it;
+
+                            artist_index_found, artist_index := array_find(library.artist_names_sorted, song.artist);
+                            if !artist_index_found break it;
+
+                            artist_ptr, artist_found := table_find(*library.artists, song.artist);
+                            if !artist_found break it;
+
+                            album_index_found, album_index := array_find(artist_ptr.album_names_sorted_by_date, song.album);
+                            if !album_index_found break it;
+
+                            album_ptr, album_found := table_find(*artist_ptr.albums, song.album);
+                            if !album_found break it;
+
+                            song_index: int;
+                            song_index_found := false;
+                            for album_ptr.songs {
+                                if it.uri == song.uri {
+                                    song_index = it_index;
+                                    song_index_found = true;
+                                }
+                            }
+                            if !song_index_found break it;
+
+                            cursor.positions[0] = artist_index;
+                            cursor.positions[1] = album_index;
+                            cursor.positions[2] = song_index;
+                            cursor.selected     = 2;
+
+                            break it;
+
+                          case .SPACEBAR;
+                            last_key_pressed = .SPACE;
+                            table_set(*key_pressed_on_frame, .SPACE, frame);
+                            add_selection_to_queue_and_increment_cursor();
+                            break it;
+
+                          case .ENTER;
+                            last_key_pressed = .ENTER;
+                            table_set(*key_pressed_on_frame, .ENTER, frame);
+                            add_selection_to_queue_and_play();
+                            break it;
+
+                          case .FORWARD_SLASH;
+                            inputting_search_query = true;
+                            search_query.str.count = 0;
+                            break it;
+
+                          case KEY_N;
+                            if it.shift_pressed {
+                                last_key_pressed = .SHIFT_N;
+                                table_set(*key_pressed_on_frame, .SHIFT_N, frame);
+                                move_cursor_to_prev_search_result();
+                            } else {
+                                last_key_pressed = .N;
+                                table_set(*key_pressed_on_frame, .N, frame);
+                                move_cursor_to_next_search_result();
+                            }
+                            break it;
+
+                        }
+                    }
+                }
             }
         }
 
-        // for Input.events_this_frame {
-        //     if it.type == {
-        //       case .KEYBOARD;
-        //         if it.key_pressed {
-        //             if it.ctrl_pressed {
-        //                 if it.key_code == {
-
-        //                   case KEY_D;
-        //                     last_key_pressed = .CTRL_D;
-        //                     table_set(*key_pressed_on_frame, .CTRL_D, frame);
-        //                     move_selected_cursor_half_page_down();
-        //                     break it;
-        //                   case KEY_U;
-        //                     last_key_pressed = .CTRL_U;
-        //                     table_set(*key_pressed_on_frame, .CTRL_U, frame);
-        //                     move_selected_cursor_half_page_up();
-        //                     break it;
-        //                 }
-
-        //             } else {
-        //                 if it.key_code == {
-
-        //                   // case KEY_H;
-        //                   //   last_key_pressed = .H;
-        //                   //   table_set(*key_pressed_on_frame, .H, frame);
-        //                   //   move_selected_cursor_left();
-        //                   //   break it;
-        //                   // case KEY_L;
-        //                   //   last_key_pressed = .L;
-        //                   //   table_set(*key_pressed_on_frame, .L, frame);
-        //                   //   move_selected_cursor_right();
-        //                   //   break it;
-
-        //                   // case KEY_J;
-        //                   //   last_key_pressed = .J;
-        //                   //   table_set(*key_pressed_on_frame, .J, frame);
-        //                   //   move_selected_cursor_down();
-        //                   //   break it;
-        //                   // case KEY_K;
-        //                   //   last_key_pressed = .K;
-        //                   //   table_set(*key_pressed_on_frame, .K, frame);
-        //                   //   move_selected_cursor_up();
-        //                   //   break it;
-
-        //                   // case KEY_G;
-        //                   //   if cursor.selected == {
-        //                   //       case 0;
-        //                   //         if it.shift_pressed {
-        //                   //             cursor.positions[0] = max(0, library.artists.count - 1);
-        //                   //         } else {
-        //                   //             cursor.positions[0] = 0;
-        //                   //         }
-        //                   //         cursor.positions[1] = 0;
-        //                   //         cursor.positions[2] = 0;
-        //                   //       case 1;
-        //                   //         if it.shift_pressed {
-        //                   //             artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
-        //                   //             assert(artist_ptr != null);
-        //                   //             cursor.positions[1] = max(0, artist_ptr.albums.count - 1);
-        //                   //         } else {
-        //                   //           cursor.positions[1] = 0;
-        //                   //         }
-        //                   //         cursor.positions[2] = 0;
-        //                   //       case 2;
-        //                   //         if it.shift_pressed {
-        //                   //             artist_ptr := table_find_pointer(*library.artists, library.artist_names_sorted[cursor.positions[0]]);
-        //                   //             assert(artist_ptr != null);
-        //                   //             album_ptr := table_find_pointer(*artist_ptr.albums, artist_ptr.album_names_sorted_by_date[cursor.positions[1]]);
-        //                   //             cursor.positions[2] = max(0, album_ptr.songs.count - 1);
-        //                   //         } else {
-        //                   //             cursor.positions[2] = 0;
-        //                   //         }
-        //                   //   }
-        //                   //   break it;
-
-        //                   // case KEY_O;
-        //                   //   mpd_current_song := MPD.run_current_song(mpd_connection);
-        //                   //   handle_errors("Getting current song");
-        //                   //   if !mpd_current_song break;
-
-        //                   //   uri := to_string(MPD.song_get_uri(mpd_current_song));
-        //                   //   song, song_found := table_find(*library.songs_by_uri, uri);
-        //                   //   if !song_found break it;
-
-        //                   //   artist_index_found, artist_index := array_find(library.artist_names_sorted, song.artist);
-        //                   //   if !artist_index_found break it;
-
-        //                   //   artist_ptr, artist_found := table_find(*library.artists, song.artist);
-        //                   //   if !artist_found break it;
-
-        //                   //   album_index_found, album_index := array_find(artist_ptr.album_names_sorted_by_date, song.album);
-        //                   //   if !album_index_found break it;
-
-        //                   //   album_ptr, album_found := table_find(*artist_ptr.albums, song.album);
-        //                   //   if !album_found break it;
-
-        //                   //   song_index: int;
-        //                   //   song_index_found := false;
-        //                   //   for album_ptr.songs {
-        //                   //       if it.uri == song.uri {
-        //                   //           song_index = it_index;
-        //                   //           song_index_found = true;
-        //                   //       }
-        //                   //   }
-        //                   //   if !song_index_found break it;
-
-        //                   //   cursor.positions[0] = artist_index;
-        //                   //   cursor.positions[1] = album_index;
-        //                   //   cursor.positions[2] = song_index;
-        //                   //   cursor.selected     = 2;
-
-        //                   //   break it;
-
-        //                   // case .SPACEBAR;
-        //                   //   last_key_pressed = .SPACE;
-        //                   //   table_set(*key_pressed_on_frame, .SPACE, frame);
-        //                   //   add_selection_to_queue_and_increment_cursor();
-        //                   //   break it;
-
-        //                   // case .ENTER;
-        //                   //   last_key_pressed = .ENTER;
-        //                   //   table_set(*key_pressed_on_frame, .ENTER, frame);
-        //                   //   add_selection_to_queue_and_play();
-        //                   //   break it;
-
-        //                   // case .FORWARD_SLASH;
-        //                   //   inputting_search_query = true;
-        //                   //   search_query.str.count = 0;
-        //                   //   break it;
-
-        //                   // case KEY_N;
-        //                   //   if it.shift_pressed {
-        //                   //       last_key_pressed = .SHIFT_N;
-        //                   //       table_set(*key_pressed_on_frame, .SHIFT_N, frame);
-        //                   //       move_cursor_to_prev_search_result();
-        //                   //   } else {
-        //                   //       last_key_pressed = .N;
-        //                   //       table_set(*key_pressed_on_frame, .N, frame);
-        //                   //       move_cursor_to_next_search_result();
-        //                   //   }
-        //                   //   break it;
-
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-
-        // if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .J)       move_selected_cursor_down();
-        // if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .K)       move_selected_cursor_up();
-        // if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .H)       move_selected_cursor_left();
-        // if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .L)       move_selected_cursor_right();
-        // if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D)  move_selected_cursor_half_page_down();
-        // if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U)  move_selected_cursor_half_page_up();
-        // if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)   add_selection_to_queue_and_increment_cursor();
-        // if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .N)       move_cursor_to_next_search_result();
-        // if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_N) move_cursor_to_prev_search_result();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .J)       move_selected_cursor_down();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .K)       move_selected_cursor_up();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .H)       move_selected_cursor_left();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .L)       move_selected_cursor_right();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_D)  move_selected_cursor_half_page_down();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .CTRL_U)  move_selected_cursor_half_page_up();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SPACE)   add_selection_to_queue_and_increment_cursor();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .N)       move_cursor_to_next_search_result();
+        if key_held_passed_threshold(key_pressed_on_frame, last_key_pressed, frame, .SHIFT_N) move_cursor_to_prev_search_result();
     } else {
 
         /*****************************
