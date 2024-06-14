@@ -7,6 +7,8 @@
 #import "System";
 #import "Thread";
 
+Simp :: #import "Simp";
+
 album_art_creation_thread_group: Thread_Group;
 
 pool: Pool;

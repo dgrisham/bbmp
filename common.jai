@@ -13,7 +13,8 @@
 
 Input :: #import "Input";
 MPD   :: #import "libmpdclient";
-Simp  :: #import "Simp";
+RL    :: #import "raylib";
+// Simp  :: #import "Simp";
 
 #scope_export
 
@@ -107,10 +108,9 @@ MIN_ALBUM_ART_DISPLAY_WIDTH :: 300;
 
 KEY_HOLD_DELAY :: 20;
 
-X_MARGIN_SIZE  : s32;
-Y_MARGIN_SIZE  : s32;
-TEXT_PADDING_Y :: 5;
-Y_PADDING_BELOW_HEADER : s32;
+X_MARGIN_SIZE  : float;
+Y_MARGIN_SIZE  : float;
+TEXT_PADDING_Y :: 4;
 X_PADDING_BETWEEN_VIEW_TITLES : s32 = 15;
 
 SPACE: u8 = 32;
@@ -120,8 +120,44 @@ ELLIPSIS :: u8.[226, 128, 166];
 * types *
 ********/
 
+fonts: Fonts;
+
 Fonts :: struct {
-    regular, bold: *Simp.Dynamic_Font;
+    // regular, bold: *Simp.Dynamic_Font;
+    regular, bold: *Font;
+}
+
+Font :: struct {
+    using #as base : RL.Font;
+    w_width        : s32;
+    size           : float = 16;
+    spacing        : float = 0.5;
+    height         : s32;
+}
+
+View_Boundary :: struct {
+    top, bottom, left, right : float;
+    width, height            : float;
+}
+
+view_boundary :: (top: float, bottom: float, left: float, right: float) -> View_Boundary {
+    vd := View_Boundary.{
+        top=top,
+        bottom=bottom,
+        left=left,
+        right=right,
+    };
+    vd.width  = vd.right - vd.left;
+    vd.height = vd.bottom - vd.top;
+    return vd;
+}
+
+width :: inline (vd: View_Boundary) -> float {
+    return vd.right - vd.left;
+}
+
+height :: inline (vd: View_Boundary) -> float {
+    return vd.top - vd.bottom;
 }
 
 Search_Query :: struct {
@@ -198,7 +234,8 @@ Album :: struct {
     songs             : [..] Song;
     directory         : string;
     cover_path        : string;
-    thumbnail_texture : *Simp.Texture;
+    // thumbnail_texture : *Simp.Texture;
+    thumbnail_texture : *RL.Texture;
     mutex             : Mutex;
 };
 
@@ -290,9 +327,9 @@ to_long_date_string :: (date: Date) -> string {
 }
 
 Display_Text :: struct {
-    text     : string;
+    text     : *u8;
     selected : bool;
-    font     : *Simp.Dynamic_Font;
+    font     : *Font;
 }
 
 /********************************
@@ -725,6 +762,36 @@ create_temp_display_string_of_max_length :: (s: string, max_character_count: int
     return result;
 }
 
+create_temp_display_c_string_of_max_length :: (s: string, max_character_count: int) -> *u8  {
+
+    num_unicode_chars := get_unicode_length(s);
+    if num_unicode_chars <= max_character_count {
+        return temp_c_string(s);
+    }
+
+    // string is too long, trim and replace last char with an ellipses
+    num_bytes_in_string_to_hit_char_limit := 0; // this will be the number of bytes in the string that hits the max_character_count
+    num_bytes_in_last_unicode_char := 0;
+    {
+        num_unicode_chars := 0;
+        while num_unicode_chars < max_character_count && num_bytes_in_string_to_hit_char_limit < s.count {
+            num_bytes_in_last_unicode_char = 1 + trailingBytesForUTF8[s.data[num_bytes_in_string_to_hit_char_limit]];
+            num_bytes_in_string_to_hit_char_limit += num_bytes_in_last_unicode_char;
+            num_unicode_chars += 1;
+        }
+    }
+
+    num_bytes_to_copy := num_bytes_in_string_to_hit_char_limit - num_bytes_in_last_unicode_char;
+    // result := alloc_string(num_bytes_to_copy + ELLIPSIS.count + 1,, temp);
+    len := num_bytes_to_copy + ELLIPSIS.count + 1;
+    result := cast(*u8)talloc(len);
+    memcpy(result, s.data, num_bytes_to_copy);
+    memcpy(result + num_bytes_to_copy, ELLIPSIS.data, ELLIPSIS.count);
+    result[len - 1] = 0;
+
+    return result;
+}
+
 create_temp_display_string_of_max_length_truncate_left :: (s: string, max_character_count: int) -> string {
 
     total_unicode_chars := get_unicode_length(s);
@@ -747,6 +814,33 @@ create_temp_display_string_of_max_length_truncate_left :: (s: string, max_charac
     result := alloc_string(num_bytes_to_copy + ELLIPSIS.count,, temp);
     memcpy(result.data, ELLIPSIS.data, ELLIPSIS.count);
     memcpy(result.data + ELLIPSIS.count, s.data + bytes_to_skip, num_bytes_to_copy);
+    return result;
+}
+
+create_temp_display_c_string_of_max_length_truncate_left :: (s: string, max_character_count: int) -> *u8 {
+
+    total_unicode_chars := get_unicode_length(s);
+    if total_unicode_chars <= max_character_count {
+        return copy_temporary_string(s);
+    }
+
+    bytes_to_skip := 0;
+    num_bytes_in_last_unicode_char := 0;
+    {
+        num_unicode_chars := total_unicode_chars;
+        while num_unicode_chars >= max_character_count && bytes_to_skip < s.count {
+            num_bytes_in_last_unicode_char = 1 + trailingBytesForUTF8[s.data[bytes_to_skip]];
+            bytes_to_skip += num_bytes_in_last_unicode_char;
+            num_unicode_chars -= 1;
+        }
+    }
+
+    len := num_bytes_to_copy + ELLIPSIS.count + 1;
+    result := cast(*u8)talloc(len);
+    memcpy(result, ELLIPSIS.data, ELLIPSIS.count);
+    memcpy(result + ELLIPSIS.count, s.data + bytes_to_skip, num_bytes_to_copy);
+    result[len - 1] = 0;
+
     return result;
 }
 
@@ -834,3 +928,48 @@ right_pad :: (t: $T, pad_char: u8, total_length: int, allocator := temp) -> stri
     for str.count..(result.count - 1) result[it] = pad_char;
     return result;
 }
+
+color :: (r: u8, g: u8, b: u8, a: u8) -> RL.Color {
+    return RL.Color.{r, g, b, a};
+}
+
+print_c :: inline (format_string: string, args: .. Any) -> *u8 {
+    builder: String_Builder;
+
+    print_to_builder(*builder, format_string, ..args);
+
+    return builder_to_c_string(*builder);
+}
+
+// tprint_c :: inline (format_string: string, args: .. Any) -> *u8 {
+//     return tprint(tprint("%\0", format_string), args).data;
+//     // builder: String_Builder;
+//     // builder.allocator = temp;
+
+//     // print_to_builder(*builder, format_string, ..args);
+//     // append(*builder, 0);
+
+//     // return builder_to_c_string(*builder,, allocator=temp);
+// } @PrintLike
+// builder_to_c_string :: (builder: *String_Builder, do_reset := true) -> *u8 {
+//     if !builder.initialized init_string_builder(builder);
+
+//     count := builder_string_length(builder);
+//     if !count {
+//         return "";
+//     }
+
+//     result : *u8 = alloc(count);
+
+//     buffer := get_base_buffer(builder);
+//     while buffer {
+//         memcpy(result, get_buffer_data(buffer), buffer.count);
+//         result += buffer.count;
+
+//         buffer = buffer.next;
+//     }
+
+//     if do_reset reset(builder);  // @Speed: Could free buffers inline with the bucket traversal above. Code would be less clear.
+
+//     return result;
+// }
