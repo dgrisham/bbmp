@@ -53,12 +53,12 @@ load :: () {
     table_set(*input_config, "mpd_library_directory", copy_string(config.mpd_library_directory));
 }
 
-event_loop :: (frame: u64, display_width: s32, header_bottom: int) -> bool {
+event_loop :: (frame: u64, boundary: View_Boundary) -> bool {
     font := fonts.regular;
 
     context.logger_data = *log_data;
 
-    max_items_in_page := (header_bottom - Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
+    max_items_in_page := boundary.height / line_height;
 
     move_cursor_down :: () #expand {
         `cursor.position += 1;
@@ -220,8 +220,8 @@ event_loop :: (frame: u64, display_width: s32, header_bottom: int) -> bool {
         display_keys, display_values: display_column;
 
         {
-            display_keys.width   = cast(s32)(0.25 * display_width);
-            display_values.width = cast(s32)(0.5 * display_width);
+            display_keys.width   = cast(s32)(0.25 * boundary.width);
+            display_values.width = cast(s32)(0.5 * boundary.width);
 
             index_start := max(0, min(ORDERED_CONFIG_KEYS.count - max_items_in_page, cursor.position - max_items_in_page/ 2 + 1));
             index_end   := min(index_start + max_items_in_page, ORDERED_CONFIG_KEYS.count) - 1;
@@ -262,8 +262,8 @@ event_loop :: (frame: u64, display_width: s32, header_bottom: int) -> bool {
         }
 
         {
-            x_center := display_width / 2;
-            y := header_bottom;
+            x_center := boundary.left + boundary.width / 2;
+            y := boundary.top;
             for display_key: display_keys.entries {
                 key_width := Simp.prepare_text(font, display_key.text);
                 Simp.draw_prepared_text(font, x_center - key_width, y, rgba(1,1,1,1));

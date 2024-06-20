@@ -27,15 +27,16 @@ log_data :: Log_Data.{"album_art/library", false};
 
 library_search_query :: *search_query;
 
-process_library_input :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, rows: int, columns: int) -> bool {
+process_library_input :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Library_Data, queue: *Queue.Data, frame: u64) -> bool {
+    props := library_view_display_props;
 
     context.logger_data = *log_data;
 
-    move_cursor_one_row_up   :: () #expand { move_cursor_by_n_albums(`albums.count, -columns); }
-    move_cursor_one_row_down :: () #expand { move_cursor_by_n_albums(`albums.count, +columns); }
+    move_cursor_one_row_up   :: () #expand { move_cursor_by_n_albums(`albums.count, -props.columns); }
+    move_cursor_one_row_down :: () #expand { move_cursor_by_n_albums(`albums.count, +props.columns); }
 
-    move_cursor_one_page_up   :: () #expand { move_cursor_by_n_albums(`albums.count, -rows * columns); }
-    move_cursor_one_page_down :: () #expand { move_cursor_by_n_albums(`albums.count, +rows * columns); }
+    move_cursor_one_page_up   :: () #expand { move_cursor_by_n_albums(`albums.count, -props.rows * props.columns); }
+    move_cursor_one_page_down :: () #expand { move_cursor_by_n_albums(`albums.count, +props.rows * props.columns); }
 
     move_cursor_to_next_search_result :: () #expand {
         if search_query.str == "" return;
@@ -278,7 +279,9 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [] *Album, li
     return inputting_search_query;
 }
 
-draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, boundary: View_Boundary, rows: int, columns: int, x_padding_between_album_covers: s32, y_padding_between_album_covers: s32, highlight_width: s32) {
+draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, boundary: View_Boundary) {
+    props := library_view_display_props;
+
     font := fonts.regular;
 
     context.logger_data = *log_data;
@@ -300,9 +303,9 @@ draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, boundary
         {
             album_index: s64 = 0;
             { // calculate index of first album to display
-                index_of_first_album_in_current_row := cursor.album_position / columns * columns;
-                index_of_first_album_on_last_page   := max(0, (albums.count - 1 - (rows - 1) * columns) / columns * columns);
-                number_of_albums_in_half_page       := ((rows - 1) / 2) * columns;
+                index_of_first_album_in_current_row := cursor.album_position / props.columns * props.columns;
+                index_of_first_album_on_last_page   := max(0, (albums.count - 1 - (props.rows - 1) * props.columns) / props.columns * props.columns);
+                number_of_albums_in_half_page       := ((props.rows - 1) / 2) * props.columns;
 
                 if index_of_first_album_in_current_row > index_of_first_album_on_last_page { // we're on the last page
                     album_index = index_of_first_album_on_last_page;
@@ -311,7 +314,7 @@ draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, boundary
                 }
             }
 
-            num_entries_to_draw := min(albums.count - album_index, rows * columns);
+            num_entries_to_draw := min(albums.count - album_index, props.rows * props.columns);
             entries_to_draw = NewArray(num_entries_to_draw, Entry, false,, temp);
 
             max_characters_in_column := thumbnail_slot_width / font.w_width;
@@ -338,8 +341,15 @@ draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, boundary
         ****************/
 
         {
-            x := boundary.left + highlight_width;
-            y := boundary.top - highlight_width;
+            grid_boundary := view_boundary(
+                top    = boundary.top    - props.y_margin_offset,
+                bottom = boundary.bottom + props.y_margin_offset,
+                left   = boundary.left   + props.x_margin_offset,
+                right  = boundary.right  - props.x_margin_offset,
+            );
+
+            x := grid_boundary.left + props.cover_highlight_width;
+            y := grid_boundary.top  - props.cover_highlight_width;
 
             row, column := 0;
             for entry: entries_to_draw {
@@ -348,7 +358,7 @@ draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, boundary
                 { // album name
                     text_width := Simp.prepare_text(font, album_name);
                     text_x := x + thumbnail_slot_width / 2 - text_width / 2;
-                    text_y := y - thumbnail_slot_height - highlight_width - line_height;
+                    text_y := y - thumbnail_slot_height - props.cover_highlight_width - line_height;
 
                     if selected {
                         x0 := cast(float)text_x - font.w_width;
@@ -365,7 +375,7 @@ draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, boundary
                 { // artist name
                     text_width := Simp.prepare_text(font, artist_name);
                     text_x := x + thumbnail_slot_width / 2 - text_width / 2;
-                    text_y := y - thumbnail_slot_height - highlight_width - 2 * (line_height);
+                    text_y := y - thumbnail_slot_height - props.cover_highlight_width - 2 * (line_height);
 
                     if selected {
                         x0 := cast(float)text_x - font.w_width;
@@ -381,9 +391,9 @@ draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, boundary
                 }
 
                 if selected { // highlight album under cursor
-                    for i: 0..highlight_width {
-                        c := 1.0 - i / cast(float)highlight_width;
-                        line_width := highlight_width - i + 4;
+                    for i: 0..props.cover_highlight_width {
+                        c := 1.0 - i / cast(float)props.cover_highlight_width;
+                        line_width := props.cover_highlight_width - i + 4;
                         Simp.set_shader_for_color();
                         Simp.immediate_quad(
                             cast(float)x - line_width,
@@ -416,15 +426,15 @@ draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, boundary
                 }
 
                 column += 1;
-                if column == columns {
+                if column == props.columns {
                     row += 1;
                     column = 0;
-                    x = boundary.left + highlight_width;
-                    y -= thumbnail_slot_height + 2 * (line_height + highlight_width);
-                    y -= y_padding_between_album_covers;
+                    x = grid_boundary.left + props.cover_highlight_width;
+                    y -= thumbnail_slot_height + 2 * (line_height + props.cover_highlight_width);
+                    y -= props.y_padding_between_covers;
                 } else {
                     x += thumbnail_slot_width;
-                    x += x_padding_between_album_covers;
+                    x += props.x_padding_between_covers;
                 }
             }
         }

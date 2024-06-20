@@ -13,7 +13,7 @@ APPLICATION_NAME :: "bbmp";
 
 Process :: #import "Process";
 Input   :: #import "Input";
-// Simp    :: #import "Simp";
+Simp    :: #import "Simp";
 MPD     :: #import "libmpdclient";
 
 Now_Playing   :: #import "now_playing";
@@ -30,9 +30,6 @@ Config_Editor :: #import "config_editor";
 log_data :: Log_Data.{"main", false};
 
 #scope_module
-
-// share Simp with album art management file -- is this necessary?
-Simp :: #import "Simp";
 
 View :: enum {
     NOW_PLAYING;
@@ -52,6 +49,9 @@ window: Window_Type;
 
 LONG         : s32 : 0x200000;
 TCP_NODELAY  : s32 : LONG + xx 121;
+
+window_width  : s32 = 1920;
+window_height : s32 = 1080;
 
 frame: u64 = 0;
 frame_rate: float64;
@@ -350,7 +350,14 @@ main :: () {
 
         Simp.clear_render_target(0,0,0,1);
 
-        header_bottom := draw_header();
+        header_boundary := view_boundary(
+            top    = window_height - Y_MARGIN_SIZE,
+            bottom = Y_MARGIN_SIZE,
+            left   = X_MARGIN_SIZE,
+            right  = window_width - X_MARGIN_SIZE,
+        );
+        header_bottom := draw_header(header_boundary);
+
         boundary := view_boundary(
             top    = header_bottom - Y_MARGIN_SIZE,
             bottom = Y_MARGIN_SIZE,
@@ -369,9 +376,9 @@ main :: () {
           case .PLAYLIST;
             user_input_active = Playlist.event_loop(mpd_connection, playlists, library, queue, frame, boundary);
           case .LOG;
-            Log_View.event_loop(frame, cast(s32)display_width(), header_bottom);
+            Log_View.event_loop(frame, boundary);
           case .CONFIG_EDITOR;
-            user_input_active = Config_Editor.event_loop(frame, cast(s32)display_width(), header_bottom);
+            user_input_active = Config_Editor.event_loop(frame, boundary);
         }
         reset_temporary_storage();
         Simp.swap_buffers(window);
@@ -400,16 +407,13 @@ main :: () {
     MPD.connection_free(mpd_connection);
 }
 
-draw_header :: () -> int {
+draw_header :: (boundary: View_Boundary) -> int {
     font := fonts.regular;
-
-    top := window_height - Y_MARGIN_SIZE;
-    // top := Y_MARGIN_SIZE;
-    header_bottom := top; // just initting this
+    header_bottom := boundary.top; // just initting this
 
     { // current / total track time
-        x := X_MARGIN_SIZE;
-        y := top - TEXT_PADDING_Y - fonts.regular.character_height / 2;
+        x := boundary.left;
+        y := boundary.top - line_height / 2;
         Simp.draw_text(
             font,
             x,
@@ -424,10 +428,10 @@ draw_header :: () -> int {
     }
 
     if mpd_connection { // currently playing song + artist/album
-        x := cast(int)window_width / 2;
-        y := top;
+        x := boundary.left + boundary.width / 2;
+        y := boundary.top;
 
-        max_characters_in_column := (display_width() / 2) / font.w_width;
+        max_characters_in_column := (boundary.width / 2) / font.w_width;
         if status.song {
             text_width := Simp.prepare_text(fonts.regular, slice(status.song, 0, max_characters_in_column));
             Simp.draw_prepared_text(fonts.regular, x - text_width / 2, y, rgba(1,1,1,1));
@@ -443,7 +447,7 @@ draw_header :: () -> int {
         header_bottom = y;
     } else {
         x := cast(int)window_width / 2;
-        y := top - TEXT_PADDING_Y - font.character_height / 2;
+        y := boundary.top - line_height / 2;
         msg :: "Not connected to MPD -- please ensure your config is pointing to a valid MPD server and restart.";
 
         text_width := Simp.prepare_text(font, msg);
@@ -459,8 +463,8 @@ draw_header :: () -> int {
     }
 
     { // volume
-        x := display_width() + X_MARGIN_SIZE - font.w_width * 10;
-        y := top - TEXT_PADDING_Y - font.character_height / 2;
+        x := boundary.right - font.w_width * 10;
+        y := boundary.top - line_height / 2;
         display_volume := ifx status.volume >= 0 then tprint("%1%%", left_pad(status.volume, #char " ", 3)) else "N/A";
 
         Simp.draw_text(

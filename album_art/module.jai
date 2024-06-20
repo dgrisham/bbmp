@@ -65,76 +65,93 @@ load :: (library: Library_Data) -> [] *Album {
     return albums;
 }
 
+// The fields in [library|album]_view_display_props are the values used in both the `process_<view>_input` and `draw_<view>_input`
+// functions for a given <view>. We collect and update them here so they're all in one place, and we can selectively recalculate
+// as necessary.
+
+library_view_display_props: struct {
+    rows, columns                                      : int;
+    x_margin_offset, y_margin_offset                   : s64; // offsets used to center the overall grid of album covers
+    total_album_entry_height                           : s64;
+    footer_height                                      : s64;
+    cover_highlight_width                              : s32;
+    x_padding_between_covers, y_padding_between_covers : s32;
+};
+update_library_view_display_props :: (boundary: View_Boundary) {
+    using library_view_display_props;
+
+    cover_highlight_width = cast(s32) (thumbnail_slot_width / (fonts.regular.character_height * 2));
+
+    min_x_padding := cover_highlight_width * 2 + 0.05 * thumbnail_slot_width; // @TODO @Hardcoded
+    columns = cast (s32) (((boundary.width - 2 * cover_highlight_width) + min_x_padding) / (thumbnail_slot_width + min_x_padding));
+    x_padding_between_covers = ifx columns == 1 then 0 else cast(s32) ((boundary.width - cover_highlight_width - columns * thumbnail_slot_width) / (columns - 1));
+
+    total_album_entry_height = thumbnail_slot_height + 2 * (line_height + cover_highlight_width);
+    footer_height = line_height;
+
+    min_y_padding := cover_highlight_width + 0.05 * thumbnail_slot_height; // @TODO @Hardcoded
+    rows = cast(s32) ((boundary.height - footer_height + min_y_padding) / (total_album_entry_height + min_y_padding));
+    y_padding_between_covers = ifx rows == 1 then 0 else cast(s32) ((boundary.height - rows * total_album_entry_height - footer_height) / (rows - 1));
+
+    // calculate the additional margin required to center the album art grid
+    x_margin_offset = 0;
+    {
+        diff := x_padding_between_covers - thumbnail_slot_width / 3;
+        if columns > 1 && diff > 0 { // padding between columns is too large, move the excess space into the margins
+            x_margin_offset = (diff * (columns - 1)) / 2;
+            x_padding_between_covers = cast(s32) ((boundary.width - columns * thumbnail_slot_width - 2 * x_margin_offset) / (columns - 1));
+        } else if columns == 1 { // we only have one column, make sure it's centered
+            x_margin_offset = (boundary.width - thumbnail_slot_width) / 2;
+        }
+    }
+
+    y_margin_offset = 0;
+    {
+        diff := y_padding_between_covers - total_album_entry_height / 3.0;
+        if rows > 1 && diff > 0 { // padding between rows is too large, move the excess space into the margins
+            y_margin_offset = cast(s32) (diff * (rows - 1)) / 2;
+            y_padding_between_covers = cast(s32) ((boundary.height - rows * total_album_entry_height - footer_height - 2 * y_margin_offset) / (rows - 1));
+        } else if rows == 1 { // we only have one row, make sure it's centered
+            y_margin_offset = cast(s32)(boundary.height - total_album_entry_height - footer_height) / 2;
+        }
+    }
+}
+
+album_view_display_props: struct {
+    songs_in_page: int;
+};
+update_album_view_display_props :: () {
+    using album_view_display_props;
+    // line_height is subtracted here so the album cover is always at least a bit above/below the tracklist
+    songs_in_page = cast(int)(ALBUM_ART_DISPLAY_WIDTH - line_height) / line_height;
+}
+
 event_loop :: (mpd_connection: *MPD.connection, albums: [] *Album, library: Library_Data, queue: *Queue.Data, frame: u64, boundary: View_Boundary) -> bool {
 
     context.logger_data = *log_data;
-
-    selected_cover_highlight_width : s32 = cast(s32) (thumbnail_slot_width / (fonts.regular.character_height * 2));
-    // min_padding_between_covers := 0.1 * thumbnail_slot_width;
-
-    min_x_padding := selected_cover_highlight_width * 2 + 0.05 * thumbnail_slot_width; // @TODO @Hardcoded
-    // calculate the number of columns we can fit with the minimum padding
-    columns := cast (s32) (((boundary.width - 2 * selected_cover_highlight_width) + min_x_padding) / (thumbnail_slot_width + min_x_padding));
-    // calculate the padding we would actually use with this number of columns
-    x_padding_between_album_covers := ifx columns == 1 then 0 else cast(s32) ((boundary.width - selected_cover_highlight_width - columns * thumbnail_slot_width) / (columns - 1));
-
-    total_album_entry_height := thumbnail_slot_height + 2 * (line_height + selected_cover_highlight_width);
-    footer_height := line_height;
-
-    min_y_padding := selected_cover_highlight_width + 0.05 * thumbnail_slot_height; // @TODO @Hardcoded
-    rows := cast(s32) ((boundary.height - footer_height + min_y_padding) / (total_album_entry_height + min_y_padding));
-    y_padding_between_album_covers := ifx rows == 1 then 0 else cast(s32) ((boundary.height - rows * total_album_entry_height - footer_height) / (rows - 1));
-
-    // line_height is subtracted here so the album cover is always at least a bit above/below the tracklist
-    album_songs_in_page := cast(int)(ALBUM_ART_DISPLAY_WIDTH - line_height) / line_height;
 
     original_subview := current_album_art_subview;
 
     user_input_active: bool;
     if current_album_art_subview == {
         case .LIBRARY;
-            user_input_active = process_library_input(mpd_connection, albums, library, queue, frame, rows, columns);
+            update_library_view_display_props(boundary);
+            user_input_active = process_library_input(mpd_connection, albums, library, queue, frame);
         case .ALBUM;
-            user_input_active = process_album_input(mpd_connection, library, queue, albums, frame, boundary, album_songs_in_page, albums[cursor.album_position]);
+            update_album_view_display_props();
+            user_input_active = process_album_input(mpd_connection, library, queue, albums, frame, boundary, albums[cursor.album_position]);
     }
 
     if current_album_art_subview == {
-
         case .LIBRARY;
-
-            // calculate the additional margin required to center the album art grid
-            x_margin_offset : s64 = 0;
-            {
-                diff := x_padding_between_album_covers - thumbnail_slot_width / 3;
-                if columns > 1 && diff > 0 { // padding between columns is too large, move the excess space into the margins
-                    x_margin_offset = (diff * (columns - 1)) / 2;
-                    x_padding_between_album_covers = cast(s32) ((boundary.width - columns * thumbnail_slot_width - 2 * x_margin_offset) / (columns - 1));
-                } else if columns == 1 { // we only have one column, make sure it's centered
-                    x_margin_offset = (boundary.width - thumbnail_slot_width) / 2;
-                }
-            }
-            y_margin_offset : s32 = 0;
-            {
-                diff := y_padding_between_album_covers - total_album_entry_height / 3.0;
-                if rows > 1 && diff > 0 { // padding between rows is too large, move the excess space into the margins
-                    y_margin_offset = cast(s32) (diff * (rows - 1)) / 2;
-                    y_padding_between_album_covers = cast(s32) ((boundary.height - rows * total_album_entry_height - footer_height - 2 * y_margin_offset) / (rows - 1));
-                } else if rows == 1 { // we only have one row, make sure it's centered
-                    y_margin_offset = cast(s32)(boundary.height - total_album_entry_height - footer_height) / 2;
-                }
-            }
-
-            library_boundary := view_boundary(
-                top    = boundary.top - y_margin_offset,
-                bottom = boundary.bottom + y_margin_offset,
-                left   = boundary.left + x_margin_offset,
-                right  = boundary.right - x_margin_offset,
-            );
-            draw_library_frame(albums, library.allocator, library_boundary, rows, columns, x_padding_between_album_covers, y_padding_between_album_covers, selected_cover_highlight_width);
-
+            if original_subview != .LIBRARY
+                update_library_view_display_props(boundary);
+            draw_library_frame(albums, library.allocator, boundary);
         case .ALBUM;
             just_switched_to_album_subview := original_subview != .ALBUM;
-            draw_album_frame(albums[cursor.album_position], queue, just_switched_to_album_subview, boundary, album_songs_in_page);
+            if just_switched_to_album_subview
+                update_album_view_display_props();
+            draw_album_frame(albums[cursor.album_position], queue, just_switched_to_album_subview, boundary);
     }
 
     return user_input_active;
