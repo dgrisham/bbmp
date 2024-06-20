@@ -97,11 +97,6 @@ logger :: (message: string, data: *void, info: Log_Info) {
 * layout/constants *
 *******************/
 
-window_width  : s32 = 1920;
-window_height : s32 = 1080;
-
-display_width  :: inline () -> int { return window_width  - 2 * X_MARGIN_SIZE; }
-
 line_height : int; // height of a line of text, including padding around the characters
 
 thumbnail_slot_width  : s32 = 200;

@@ -29,7 +29,7 @@ log_data :: Log_Data.{"log_view", false};
 
 #scope_export
 
-event_loop :: (frame: u64, display_width: s32, header_bottom: int) {
+event_loop :: (frame: u64, boundary: View_Boundary) {
     font := fonts.regular;
 
     context.logger_data = *log_data;
@@ -48,7 +48,7 @@ event_loop :: (frame: u64, display_width: s32, header_bottom: int) {
         `cursor.position -= max_items_in_page / 2;
     }
 
-    max_items_in_page := (header_bottom - Y_MARGIN_SIZE) / (font.character_height + TEXT_PADDING_Y);
+    max_items_in_page := boundary.height / line_height;
 
     if follow_log {
         for Input.events_this_frame {
@@ -144,8 +144,8 @@ event_loop :: (frame: u64, display_width: s32, header_bottom: int) {
     }
     max_entries_to_show = min(max_items_in_page, log_history.entries.count);
 
-    x := X_MARGIN_SIZE;
-    y := header_bottom;
+    x := boundary.left;
+    y := boundary.top;
 
     i := 0; // keep track of the next log index to check
     entries_shown := 0; // keep track of the number of entries we've shown, since we might skip some based on verbosity
@@ -168,14 +168,18 @@ event_loop :: (frame: u64, display_width: s32, header_bottom: int) {
 
         log_message := to_string(log_entry);
         if !follow_log && (index_start + entries_shown) == cursor.position {
+            x0 := cast(float)x - font.w_width;
+            x1 := x0 + boundary.width + 2 * font.w_width;
+            y0, y1 := get_highlight_y_range(font, y);
+
             Simp.set_shader_for_color();
-            Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + cast(s32)display_width, cast(float)y + font.character_height, color);
+            Simp.immediate_quad(x0, y0, x1, y1, color);
             Simp.draw_text(font, x, y, log_message, rgba(0,0,0,1));
         } else {
             Simp.draw_text(font, x, y, log_message, color);
         }
 
-        y -= TEXT_PADDING_Y + font.character_height;
+        y -= line_height;
         entries_shown += 1;
     }
 }

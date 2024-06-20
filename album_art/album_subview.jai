@@ -20,7 +20,8 @@ log_data :: Log_Data.{"album_art/album", false};
 
 album_search_query :: *search_query;
 
-process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Queue.Data, albums: [] *Album, frame: u64, boundary: View_Boundary, items_in_page: int, album: *Album) -> bool {
+process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Queue.Data, albums: [] *Album, frame: u64, boundary: View_Boundary, album: *Album) -> bool {
+    props := album_view_display_props;
 
     context.logger_data = *log_data;
 
@@ -32,10 +33,10 @@ process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, 
             `cursor.song_position = number_of_songs_in_album - 1;
         }
     }
-    move_cursor_to_prev_song  :: () #expand { move_cursor_by_n_songs(`album.songs.count,             -1); }
-    move_cursor_to_next_song  :: () #expand { move_cursor_by_n_songs(`album.songs.count,             +1); }
-    move_cursor_one_page_up   :: () #expand { move_cursor_by_n_songs(`album.songs.count, -items_in_page); }
-    move_cursor_one_page_down :: () #expand { move_cursor_by_n_songs(`album.songs.count, +items_in_page); }
+    move_cursor_to_prev_song  :: () #expand { move_cursor_by_n_songs(`album.songs.count,                   -1); }
+    move_cursor_to_next_song  :: () #expand { move_cursor_by_n_songs(`album.songs.count,                   +1); }
+    move_cursor_one_page_up   :: () #expand { move_cursor_by_n_songs(`album.songs.count, -props.songs_in_page); }
+    move_cursor_one_page_down :: () #expand { move_cursor_by_n_songs(`album.songs.count, +props.songs_in_page); }
 
     move_cursor_to_next_album_and_reset_song_position :: () #expand {
         move_cursor_to_next_album();
@@ -326,7 +327,8 @@ loaded_album: struct {
     art_loaded  : bool = false;
 }
 
-draw_album_frame :: (album: *Album, queue: Queue.Data, load_current_album_art: bool, boundary: View_Boundary, items_in_page: int) {
+draw_album_frame :: (album: *Album, queue: Queue.Data, load_current_album_art: bool, boundary: View_Boundary) {
+    props := album_view_display_props;
 
     context.logger_data = *log_data;
 
@@ -403,14 +405,14 @@ draw_album_frame :: (album: *Album, queue: Queue.Data, load_current_album_art: b
 
         text_x := tracklist_boundary.left;
 
-        rectangle_width := tracklist_boundary.right - X_MARGIN_SIZE - text_x; // TODO: experiment with this ? it's somehow longer than it was before
+        rectangle_width := tracklist_boundary.right - text_x; // TODO: experiment with this ? it's somehow longer than it was before
         max_characters_in_column := rectangle_width / fonts.regular.w_width - 2;
 
         display_entries: []Display_Text;
         selected_song_index := cursor.song_position;
         {
-            index_start := max(0, min(album.songs.count - items_in_page, selected_song_index - items_in_page / 2 + 1));
-            index_end   := min(index_start + items_in_page, album.songs.count) - 1;
+            index_start := max(0, min(album.songs.count - props.songs_in_page, selected_song_index - props.songs_in_page / 2 + 1));
+            index_end   := min(index_start + props.songs_in_page, album.songs.count) - 1;
             display_entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
             for i: index_start..index_end {
@@ -444,8 +446,8 @@ draw_album_frame :: (album: *Album, queue: Queue.Data, load_current_album_art: b
         text_y := min(
             // this roughly vertically centers the song list with the album cover
             cast(s64)(
-                cover_y + cover_display_height * 1 / 2                                                              // album cover center
-                + Y_MARGIN_SIZE                                                                                     // gap between album metadata and tracklist
+                cover_y + cover_display_height * 1 / 2                                         // album cover center
+                + Y_MARGIN_SIZE                                                                // gap between album metadata and tracklist
                 + (3 + (display_entries.count - 1) / 2.0) * (line_height) - 2 * TEXT_PADDING_Y // total height of text that we draw (the subtraction at the end is to adjust from double counting)
             ),
             tracklist_boundary.top,
