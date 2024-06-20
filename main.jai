@@ -41,7 +41,7 @@ View :: enum {
     LOG;
 }
 
-current_view := View.LIBRARY;
+current_view := View.ALBUM_ART;
 
 #load "album_art_creation_and_loading.jai";
 
