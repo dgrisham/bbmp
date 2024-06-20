@@ -79,7 +79,8 @@ main :: () {
 
     init_fonts();
 
-    TARGET_MSAA_SAMPLE_COUNT :: 16;
+    // TARGET_MSAA_SAMPLE_COUNT :: 16;
+    TARGET_MSAA_SAMPLE_COUNT :: 4;
     window = create_window(window_width, window_height, APPLICATION_NAME, wanted_msaa=TARGET_MSAA_SAMPLE_COUNT);
     window_width, window_height = Simp.get_render_dimensions(window);
 
