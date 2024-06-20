@@ -13,8 +13,7 @@
 
 Input :: #import "Input";
 MPD   :: #import "libmpdclient";
-RL    :: #import "raylib";
-// Simp  :: #import "Simp";
+Simp  :: #import "Simp";
 
 #scope_export
 
@@ -94,9 +93,19 @@ logger :: (message: string, data: *void, info: Log_Info) {
     }
 }
 
-/************
-* constants *
-************/
+/*******************
+* layout/constants *
+*******************/
+
+window_width  : s32 = 1920;
+window_height : s32 = 1080;
+
+display_width  :: inline () -> int { return window_width  - 2 * X_MARGIN_SIZE; }
+
+line_height : int; // height of a line of text, including padding around the characters
+
+thumbnail_slot_width  : s32 = 200;
+thumbnail_slot_height : s32 = 200;
 
 THUMBNAIL_WIDTH       :: 200;
 LARGE_ALBUM_ART_WIDTH :: 800;
@@ -108,8 +117,8 @@ MIN_ALBUM_ART_DISPLAY_WIDTH :: 300;
 
 KEY_HOLD_DELAY :: 20;
 
-X_MARGIN_SIZE  : float;
-Y_MARGIN_SIZE  : float;
+X_MARGIN_SIZE  : s64;
+Y_MARGIN_SIZE  : s64;
 TEXT_PADDING_Y :: 4;
 X_PADDING_BETWEEN_VIEW_TITLES : s32 = 15;
 
@@ -128,19 +137,17 @@ Fonts :: struct {
 }
 
 Font :: struct {
-    using #as base : RL.Font;
-    w_width        : s32;
-    size           : float = 16;
-    spacing        : float = 0.5;
-    height         : s32;
+    using #as base  : Simp.Dynamic_Font;
+    w_width         : int;
+    max_font_height : float; // maximum height that the text could be (spanning the top of the tallest char, 'T', to the bottom of the lowest, 'g') (currently not used for anything)
 }
 
 View_Boundary :: struct {
-    top, bottom, left, right : float;
-    width, height            : float;
+    top, bottom, left, right : s64;
+    width, height            : s64;
 }
 
-view_boundary :: (top: float, bottom: float, left: float, right: float) -> View_Boundary {
+view_boundary :: (top: s64, bottom: s64, left: s64, right: s64) -> View_Boundary {
     vd := View_Boundary.{
         top=top,
         bottom=bottom,
@@ -148,16 +155,15 @@ view_boundary :: (top: float, bottom: float, left: float, right: float) -> View_
         right=right,
     };
     vd.width  = vd.right - vd.left;
-    vd.height = vd.bottom - vd.top;
+    vd.height = vd.top - vd.bottom;
     return vd;
 }
 
-width :: inline (vd: View_Boundary) -> float {
-    return vd.right - vd.left;
-}
+get_highlight_y_range :: (font: *Font, text_y: s64) -> (y0: float, y1: float) {
+    y0 := text_y + font.typical_descender - cast(float)TEXT_PADDING_Y / 2; // typical_descender is negative (# of pixels below line in a letter like 'g')
+    y1 := y0 + line_height; // line_height includes the Y padding
 
-height :: inline (vd: View_Boundary) -> float {
-    return vd.top - vd.bottom;
+    return y0, y1;
 }
 
 Search_Query :: struct {
@@ -234,8 +240,7 @@ Album :: struct {
     songs             : [..] Song;
     directory         : string;
     cover_path        : string;
-    // thumbnail_texture : *Simp.Texture;
-    thumbnail_texture : *RL.Texture;
+    thumbnail_texture : *Simp.Texture;
     mutex             : Mutex;
 };
 
@@ -327,7 +332,7 @@ to_long_date_string :: (date: Date) -> string {
 }
 
 Display_Text :: struct {
-    text     : *u8;
+    text     : string;
     selected : bool;
     font     : *Font;
 }
@@ -929,47 +934,41 @@ right_pad :: (t: $T, pad_char: u8, total_length: int, allocator := temp) -> stri
     return result;
 }
 
-color :: (r: u8, g: u8, b: u8, a: u8) -> RL.Color {
-    return RL.Color.{r, g, b, a};
+/****************
+* debug helpers *
+****************/
+
+DEBUG_BUILD :: true;
+
+LINE_DIRECTION :: enum {
+    HORIZONTAL;
+    VERTICAL;
+};
+
+Math  :: #import "Math";
+DEBUG_COLOR :: #run Math.rgba(1,0,0,1);
+draw_debug_line :: (x: float, y: float, direction := LINE_DIRECTION.HORIZONTAL, color := DEBUG_COLOR) {
+    #if DEBUG_BUILD {
+        Simp.set_shader_for_color();
+        if direction == .HORIZONTAL {
+            Simp.immediate_quad(
+                x,
+                y,
+                x + window_width - X_MARGIN_SIZE * 2,
+                y + 1,
+                color,
+            );
+        } else {
+            Simp.immediate_quad(
+                x,
+                y,
+                x + 1,
+                y + window_height - Y_MARGIN_SIZE * 2,
+                color,
+            );
+        }
+    } else return;
 }
-
-print_c :: inline (format_string: string, args: .. Any) -> *u8 {
-    builder: String_Builder;
-
-    print_to_builder(*builder, format_string, ..args);
-
-    return builder_to_c_string(*builder);
+draw_debug_line :: (x: int, y: int, direction := LINE_DIRECTION.HORIZONTAL, color := DEBUG_COLOR) {
+    draw_debug_line(cast(float)x, cast(float)y, direction, color);
 }
-
-// tprint_c :: inline (format_string: string, args: .. Any) -> *u8 {
-//     return tprint(tprint("%\0", format_string), args).data;
-//     // builder: String_Builder;
-//     // builder.allocator = temp;
-
-//     // print_to_builder(*builder, format_string, ..args);
-//     // append(*builder, 0);
-
-//     // return builder_to_c_string(*builder,, allocator=temp);
-// } @PrintLike
-// builder_to_c_string :: (builder: *String_Builder, do_reset := true) -> *u8 {
-//     if !builder.initialized init_string_builder(builder);
-
-//     count := builder_string_length(builder);
-//     if !count {
-//         return "";
-//     }
-
-//     result : *u8 = alloc(count);
-
-//     buffer := get_base_buffer(builder);
-//     while buffer {
-//         memcpy(result, get_buffer_data(buffer), buffer.count);
-//         result += buffer.count;
-
-//         buffer = buffer.next;
-//     }
-
-//     if do_reset reset(builder);  // @Speed: Could free buffers inline with the bucket traversal above. Code would be less clear.
-
-//     return result;
-// }

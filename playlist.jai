@@ -106,10 +106,10 @@ load :: (library: Library_Data) -> Data {
     return playlist_data;
 }
 
-event_loop :: (mpd_connection: *MPD.connection, using playlist_data: Data, library: Library_Data, queue: *Queue.Data, frame: u64, fonts: Fonts, display_width: s32, header_bottom: int) -> bool {
+event_loop :: (mpd_connection: *MPD.connection, using playlist_data: Data, library: Library_Data, queue: *Queue.Data, frame: u64, boundary: View_Boundary) -> bool {
     context.logger_data = *log_data;
 
-    max_items_in_page := (header_bottom - Y_MARGIN_SIZE) / (fonts.regular.character_height + TEXT_PADDING_Y);
+    max_items_in_page := boundary.height / line_height;
 
     move_selected_cursor :: (amount: int) #expand {
         `cursor.positions[cursor.selected] += amount;
@@ -532,21 +532,21 @@ event_loop :: (mpd_connection: *MPD.connection, using playlist_data: Data, libra
         Display_Text :: struct {
             text     : string;
             selected : bool;
-            font     : *Simp.Dynamic_Font;
+            font     : *Font;
             color    : Vector4;
         }
         display_columns: [2] struct {
-            width           : s32;
+            column_width    : s32;
             rectangle_width : s32;
             entries         : [] Display_Text;
         };
 
         if playlists.count > 0 {
-            display_columns[0].width = cast(s32)(1 / 3.0 * display_width);
-            display_columns[1].width = cast(s32)display_width - display_columns[0].width;
+            display_columns[0].column_width = cast(s32)(1 / 3.0 * boundary.width);
+            display_columns[1].column_width = cast(s32)boundary.width - display_columns[0].column_width;
 
-            display_columns[0].rectangle_width = display_columns[0].width - 50;
-            display_columns[1].rectangle_width = display_columns[1].width;
+            display_columns[0].rectangle_width = display_columns[0].column_width - 50;
+            display_columns[1].rectangle_width = display_columns[1].column_width;
 
             selected_playlist_index := cursor.positions[0];
             if playlists.count > 0 {
@@ -619,35 +619,28 @@ event_loop :: (mpd_connection: *MPD.connection, using playlist_data: Data, libra
         ******************/
 
         {
-            top := header_bottom;
-            x := X_MARGIN_SIZE;
+            x := boundary.left;
             for column_index: 0..display_columns.count - 1 {
-                y := top;
-                column_width    := display_columns[column_index].width;
-                rectangle_width := display_columns[column_index].rectangle_width;
+                using display_columns[column_index];
 
-                for display_text: display_columns[column_index].entries {
-                    if display_text.selected {
+                y := boundary.top;
+                for display_text: entries {
+                    using display_text;
+                    if selected {
+                        x0 := cast(float)x - font.w_width;
+                        x1 := x0 + rectangle_width + font.w_width;
+                        y0, y1 := get_highlight_y_range(font, y);
+
+                        highlight_color := ifx cursor.selected == column_index then color else rgba(0.5,0.5,0.5,1);
+
                         Simp.set_shader_for_color();
-                        color := ifx cursor.selected == column_index then display_text.color else rgba(0.5,0.5,0.5,1);
-                        Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + rectangle_width, cast(float)y + display_text.font.character_height, color);
-
-                        Simp.draw_text(display_text.font, x, y, display_text.text, rgba(0,0,0,1));
+                        Simp.immediate_quad(x0, y0, x1, y1, highlight_color);
+                        Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
                     } else {
-                        // text_width := Simp.prepare_text(font, display_text.text);
-                        // Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
-                        // if column_index == 2 { // @Debug: remove this once font width problem is better understood/definitely fixed
-                        //     expected_text_width := display_text.text.count * font.w_width;
-                        //     if expected_text_width != text_width {
-                        //         print("\nexpected_text_width: %\n", expected_text_width);
-                        //         print("actual text width  : %\n", text_width);
-                        //     }
-                        // }
-
-                        Simp.draw_text(display_text.font, x, y, display_text.text, display_text.color);
+                        Simp.draw_text(font, x, y, text, color);
                     }
 
-                    y -= TEXT_PADDING_Y + display_text.font.character_height;
+                    y -= TEXT_PADDING_Y + font.character_height;
                 }
                 x += column_width;
             }

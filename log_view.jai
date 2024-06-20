@@ -29,7 +29,8 @@ log_data :: Log_Data.{"log_view", false};
 
 #scope_export
 
-event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_bottom: int) {
+event_loop :: (frame: u64, display_width: s32, header_bottom: int) {
+    font := fonts.regular;
 
     context.logger_data = *log_data;
 

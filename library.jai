@@ -9,8 +9,6 @@
 
 #import "common";
 
-RL :: #import "raylib";
-
 MPD   :: #import "libmpdclient";
 Simp  :: #import "Simp";
 Input :: #import "Input";
@@ -28,7 +26,7 @@ search_query: Search_Query;
 inputting_search_query := false;
 
 cursor: struct {
-    positions := int.[341, 0, 0];
+    positions := int.[0, 0, 0];
     selected  := 0;
 };
 
@@ -143,8 +141,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
 
     context.logger_data = *log_data;
 
-    // items_in_page := (header_bottom - Y_MARGIN_SIZE) / (fonts.regular.height + TEXT_PADDING_Y);
-    items_in_page := cast(int)(boundary.height / (fonts.regular.height + TEXT_PADDING_Y));
+    items_in_page := boundary.height / line_height;
 
     move_selected_cursor :: (amount: int) #expand {
         `cursor.positions[cursor.selected] += amount;
@@ -663,19 +660,19 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
         *********************************************/
 
         display_columns: [3] struct {
-            width           : s32;
+            column_width    : s32;
             rectangle_width : s32;
             entries         : [] Display_Text;
         };
 
         if library.artists.count > 0 {
-            display_columns[0].width = cast(s32)(1 / 3.0 * boundary.width);
-            display_columns[1].width = cast(s32)(1 / 3.0 * boundary.width);
-            display_columns[2].width = cast(s32)boundary.width - display_columns[0].width - display_columns[1].width;
+            display_columns[0].column_width = cast(s32)(1 / 3.0 * boundary.width);
+            display_columns[1].column_width = cast(s32)(1 / 3.0 * boundary.width);
+            display_columns[2].column_width = cast(s32)boundary.width - display_columns[0].column_width - display_columns[1].column_width;;
 
-            display_columns[0].rectangle_width = display_columns[0].width - 50;
-            display_columns[1].rectangle_width = display_columns[1].width - 50;
-            display_columns[2].rectangle_width = display_columns[2].width;
+            display_columns[0].rectangle_width = display_columns[0].column_width - 50;
+            display_columns[1].rectangle_width = display_columns[1].column_width - 50;
+            display_columns[2].rectangle_width = display_columns[2].column_width;
 
             selected_artist_index := cursor.positions[0];
             if library.artists.count > 0 {
@@ -692,11 +689,14 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                 // N = (W - (N - 1) * S) / F == solve for N ==> N = (W + S) / (F + S)
                 //
                 // the extra - 1 at the end just makes things look nice with long strings that bump up against the edge
-                max_characters_in_column := cast(int)((display_columns[0].rectangle_width + fonts.regular.spacing) / (fonts.regular.w_width + fonts.regular.spacing)) - 1;
+                // max_characters_in_column := (display_columns[0].rectangle_width + fonts.regular.spacing) / (fonts.regular.w_width + fonts.regular.spacing) - 1;
+
+                // TODO: switch to the above we figure out how to get the spacing value from Simp/FT
+                max_characters_in_column := display_columns[0].rectangle_width / fonts.regular.w_width - 2;
 
                 for i: index_start..index_end {
                     display_text: Display_Text;
-                    display_text.text = create_temp_display_c_string_of_max_length(library.artist_names_sorted[i], max_characters_in_column);
+                    display_text.text = create_temp_display_string_of_max_length(library.artist_names_sorted[i], max_characters_in_column);
                     display_text.selected = selected_artist_index == i;
                     display_text.font = fonts.regular;
                     display_columns[0].entries[i-index_start] = display_text;
@@ -710,14 +710,14 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                 index_end   := min(index_start + items_in_page, selected_artist.albums.count) - 1;
                 display_columns[1].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
-                max_characters_in_column := cast(int)((display_columns[1].rectangle_width + fonts.regular.spacing) / (fonts.regular.w_width + fonts.regular.spacing)) - 1;
+                max_characters_in_column := display_columns[1].rectangle_width / fonts.regular.w_width - 2;
 
                 for i: index_start..index_end {
                     display_text: Display_Text;
 
                     album := table_find_pointer(*selected_artist.albums, selected_artist.album_names_sorted_by_date[i]);
                     assert(album != null);
-                    display_text.text = create_temp_display_c_string_of_max_length(tprint("(%) %", to_string(album.date), album.name), max_characters_in_column);
+                    display_text.text = create_temp_display_string_of_max_length(tprint("(%) %", to_string(album.date), album.name), max_characters_in_column);
 
                     display_text.selected = selected_album_index == i;
                     display_text.font = fonts.regular;
@@ -732,7 +732,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                 index_end   := min(index_start + items_in_page, selected_album.songs.count) - 1;
                 display_columns[2].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
-                max_characters_in_column := cast(int)((display_columns[2].rectangle_width + fonts.regular.spacing) / (fonts.regular.w_width + fonts.regular.spacing)) - 1;
+                max_characters_in_column := display_columns[2].rectangle_width / fonts.regular.w_width - 2;
 
                 for i: index_start..index_end {
                     song := selected_album.songs[i];
@@ -751,7 +751,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
                     _, song_in_queue := table_find(*queue.queued_URIs, song.uri);
 
                     display_text: Display_Text;
-                    display_text.text     = tprint("%   %\0", track_and_title, duration).data;
+                    display_text.text     = tprint("%   %\0", track_and_title, duration);
                     display_text.selected = selected_song_index == i;
                     display_text.font     = ifx song_in_queue then fonts.bold else fonts.regular;
                     display_columns[2].entries[i-index_start] = display_text;
@@ -766,47 +766,25 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
         {
             x := boundary.left;
             for column_index: 0..display_columns.count-1 {
-                y := boundary.top;
+                using display_columns[column_index];
 
-                column_width    := display_columns[column_index].width;
-                highlight_width := display_columns[column_index].rectangle_width;
+                y := boundary.top;
                 for display_text: display_columns[column_index].entries {
                     using display_text;
                     if selected {
-                        highlight_color := ifx cursor.selected == column_index then color(255,255,255,255) else color(128,128,128,255);
-                        highlight_height := font.size + TEXT_PADDING_Y;
-                        RL.DrawRectangleRec(
-                            .{
-                                x      = x - font.size / 2,
-                                y      = y - TEXT_PADDING_Y / 2,
-                                width  = highlight_width + font.size / 2,
-                                height = highlight_height,
-                            },
-                            highlight_color,
-                        );
-                        RL.DrawTextEx(font, text, .{x, y}, font.size, font.spacing, color(0,0,0,255));
+                        x0 := cast(float)x - font.w_width;
+                        x1 := x0 + rectangle_width + 2 * font.w_width;
+                        y0, y1 := get_highlight_y_range(font, y);
 
-                        // Simp.set_shader_for_color();
-                        // color := ifx cursor.selected == column_index then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
-                        // Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + highlight_width, cast(float)y + font.height, color);
+                        highlight_color := ifx cursor.selected == column_index then rgba(1,1,1,1) else rgba(0.5,0.5,0.5,1);
 
-                        // Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
+                        Simp.set_shader_for_color();
+                        Simp.immediate_quad(x0, y0, x1, y1, highlight_color);
+                        Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
                     } else {
-                        // text_width := Simp.prepare_text(font, text);
-                        // Simp.draw_prepared_text(font, x, y, rgba(1,1,1,1));
-                        // if column_index == 2 { // @Debug: remove this once font width problem is better understood/definitely fixed
-                        //     expected_text_width := text.count * font.w_width;
-                        //     if expected_text_width != text_width {
-                        //         print("\nexpected_text_width: %\n", expected_text_width);
-                        //         print("actual text width  : %\n", text_width);
-                        //     }
-                        // }
-
-                        RL.DrawTextEx(font, text, .{x, y}, font.size, font.spacing, color(255,255,255,255));
-                        // Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
+                        Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
                     }
-
-                    y += font.height + TEXT_PADDING_Y;
+                    y -= line_height;
                 }
                 x += column_width;
             }
@@ -814,10 +792,8 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Q
     }
 
     if inputting_search_query {
-        font := fonts.regular;
         // TODO: need to ensure the x/y here won't overlap with anything else
-        RL.DrawTextEx(font, tprint("Search: %\0", search_query.str).data, .{boundary.left, boundary.bottom}, font.size, font.spacing, color(255,255,255,255));
-        // Simp.draw_text(fonts.regular, boundary.left, boundary.bottom, tprint("Search: %", search_query.str), rgba(1,1,1,1));
+        Simp.draw_text(fonts.regular, boundary.left, boundary.bottom, tprint("Search: %", search_query.str), rgba(1,1,1,1));
     }
 
     return inputting_search_query;

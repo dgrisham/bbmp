@@ -144,11 +144,11 @@ update :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data)
     }
 }
 
-event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data, frame: u64, fonts: Fonts, display_width: s32, header_bottom: int) -> bool {
+event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Data, frame: u64, boundary: View_Boundary) -> bool {
 
     context.logger_data = *log_data;
 
-    items_in_page := (header_bottom - Y_MARGIN_SIZE) / (fonts.regular.character_height + TEXT_PADDING_Y);
+    items_in_page := boundary.height / line_height;
 
     shift_selected_item_down :: () #expand {
         if cursor.position < `queue.songs.count - 1 {
@@ -427,8 +427,8 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
     // draw_frame :: (items_in_page: int, header_bottom: int) {
     {
         display_columns: [4] struct {
-            width           : s32;
-            entries         : [] Display_Text;
+            column_width : s32;
+            entries      : [] Display_Text;
         };
 
         {
@@ -440,10 +440,10 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
             display_columns[2].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
             display_columns[3].entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
-            display_columns[0].width = cast(s32)(8 / 20.0 * display_width);
-            display_columns[1].width = cast(s32)(5 / 20.0 * display_width);
-            display_columns[2].width = cast(s32)(5 / 20.0 * display_width);
-            display_columns[3].width = display_width - display_columns[0].width - display_columns[1].width - display_columns[2].width;
+            display_columns[0].column_width = cast(s32)(8 / 20.0 * boundary.width);
+            display_columns[1].column_width = cast(s32)(5 / 20.0 * boundary.width);
+            display_columns[2].column_width = cast(s32)(5 / 20.0 * boundary.width);
+            display_columns[3].column_width = cast(s32)boundary.width - display_columns[0].column_width - display_columns[1].column_width - display_columns[2].column_width;
 
             selected_index := cursor.position;
 
@@ -454,7 +454,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
                 font := ifx i == status.queue_position then fonts.bold else fonts.regular;
 
                 { // song name
-                    max_characters_in_column := display_columns[0].width / font.w_width - 2;
+                    max_characters_in_column := display_columns[0].column_width / font.w_width - 2;
                     display_text: Display_Text;
                     display_text.text = create_temp_display_string_of_max_length(song.name, max_characters_in_column);
                     display_text.selected = selected;
@@ -463,7 +463,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
                 }
 
                 { // album name
-                    max_characters_in_column := display_columns[1].width / font.w_width - 2;
+                    max_characters_in_column := display_columns[1].column_width / font.w_width - 2;
                     display_text: Display_Text;
                     display_text.selected = selected;
                     display_text.text = create_temp_display_string_of_max_length(song.album, max_characters_in_column);
@@ -472,7 +472,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
                 }
 
                 { // artist name
-                    max_characters_in_column := display_columns[2].width / font.w_width - 2;
+                    max_characters_in_column := display_columns[2].column_width / font.w_width - 2;
                     display_text: Display_Text;
                     display_text.selected = selected;
                     display_text.text = create_temp_display_string_of_max_length(song.artist, max_characters_in_column);
@@ -481,7 +481,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
                 }
 
                 { // song duration
-                    max_characters_in_column := display_columns[3].width / font.w_width - 2;
+                    max_characters_in_column := display_columns[3].column_width / font.w_width - 2;
                     duration_time_string := left_pad(seconds_to_time_string(song.duration), #char " ", max_characters_in_column);
                     display_text: Display_Text;
                     display_text.selected = selected;
@@ -493,23 +493,27 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
         }
 
         {
-            top := header_bottom;
-            x := X_MARGIN_SIZE;
+            x := boundary.left;
             for column_index: 0..(display_columns.count - 1) {
-                y := top;
-                column_width := display_columns[column_index].width;
+                using display_columns[column_index];
 
-                for display_text: display_columns[column_index].entries {
-                    if display_text.selected {
+                y := boundary.top;
+                for display_text: entries {
+                    using display_text;
+                    if selected {
+                        x0 := cast(float)x - font.w_width;
+                        x1 := x0 + column_width + font.w_width;
+                        y0, y1 := get_highlight_y_range(font, y);
+
+                        highlight_color := ifx column_index == 0 then rgba(1,1,1,1) else rgba(0.5, 0.5, 0.5, 1); // highlight the first column (song title) brighter than the rest
+
                         Simp.set_shader_for_color();
-                        color := ifx column_index == 0 then rgba(1,1,1,1) else rgba(0.5, 0.5, 0.5, 1); // highlight the first column (song title) brighter than the rest
-                        Simp.immediate_quad(cast(float)x - 10, cast(float)y - 5, cast(float)x + column_width, cast(float)y + display_text.font.character_height, color);
-                        Simp.draw_text(display_text.font, x, y, display_text.text, rgba(0,0,0,1));
+                        Simp.immediate_quad(x0, y0, x1, y1, highlight_color);
+                        Simp.draw_text(font, x, y, text, rgba(0,0,0,1));
                     } else {
-                        Simp.draw_text(display_text.font, x, y, display_text.text, rgba(1,1,1,1));
+                        Simp.draw_text(font, x, y, text, rgba(1,1,1,1));
                     }
-
-                    y -= TEXT_PADDING_Y + display_text.font.character_height;
+                    y -= line_height; // TODO: it doesn't really make sense to be basing this off the *current* font (could be different across columns)
                 }
                 x += column_width;
             }
@@ -518,7 +522,7 @@ event_loop :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *D
 
     if inputting_search_query {
         // TODO: need to ensure the x/y here won't overlap with anything else
-        Simp.draw_text(fonts.regular, X_MARGIN_SIZE, Y_MARGIN_SIZE, tprint("Search: %", search_query.str), rgba(1,1,1,1));
+        Simp.draw_text(fonts.regular, boundary.left, boundary.bottom, tprint("Search: %", search_query.str), rgba(1,1,1,1));
     }
 
     return inputting_search_query;

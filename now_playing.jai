@@ -22,7 +22,7 @@ loaded_album: struct {
 
 #scope_export
 
-event_loop :: (albums: [] *Album, total_width: s32, header_bottom: int) {
+event_loop :: (albums: [] *Album, boundary: View_Boundary) {
 
     context.logger_data = *log_data;
 
@@ -69,30 +69,28 @@ event_loop :: (albums: [] *Album, total_width: s32, header_bottom: int) {
     * draw the album cover *
     ***********************/
 
-    cover_display_width  := cast(float)ALBUM_ART_DISPLAY_WIDTH;
-    cover_display_height := cover_display_width;
-
-    cover_x := max(cast(float)X_MARGIN_SIZE, cast(float) (total_width - cover_display_width) / 2);
-    cover_y := cast(float)(header_bottom - Y_MARGIN_SIZE - cover_display_height) / 2;
     if loaded_album.art_loaded {
-        cover_display_height = cover_display_width * cast(float)loaded_album.art_texture.height / loaded_album.art_texture.width;
-        remaining_height := cast(float)(header_bottom - Y_MARGIN_SIZE);
+        cover_display_width  := cast(float)ALBUM_ART_DISPLAY_WIDTH;
+
+        cover_display_height := cover_display_width * cast(float)loaded_album.art_texture.height / loaded_album.art_texture.width;
+        remaining_height := cast(float)boundary.height;
         if cover_display_height > remaining_height {
             cover_display_height = remaining_height;
             cover_display_width = cover_display_height * cast(float)loaded_album.art_texture.width / loaded_album.art_texture.height;
         }
-        cover_y = cast(float)(header_bottom - cover_display_height) * 5 / 8;
+
+        cover_x := boundary.left   + 1.0 / 2 * (boundary.width  - cover_display_width);
+        cover_y := boundary.bottom + 5.0 / 8 * (boundary.height - cover_display_height);
 
         Simp.set_shader_for_images(loaded_album.art_texture);
         Simp.immediate_begin();
-
         Simp.immediate_quad(
-            xy(cover_x                      , cover_y),
-            xy(cover_x + cover_display_width, cover_y),
-            xy(cover_x + cover_display_width, cover_y + cover_display_height),
-            xy(cover_x                      , cover_y + cover_display_height),
+            cover_x,
+            cover_y,
+            cover_x + cover_display_width,
+            cover_y + cover_display_height,
+            rgba(1,1,1,1),
         );
-
         Simp.immediate_flush();
     }
 }

@@ -20,7 +20,7 @@ log_data :: Log_Data.{"album_art/album", false};
 
 album_search_query :: *search_query;
 
-process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Queue.Data, albums: [] *Album, frame: u64, header_bottom: int, items_in_page: int, album: *Album) -> bool {
+process_album_input :: (mpd_connection: *MPD.connection, library: Library_Data, queue: *Queue.Data, albums: [] *Album, frame: u64, boundary: View_Boundary, items_in_page: int, album: *Album) -> bool {
 
     context.logger_data = *log_data;
 
@@ -326,7 +326,7 @@ loaded_album: struct {
     art_loaded  : bool = false;
 }
 
-draw_album_frame :: (album: *Album, queue: Queue.Data, load_current_album_art: bool, fonts: Fonts, total_width: s32, header_bottom: int, items_in_page: int) {
+draw_album_frame :: (album: *Album, queue: Queue.Data, load_current_album_art: bool, boundary: View_Boundary, items_in_page: int) {
 
     context.logger_data = *log_data;
 
@@ -364,119 +364,133 @@ draw_album_frame :: (album: *Album, queue: Queue.Data, load_current_album_art: b
     cover_display_width  := cast(float)ALBUM_ART_DISPLAY_WIDTH;
     cover_display_height := cover_display_width;
 
-    cover_x := cast(float)X_MARGIN_SIZE;
-    cover_y := cast(float)(header_bottom - Y_MARGIN_SIZE - cover_display_height) / 2;
+    cover_x := cast(float)boundary.left;
+    cover_y := cast(float)(boundary.top - cover_display_height) / 2;
     if loaded_album.art_loaded {
+
         cover_display_height = cover_display_width * cast(float)loaded_album.art_texture.height / loaded_album.art_texture.width;
-        remaining_height := cast(float)(header_bottom - Y_MARGIN_SIZE);
+        remaining_height := cast(float)boundary.height;
         if cover_display_height > remaining_height {
             cover_display_height = remaining_height;
             cover_display_width = cover_display_height * cast(float)loaded_album.art_texture.width / loaded_album.art_texture.height;
         }
-        cover_y = cast(float)(header_bottom - cover_display_height) * 5 / 8;
+        cover_y = cast(float)(boundary.top - cover_display_height) * 5 / 8;
 
         Simp.set_shader_for_images(loaded_album.art_texture);
         Simp.immediate_begin();
-
         Simp.immediate_quad(
-            xy(cover_x                      , cover_y),
-            xy(cover_x + cover_display_width, cover_y),
-            xy(cover_x + cover_display_width, cover_y + cover_display_height),
-            xy(cover_x                      , cover_y + cover_display_height),
+            cover_x,
+            cover_y,
+            cover_x + cover_display_width,
+            cover_y + cover_display_height,
+            rgba(1,1,1,1),
         );
-
         Simp.immediate_flush();
     }
 
-    /**********************************************************
-    * determine the list of songs + positions to draw them in *
-    **********************************************************/
-
-    text_x := cast(s64)(cover_x + cover_display_width + X_MARGIN_SIZE);
-
-    rectangle_width := total_width - X_MARGIN_SIZE - text_x;
-    max_characters_in_column := rectangle_width / fonts.regular.w_width - 2;
-
-    display_entries: []Display_Text;
-    selected_song_index := cursor.song_position;
     {
-        index_start := max(0, min(album.songs.count - items_in_page, selected_song_index - items_in_page / 2 + 1));
-        index_end   := min(index_start + items_in_page, album.songs.count) - 1;
-        display_entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
+        // calculate a sub-boundary for just the tracklist
+        tracklist_boundary := view_boundary(
+            top    = boundary.top,
+            bottom = boundary.bottom,
+            left   = boundary.left + cast(s64)cover_display_width + X_MARGIN_SIZE,
+            right  = boundary.right,
+        );
 
-        for i: index_start..index_end {
-            song := album.songs[i];
+        /**********************************************************
+        * determine the list of songs + positions to draw them in *
+        **********************************************************/
 
-            padded_track := left_pad(song.track, #char " ", 3);
-            duration_time_string := seconds_to_time_string(song.duration);
-            // the additional constant subtraction at the end is from:
-            // -    2 for the '. ' between the track and title
-            // -    3 for the 3 spaces added between track_and_title and duration
-            title := create_temp_display_string_of_max_length(song.name, max_characters_in_column - padded_track.count - duration_time_string.count - 5);
+        text_x := tracklist_boundary.left;
 
-            track_and_title := tprint("%. %", padded_track, title);
-            // subtract 3 here, again for the 3 spaces added between track_and_title and duration
-            duration := left_pad(duration_time_string, #char " ", max_characters_in_column - get_unicode_length(track_and_title) - 3);
+        rectangle_width := tracklist_boundary.right - X_MARGIN_SIZE - text_x; // TODO: experiment with this ? it's somehow longer than it was before
+        max_characters_in_column := rectangle_width / fonts.regular.w_width - 2;
 
-            _, song_in_queue := table_find(*queue.queued_URIs, song.uri);
+        display_entries: []Display_Text;
+        selected_song_index := cursor.song_position;
+        {
+            index_start := max(0, min(album.songs.count - items_in_page, selected_song_index - items_in_page / 2 + 1));
+            index_end   := min(index_start + items_in_page, album.songs.count) - 1;
+            display_entries = NewArray(index_end - index_start + 1, Display_Text, false,, temp);
 
-            display_text: Display_Text;
-            display_text.text = tprint("%   %", track_and_title, duration);
-            display_text.selected = selected_song_index == i;
-            display_text.font     = ifx song_in_queue then fonts.bold else fonts.regular;
-            display_entries[i-index_start] = display_text;
+            for i: index_start..index_end {
+                song := album.songs[i];
+
+                padded_track := left_pad(song.track, #char " ", 3);
+                duration_time_string := seconds_to_time_string(song.duration);
+                // the additional constant subtraction at the end is from:
+                // -    2 for the '. ' between the track and title
+                // -    3 for the 3 spaces added between track_and_title and duration
+                title := create_temp_display_string_of_max_length(song.name, max_characters_in_column - padded_track.count - duration_time_string.count - 5);
+
+                track_and_title := tprint("%. %", padded_track, title);
+                // subtract 3 here, again for the 3 spaces added between track_and_title and duration
+                duration := left_pad(duration_time_string, #char " ", max_characters_in_column - get_unicode_length(track_and_title) - 3);
+
+                _, song_in_queue := table_find(*queue.queued_URIs, song.uri);
+
+                display_text: Display_Text;
+                display_text.text = tprint("%   %", track_and_title, duration);
+                display_text.selected = selected_song_index == i;
+                display_text.font     = ifx song_in_queue then fonts.bold else fonts.regular;
+                display_entries[i-index_start] = display_text;
+            }
         }
-    }
 
-    /*************************************************
-    * draw the album metadata header + list of songs *
-    *************************************************/
+        /*************************************************
+        * draw the album metadata header + list of songs *
+        *************************************************/
 
-    text_y := min(
-        // this roughly vertically centers the song list with the album cover
-        cast(s64)(
-            cover_y + cover_display_height * 1 / 2                                                              // album cover center
-            + Y_MARGIN_SIZE                                                                                     // gap between album metadata and tracklist
-            + (3 + (display_entries.count - 1) / 2.0) * (fonts.regular.character_height + TEXT_PADDING_Y) - 2 * TEXT_PADDING_Y // total height of text that we draw (the subtraction at the end is to adjust from double counting)
-        ),
-        // height limit based on the remaining screen size
-        header_bottom - Y_MARGIN_SIZE,
-    );
+        text_y := min(
+            // this roughly vertically centers the song list with the album cover
+            cast(s64)(
+                cover_y + cover_display_height * 1 / 2                                                              // album cover center
+                + Y_MARGIN_SIZE                                                                                     // gap between album metadata and tracklist
+                + (3 + (display_entries.count - 1) / 2.0) * (line_height) - 2 * TEXT_PADDING_Y // total height of text that we draw (the subtraction at the end is to adjust from double counting)
+            ),
+            tracklist_boundary.top,
+        );
 
-    x_center := (total_width - X_MARGIN_SIZE + text_x) / 2;
-    {
-        width := Simp.prepare_text(fonts.regular, album.name);
-        Simp.draw_prepared_text(fonts.regular, x_center - width / 2, text_y, rgba(1,1,1,1));
-    }
-    text_y -= TEXT_PADDING_Y + fonts.regular.character_height;
-
-    {
-        width := Simp.prepare_text(fonts.regular, album.artist_name);
-        Simp.draw_prepared_text(fonts.regular, x_center - width / 2, text_y, rgba(1,1,1,1));
-    }
-    text_y -= TEXT_PADDING_Y + fonts.regular.character_height;
-
-    {
-        width := Simp.prepare_text(fonts.regular, to_long_date_string(album.date));
-        Simp.draw_prepared_text(fonts.regular, x_center - width / 2, text_y, rgba(1,1,1,1));
-    }
-    text_y -= fonts.regular.character_height;
-
-    text_y -= Y_MARGIN_SIZE;
-
-    for display_text: display_entries {
-        if display_text.selected {
-            Simp.set_shader_for_color();
-            Simp.immediate_quad(cast(float)text_x - 10, cast(float)text_y - 5, cast(float)text_x + rectangle_width, cast(float)text_y + display_text.font.character_height, rgba(1,1,1,1));
-            Simp.draw_text(display_text.font, text_x, text_y, display_text.text, rgba(0,0,0,1));
-        } else {
-            Simp.draw_text(display_text.font, text_x, text_y, display_text.text, rgba(1,1,1,1));
+        x_center := (tracklist_boundary.right + text_x) / 2;
+        {
+            width := Simp.prepare_text(fonts.regular, album.name);
+            Simp.draw_prepared_text(fonts.regular, x_center - width / 2, text_y, rgba(1,1,1,1));
         }
-        text_y -= TEXT_PADDING_Y + display_text.font.character_height;
+        text_y -= line_height;
+
+        {
+            width := Simp.prepare_text(fonts.regular, album.artist_name);
+            Simp.draw_prepared_text(fonts.regular, x_center - width / 2, text_y, rgba(1,1,1,1));
+        }
+        text_y -= line_height;
+
+        {
+            width := Simp.prepare_text(fonts.regular, to_long_date_string(album.date));
+            Simp.draw_prepared_text(fonts.regular, x_center - width / 2, text_y, rgba(1,1,1,1));
+        }
+        text_y -= line_height;
+
+        text_y -= Y_MARGIN_SIZE; // gap between album info and tracklist
+
+        for display_text: display_entries {
+            using display_text;
+            if selected {
+                x0 := cast(float)text_x - font.w_width;
+                x1 := x0 + rectangle_width + 2 * font.w_width;
+                y0, y1 := get_highlight_y_range(font, text_y);
+
+                Simp.set_shader_for_color();
+                Simp.immediate_quad(x0, y0, x1, y1, rgba(1,1,1,1));
+                Simp.draw_text(font, text_x, text_y, text, rgba(0,0,0,1));
+            } else {
+                Simp.draw_text(font, text_x, text_y, text, rgba(1,1,1,1));
+            }
+            text_y -= line_height;
+        }
     }
 
     if inputting_search_query {
         // TODO: need to ensure the x/y here won't overlap with anything else
-        Simp.draw_text(fonts.regular, X_MARGIN_SIZE, Y_MARGIN_SIZE, tprint("Search: %", search_query.str), rgba(1,1,1,1));
+        Simp.draw_text(fonts.regular, boundary.left, boundary.bottom, tprint("Search: %", search_query.str), rgba(1,1,1,1));
     }
 }

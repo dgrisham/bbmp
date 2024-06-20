@@ -278,7 +278,8 @@ process_library_input :: (mpd_connection: *MPD.connection, albums: [] *Album, li
     return inputting_search_query;
 }
 
-draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, font: *Simp.Dynamic_Font, header_bottom: int, rows: int, columns: int, total_width: s32, total_height: int, thumbnail_slot_width: s32, thumbnail_slot_height: s32, horizontal_padding: s32, vertical_padding: s32, x_margin_offset: s32, y_margin_offset: s32, selected_cover_highlight_width: s32) {
+draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, boundary: View_Boundary, rows: int, columns: int, x_padding_between_album_covers: s32, y_padding_between_album_covers: s32, highlight_width: s32) {
+    font := fonts.regular;
 
     context.logger_data = *log_data;
 
@@ -336,87 +337,94 @@ draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, font: *S
         * draw the page *
         ****************/
 
-        x_left := X_MARGIN_SIZE + x_margin_offset;
-        y := header_bottom - y_margin_offset;
         {
-            x := x_left;
+            x := boundary.left + highlight_width;
+            y := boundary.top - highlight_width;
 
             row, column := 0;
             for entry: entries_to_draw {
+                using entry;
 
                 { // album name
-                    text_width := Simp.prepare_text(font, entry.album_name);
+                    text_width := Simp.prepare_text(font, album_name);
                     text_x := x + thumbnail_slot_width / 2 - text_width / 2;
-                    text_y := y - thumbnail_slot_height - selected_cover_highlight_width - (TEXT_PADDING_Y + font.character_height);
+                    text_y := y - thumbnail_slot_height - highlight_width - line_height;
 
-                    if entry.selected {
-                        rectangle_width := thumbnail_slot_width;
+                    if selected {
+                        x0 := cast(float)text_x - font.w_width;
+                        x1 := x0 + text_width + 2 * font.w_width;
+                        y0, y1 := get_highlight_y_range(font, text_y);
+
                         Simp.set_shader_for_color();
-                        Simp.immediate_quad(cast(float)text_x - 10, cast(float)text_y - 5, cast(float)text_x + text_width + 10, cast(float)text_y + font.character_height, rgba(1,1,1,1));
+                        Simp.immediate_quad(x0, y0, x1, y1, rgba(1,1,1,1));
                         Simp.draw_prepared_text(font, text_x, text_y, rgba(0,0,0,1));
                     } else {
                         Simp.draw_prepared_text(font, text_x, text_y, rgba(1,1,1,1));
                     }
                 }
                 { // artist name
-                    text_width := Simp.prepare_text(font, entry.artist_name);
+                    text_width := Simp.prepare_text(font, artist_name);
                     text_x := x + thumbnail_slot_width / 2 - text_width / 2;
-                    text_y := y - thumbnail_slot_height - selected_cover_highlight_width - 2 * (TEXT_PADDING_Y + font.character_height);
+                    text_y := y - thumbnail_slot_height - highlight_width - 2 * (line_height);
 
-                    if entry.selected {
-                        rectangle_width := thumbnail_slot_width;
+                    if selected {
+                        x0 := cast(float)text_x - font.w_width;
+                        x1 := x0 + text_width + 2 * font.w_width;
+                        y0, y1 := get_highlight_y_range(font, text_y);
+
                         Simp.set_shader_for_color();
-                        Simp.immediate_quad(cast(float)text_x - 10, cast(float)text_y - 5, cast(float)text_x + text_width + 10, cast(float)text_y + font.character_height, rgba(1,1,1,1));
+                        Simp.immediate_quad(x0, y0, x1, y1, rgba(1,1,1,1));
                         Simp.draw_prepared_text(font, text_x, text_y, rgba(0,0,0,1));
                     } else {
                         Simp.draw_prepared_text(font, text_x, text_y, rgba(1,1,1,1));
                     }
                 }
 
-                if entry.selected { // highlight album under cursor
-                    for i: 0..selected_cover_highlight_width {
-                        c := 1.0 - i / cast(float)selected_cover_highlight_width;
-                        highlight_width := selected_cover_highlight_width - i + 4;
+                if selected { // highlight album under cursor
+                    for i: 0..highlight_width {
+                        c := 1.0 - i / cast(float)highlight_width;
+                        line_width := highlight_width - i + 4;
                         Simp.set_shader_for_color();
                         Simp.immediate_quad(
-                            cast(float)x - highlight_width,
-                            cast(float)y + highlight_width,
-                            cast(float)x + thumbnail_slot_width  + highlight_width,
-                            cast(float)y - thumbnail_slot_height - highlight_width,
+                            cast(float)x - line_width,
+                            cast(float)y + line_width,
+                            cast(float)x + thumbnail_slot_width  + line_width,
+                            cast(float)y - thumbnail_slot_height - line_width,
                             rgba(c,c,c,1)
                         );
                     }
                     Simp.set_shader_for_color();
                 }
 
-                if entry.texture { // draw the album cover thumbnail if we were able to load it
-                    Simp.set_shader_for_images(entry.texture);
+                if texture { // draw the album cover thumbnail if we were able to load it
+                    Simp.set_shader_for_images(texture);
                     Simp.immediate_begin();
                     // scale the display height of the cover
-                    cover_display_height := min(cast(float)thumbnail_slot_height, cast(float)thumbnail_slot_width * cast(float)entry.texture.height/entry.texture.width);
+                    cover_display_height := min(cast(float)thumbnail_slot_height, cast(float)thumbnail_slot_width * cast(float)texture.height/texture.width);
                     height_difference := thumbnail_slot_height - cover_display_height;
                     Simp.immediate_quad(
-                        xy(cast(float)x, cast(float)y - thumbnail_slot_height + height_difference / 2),
-                        xy(cast(float)x + thumbnail_slot_width, cast(float)y - thumbnail_slot_height + height_difference / 2),
-                        xy(cast(float)x + thumbnail_slot_width, cast(float)y - height_difference / 2),
-                        xy(cast(float)x, cast(float)y - height_difference / 2)
+                        xx x,
+                        y - thumbnail_slot_height + height_difference / 2,
+                        cast(float)x + thumbnail_slot_width,
+                        y - height_difference / 2,
+                        rgba(1,1,1,1),
                     );
                     Simp.immediate_flush();
                 } else {
                     Simp.set_shader_for_color();
-                    Simp.immediate_quad(cast(float)x, cast(float)y, cast(float)x + thumbnail_slot_width, cast(float)y - thumbnail_slot_height, rgba(0,0,0,1));
+                    Simp.immediate_quad(xx x, xx y, cast(float)x + thumbnail_slot_width, cast(float)y - thumbnail_slot_height, rgba(0,0,0,1));
                 }
 
                 column += 1;
                 if column == columns {
                     row += 1;
                     column = 0;
-                    x = x_left;
-                    y -= thumbnail_slot_height + 2 * (font.character_height + TEXT_PADDING_Y + selected_cover_highlight_width);
-                    y -= vertical_padding;
+                    x = boundary.left + highlight_width;
+                    y -= thumbnail_slot_height + 2 * (line_height + highlight_width);
+                    y -= y_padding_between_album_covers;
                 } else {
                     x += thumbnail_slot_width;
-                    x += horizontal_padding;
+                    x += x_padding_between_album_covers;
                 }
             }
         }
@@ -424,7 +432,7 @@ draw_library_frame :: (albums: [] *Album, library_allocator: Allocator, font: *S
 
     if inputting_search_query {
         // TODO: need to ensure the x/y here won't overlap with anything else
-        Simp.draw_text(font, X_MARGIN_SIZE, Y_MARGIN_SIZE, tprint("Search: %", search_query.str), rgba(1,1,1,1));
+        Simp.draw_text(font, boundary.left, boundary.bottom, tprint("Search: %", search_query.str), rgba(1,1,1,1));
     }
 }
 

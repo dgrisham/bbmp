@@ -53,7 +53,8 @@ load :: () {
     table_set(*input_config, "mpd_library_directory", copy_string(config.mpd_library_directory));
 }
 
-event_loop :: (font: *Simp.Dynamic_Font, frame: u64, display_width: s32, header_bottom: int) -> bool {
+event_loop :: (frame: u64, display_width: s32, header_bottom: int) -> bool {
+    font := fonts.regular;
 
     context.logger_data = *log_data;
 
