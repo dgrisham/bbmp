@@ -478,17 +478,18 @@ draw_header :: (boundary: View_Boundary) -> int {
     }
 
     if show_view_titles {
+        x_padding_between_view_titles : s64 = fonts.regular.character_height;
         VIEW_TITLES :: string.["Now Playing", "Queue", "Library Album Art", "Library", "Playlists", "Config Viewer", "Debug Logs"];
-        x := X_MARGIN_SIZE;
-        y := header_bottom - Y_MARGIN_SIZE;
+        x := boundary.left;
+        y := header_bottom - line_height;
         for title: VIEW_TITLES {
             text_width := Simp.prepare_text(font, tprint("(%) %", it_index + 1, title));
 
             selected := cast(s64)current_view == it_index;
             if selected {
-                x0 := cast(float)x - X_PADDING_BETWEEN_VIEW_TITLES / 3;
-                y0 := cast(float)y - TEXT_PADDING_Y / 2;
-                highlight_width  := text_width + X_PADDING_BETWEEN_VIEW_TITLES;
+                x0 := cast(float)x - x_padding_between_view_titles / 3;
+                y0, y1 := get_highlight_y_range(font, y);
+                highlight_width  := text_width + x_padding_between_view_titles;
                 highlight_height := font.character_height + TEXT_PADDING_Y;
 
                 Simp.set_shader_for_color();
@@ -504,9 +505,9 @@ draw_header :: (boundary: View_Boundary) -> int {
             } else {
                 Simp.draw_prepared_text(fonts.regular, x, y, rgba(1,1,1,1));
             }
-            x += text_width + X_PADDING_BETWEEN_VIEW_TITLES;
+            x += text_width + x_padding_between_view_titles;
         }
-        header_bottom += Y_MARGIN_SIZE + font.character_height;
+        header_bottom -= line_height;
     }
 
     // some additional padding
