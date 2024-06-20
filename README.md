@@ -88,7 +88,7 @@ There are a few global keybindings, then each view has its own keybindings.
 -   `>`: Next song
 -   `=`: Volume up
 -   `-`: Volume down
--   `c`: Clear the queue
+-   `Ctrl-c`: Clear the queue
 -   `Q`: Quit the program
 -   `Ctrl-t`: Toggle showing the view titles in the header
 

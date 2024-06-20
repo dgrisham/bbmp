@@ -933,7 +933,7 @@ right_pad :: (t: $T, pad_char: u8, total_length: int, allocator := temp) -> stri
 * debug helpers *
 ****************/
 
-DEBUG_BUILD :: true;
+DEBUG_BUILD :: false;
 
 LINE_DIRECTION :: enum {
     HORIZONTAL;

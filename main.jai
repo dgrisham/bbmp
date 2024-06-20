@@ -231,6 +231,13 @@ main :: () {
                       case KEY_T; // CTRL_t
                         show_view_titles = !show_view_titles;;
 
+                      case KEY_C;
+                        MPD.run_clear(mpd_connection);
+                        handle_errors("Clearing queue");
+                        Queue.update(mpd_connection, library, queue);
+                        update_status(Queue.get_current_song(mpd_connection, queue));
+                        break it;
+
                     }
                 } else {
                     if it.key_code == {
@@ -266,8 +273,8 @@ main :: () {
                       case KEY_R;
                         if it.shift_pressed {
                             reload_everything();
+                            break it;
                         }
-                        break it;
 
                       case KEY_P;
                         MPD.run_toggle_pause(mpd_connection);
@@ -284,23 +291,23 @@ main :: () {
                             last_global_key_pressed = .F;
                             table_set(*global_key_pressed_on_frame, .F, frame);
                             seek_forward();
+                            break it;
                         }
-                        break it;
 
                       case .LEFT_ANGLE_BRACKET;
                         if it.shift_pressed {
                             last_global_key_pressed = .LEFT_ANGLE_BRACKET;
                             table_set(*global_key_pressed_on_frame, .LEFT_ANGLE_BRACKET, frame);
                             play_previous_song();
+                            break it;
                         }
-                        break it;
                       case .RIGHT_ANGLE_BRACKET;
                         if it.shift_pressed {
                             last_global_key_pressed = .RIGHT_ANGLE_BRACKET;
                             table_set(*global_key_pressed_on_frame, .RIGHT_ANGLE_BRACKET, frame);
                             play_next_song();
+                            break it;
                         }
-                        break it;
 
                       case .EQUALS_SIGN;
                         last_global_key_pressed = .EQUALS_SIGN;
@@ -311,13 +318,6 @@ main :: () {
                         last_global_key_pressed = .DASH;
                         table_set(*global_key_pressed_on_frame, .DASH, frame);
                         decrement_volume();
-                        break it;
-
-                      case KEY_C;
-                        MPD.run_clear(mpd_connection);
-                        handle_errors("Clearing queue");
-                        Queue.update(mpd_connection, library, queue);
-                        update_status(Queue.get_current_song(mpd_connection, queue));
                         break it;
 
                     }
